@@ -16,6 +16,10 @@ from .engine import (
     fit_cubic_from_records_weighted,
     plot_frontiers_implicit_interactive_v2,
 )
+from .frontier_planes_all_modes import (
+    compute_frontier_planes_all_modes,
+    plot_planes_with_point_lines,
+)
 
 __all__ = [
     "ChangePointConfig",
@@ -28,9 +32,11 @@ __all__ = [
     "ScoreAdaptor",
     "build_weighted_frontier",
     "compute_frontier_planes_weighted",
+    "compute_frontier_planes_all_modes",
     "fit_tls_plane_weighted",
     "fit_quadric_svd_weighted",
     "fit_quadrics_from_records_weighted",
     "fit_cubic_from_records_weighted",
     "plot_frontiers_implicit_interactive_v2",
+    "plot_planes_with_point_lines",
 ]

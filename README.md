@@ -15,8 +15,10 @@ from deldel import (
     DelDel,
     DelDelConfig,
     ChangePointConfig,
+    compute_frontier_planes_all_modes,
     compute_frontier_planes_weighted,
     plot_frontiers_implicit_interactive_v2,
+    plot_planes_with_point_lines,
 )
 ```
 
@@ -31,8 +33,10 @@ from deldel import (
     DelDel,
     DelDelConfig,
     ChangePointConfig,
+    compute_frontier_planes_all_modes,
     compute_frontier_planes_weighted,
     plot_frontiers_implicit_interactive_v2,
+    plot_planes_with_point_lines,
 )
 
 # ====== Datos de ejemplo ======
@@ -82,6 +86,57 @@ fig = plot_frontiers_implicit_interactive_v2(
     detail="high",              # preset más denso
     grid_res_3d=72,             # o 80–96 si ves “escalones”
     extend=1.3, clamp_extend_to_X=True
+)
+
+# ====== Planos modo C (perpendicularidad mejorada) ======
+pairs = sorted({tuple(sorted((r.y0, r.y1))) for r in records if r.y0 != r.y1})
+resC = compute_frontier_planes_all_modes(
+    records,
+    pairs=pairs,
+    mode="C",
+    min_cluster_size=10,
+    max_models_per_round=6,
+    seed=0,
+)
+
+# Visualización sugerida: segmentos hacia la frontera (sin superficies)
+plot_planes_with_point_lines(
+    resC,
+    records=records,
+    line_kind="segment",
+    show_planes=False,
+    plane_opacity=0.25,
+    line_opacity=0.75,
+    dims=(0, 1, 2),
+    title="Segmentos por punto",
+)
+
+# ====== Ejemplo extendido (configuración sugerida) ======
+cfg = DelDelConfig(
+    segments_target=750,
+    random_state=0,
+)
+
+cp_cfg = ChangePointConfig(
+    enabled=True,
+    mode="treefast",
+    per_record_max_points=4,
+    max_candidates=128,
+    max_bisect_iters=6,
+)
+
+d = DelDel(cfg, cp_cfg).fit(X, model)
+records = d.records_
+pairs = sorted({tuple(sorted((r.y0, r.y1))) for r in records if r.y0 != r.y1})
+resC = compute_frontier_planes_all_modes(records, pairs=pairs, mode="C", min_cluster_size=10, seed=0)
+plot_planes_with_point_lines(
+    resC,
+    records=records,
+    line_kind="segment",
+    show_planes=False,
+    plane_opacity=0.25,
+    line_opacity=0.75,
+    dims=(0, 1, 2),
 )
 
 # === Ejemplo 1: Resumen ejecutivo de llamadas (stage x fn) ===
