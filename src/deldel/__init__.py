@@ -1,0 +1,36 @@
+"""DelDel: herramientas para análisis de modelos de clasificación."""
+from .engine import (
+    ChangePointConfig,
+    DelDel,
+    DelDelConfig,
+    DeltaRecord,
+    DeltaRecordLite,
+    ModelCall,
+    PCA3D,
+    ScoreAdaptor,
+    build_weighted_frontier,
+    compute_frontier_planes_weighted,
+    fit_tls_plane_weighted,
+    fit_quadric_svd_weighted,
+    fit_quadrics_from_records_weighted,
+    fit_cubic_from_records_weighted,
+    plot_frontiers_implicit_interactive_v2,
+)
+
+__all__ = [
+    "ChangePointConfig",
+    "DelDel",
+    "DelDelConfig",
+    "DeltaRecord",
+    "DeltaRecordLite",
+    "ModelCall",
+    "PCA3D",
+    "ScoreAdaptor",
+    "build_weighted_frontier",
+    "compute_frontier_planes_weighted",
+    "fit_tls_plane_weighted",
+    "fit_quadric_svd_weighted",
+    "fit_quadrics_from_records_weighted",
+    "fit_cubic_from_records_weighted",
+    "plot_frontiers_implicit_interactive_v2",
+]
