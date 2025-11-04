@@ -23,6 +23,7 @@ from .frontier_planes_all_modes import (
     plot_planes_with_point_lines,
 )
 from .find_low_dim_spaces_fast import find_low_dim_spaces
+from .reporting_plotting import describe_regions_report, plot_selected_regions_interactive
 
 __all__ = [
     "ChangePointConfig",
@@ -46,4 +47,6 @@ __all__ = [
     "run_corner_pipeline_experiments",
     "run_low_dim_spaces_demo",
     "find_low_dim_spaces",
+    "describe_regions_report",
+    "plot_selected_regions_interactive",
 ]
