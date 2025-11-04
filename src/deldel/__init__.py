@@ -16,6 +16,8 @@ from .engine import (
     fit_cubic_from_records_weighted,
     plot_frontiers_implicit_interactive_v2,
 )
+from .datasets import make_corner_class_dataset
+from .experiments import run_corner_pipeline_experiments
 from .frontier_planes_all_modes import (
     compute_frontier_planes_all_modes,
     plot_planes_with_point_lines,
@@ -39,4 +41,6 @@ __all__ = [
     "fit_cubic_from_records_weighted",
     "plot_frontiers_implicit_interactive_v2",
     "plot_planes_with_point_lines",
+    "make_corner_class_dataset",
+    "run_corner_pipeline_experiments",
 ]
