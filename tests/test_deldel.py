@@ -21,6 +21,7 @@ from deldel import (
     build_weighted_frontier,
     compute_frontier_planes_all_modes,
     compute_frontier_planes_weighted,
+    find_low_dim_spaces,
     fit_cubic_from_records_weighted,
     fit_quadric_svd_weighted,
     fit_quadrics_from_records_weighted,
@@ -29,6 +30,7 @@ from deldel import (
     plot_frontiers_implicit_interactive_v2,
     make_corner_class_dataset,
     run_corner_pipeline_experiments,
+    run_low_dim_spaces_demo,
 )
 
 
@@ -377,3 +379,18 @@ def test_run_corner_pipeline_experiments(tmp_path):
         with path.open() as fh:
             lines = [line for line in fh.readlines() if line.strip()]
         assert lines, f"CSV {key} should contain at least a header"
+
+
+def test_run_low_dim_spaces_demo(tmp_path):
+    artefacts = run_low_dim_spaces_demo(csv_dir=tmp_path)
+    assert "valuable" in artefacts
+    valuable = artefacts["valuable"]
+    assert any(valuable.values()), "at least one rule should be discovered"
+
+    csv_path = artefacts["csv_path"]
+    assert csv_path is not None
+    csv_file = Path(csv_path)
+    assert csv_file.exists()
+    with csv_file.open() as fh:
+        rows = [line for line in fh.readlines() if line.strip()]
+    assert len(rows) > 1, "CSV should contain header and data rows"

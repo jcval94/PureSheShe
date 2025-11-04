@@ -16,6 +16,7 @@ from time import perf_counter
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 import csv
+import itertools
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -24,6 +25,7 @@ import numpy as np
 from .datasets import make_corner_class_dataset
 from .engine import DelDel, DelDelConfig, DeltaRecord
 from .frontier_planes_all_modes import compute_frontier_planes_all_modes
+from .find_low_dim_spaces_fast import find_low_dim_spaces
 
 
 @dataclass
@@ -401,3 +403,185 @@ def run_corner_pipeline_experiments(
         csv_outputs=csv_outputs,
     )
     return summary
+
+
+def _build_demo_selection(
+    X: np.ndarray, y: np.ndarray, feature_names: Sequence[str]
+) -> Dict[str, Any]:
+    X = np.asarray(X, float)
+    y = np.asarray(y, int).ravel()
+    classes = sorted(np.unique(y))
+    per_class_regions: Dict[int, List[str]] = {int(c): [] for c in classes}
+    per_plane: List[Dict[str, Any]] = []
+    by_pair: Dict[Tuple[int, int], Dict[str, Any]] = {}
+    winning_planes: List[Dict[str, Any]] = []
+
+    mu = {int(c): X[y == int(c)].mean(axis=0) for c in classes}
+    pid_counter = 0
+    for a, b in itertools.combinations(classes, 2):
+        diff = mu[int(b)] - mu[int(a)]
+        if not np.any(np.isfinite(diff)):
+            continue
+        dim = int(np.argmax(np.abs(diff)))
+        thr = float(0.5 * (mu[int(a)][dim] + mu[int(b)][dim]))
+        n = np.zeros(X.shape[1], dtype=float)
+        n[dim] = 1.0
+        b0 = -thr
+        if mu[int(a)][dim] <= mu[int(b)][dim]:
+            side_ab = +1
+        else:
+            side_ab = -1
+
+        plane_id = f"demo_pl{pid_counter:04d}"
+        pid_counter += 1
+        oriented_id = f"{plane_id}:{'≤' if side_ab >= 0 else '≥'}"
+        region_low_id = f"demo_rg_{plane_id}_c{int(a)}"
+        region_high_id = f"demo_rg_{plane_id}_c{int(b)}"
+
+        winning = dict(
+            plane_id=plane_id,
+            origin_pair=(int(a), int(b)),
+            n=n.tolist(),
+            b=b0,
+            side=side_ab,
+            _pid=pid_counter,
+            global_for=int(a),
+            regions_global=[region_low_id, region_high_id],
+        )
+        winning_planes.append(winning)
+
+        region_low = dict(
+            region_id=region_low_id,
+            plane_id=plane_id,
+            oriented_plane_id=oriented_id,
+            class_id=int(a),
+            side=side_ab,
+            geometry=dict(n=n.tolist(), b=b0, side=side_ab),
+            origin_pair=(int(a), int(b)),
+        )
+        per_plane.append(region_low)
+        per_class_regions[int(a)].append(region_low_id)
+
+        region_high = dict(
+            region_id=region_high_id,
+            plane_id=plane_id,
+            oriented_plane_id=oriented_id,
+            class_id=int(b),
+            side=-side_ab,
+            geometry=dict(n=n.tolist(), b=b0, side=-side_ab),
+            origin_pair=(int(a), int(b)),
+        )
+        per_plane.append(region_high)
+        per_class_regions[int(b)].append(region_high_id)
+
+        by_pair[(int(a), int(b))] = dict(
+            winning_planes=[winning],
+            other_planes=[],
+            region_rule=dict(
+                logic="AND",
+                dims=(dim,),
+                inequalities=[
+                    dict(pid=pid_counter, n=n.tolist(), b=b0, side="≤" if side_ab >= 0 else "≥")
+                ],
+            ),
+            metrics_overall={},
+            meta=dict(num_candidates=1),
+        )
+
+    return dict(
+        by_pair_augmented=by_pair,
+        winning_planes=winning_planes,
+        regions_global=dict(per_plane=per_plane, per_class=per_class_regions),
+        meta=dict(feature_names=list(feature_names)),
+    )
+
+
+def run_low_dim_spaces_demo(
+    *,
+    dataset_kwargs: Optional[Mapping[str, Any]] = None,
+    finder_kwargs: Optional[Mapping[str, Any]] = None,
+    csv_dir: Optional[Union[str, Path]] = None,
+) -> Dict[str, Any]:
+    """Execute :func:`find_low_dim_spaces` on a synthetic dataset.
+
+    This example mirrors the interactive snippet distributed in the project
+    documentation.  The helper builds a manageable dataset, synthesises a
+    selection payload, discovers valuable low-dimensional regions, and writes a
+    CSV file when ``csv_dir`` is provided.
+    """
+
+    dataset_kwargs = dict(dataset_kwargs or {})
+    dataset_kwargs.setdefault("n_per_cluster", 120)
+    dataset_kwargs.setdefault("std_class1", 0.45)
+    dataset_kwargs.setdefault("std_other", 0.75)
+    dataset_kwargs.setdefault("random_state", 0)
+
+    X, y, feature_names = make_corner_class_dataset(**dataset_kwargs)
+    sel = _build_demo_selection(X, y, feature_names)
+
+    finder_defaults = dict(
+        max_planes_in_rule=2,
+        max_planes_per_pair=1,
+        min_support=20,
+        min_rel_gain_f1=0.05,
+        min_abs_gain_f1=0.02,
+        min_lift_prec=1.05,
+        min_abs_gain_prec=0.02,
+        consider_dims_up_to=2,
+        rng_seed=0,
+    )
+    if finder_kwargs:
+        finder_defaults.update(finder_kwargs)
+
+    valuable = find_low_dim_spaces(
+        X,
+        y,
+        sel,
+        feature_names=list(feature_names),
+        **finder_defaults,
+    )
+
+    csv_path: Optional[Path] = None
+    if csv_dir is not None:
+        out_dir = Path(csv_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = out_dir / "low_dim_spaces.csv"
+        with csv_path.open("w", newline="") as fh:
+            fieldnames = [
+                "dimensionality",
+                "target_class",
+                "region_id",
+                "rule_text",
+                "precision",
+                "recall",
+                "f1",
+                "size",
+                "lift_precision",
+            ]
+            writer = csv.DictWriter(fh, fieldnames=fieldnames)
+            writer.writeheader()
+            for dim in sorted(valuable.keys()):
+                for rec in valuable[dim]:
+                    metrics = rec["metrics"]
+                    writer.writerow(
+                        dict(
+                            dimensionality=dim,
+                            target_class=rec["target_class"],
+                            region_id=rec["region_id"],
+                            rule_text=rec.get("rule_text", ""),
+                            precision=f"{metrics['precision']:.6f}",
+                            recall=f"{metrics['recall']:.6f}",
+                            f1=f"{metrics['f1']:.6f}",
+                            size=int(metrics["size"]),
+                            lift_precision=f"{metrics['lift_precision']:.6f}",
+                        )
+                    )
+
+    return dict(
+        X=X,
+        y=y,
+        feature_names=list(feature_names),
+        selection=sel,
+        valuable=valuable,
+        csv_path=str(csv_path) if csv_path is not None else None,
+    )
