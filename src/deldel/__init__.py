@@ -17,11 +17,12 @@ from .engine import (
     plot_frontiers_implicit_interactive_v2,
 )
 from .datasets import make_corner_class_dataset
-from .experiments import run_corner_pipeline_experiments
+from .experiments import run_corner_pipeline_experiments, run_low_dim_spaces_demo
 from .frontier_planes_all_modes import (
     compute_frontier_planes_all_modes,
     plot_planes_with_point_lines,
 )
+from .find_low_dim_spaces_fast import find_low_dim_spaces
 
 __all__ = [
     "ChangePointConfig",
@@ -43,4 +44,6 @@ __all__ = [
     "plot_planes_with_point_lines",
     "make_corner_class_dataset",
     "run_corner_pipeline_experiments",
+    "run_low_dim_spaces_demo",
+    "find_low_dim_spaces",
 ]
