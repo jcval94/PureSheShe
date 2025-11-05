@@ -1,0 +1,6 @@
+stage,callable,duration_s,selection_source
+dataset_generation,deldel.datasets.make_corner_class_dataset,0.001768,
+model_fit,sklearn.linear_model.LogisticRegression.fit,0.012871,
+deldel_fit,deldel.engine.DelDel.fit,0.068732,
+frontier_computation,deldel.frontier_planes_all_modes.compute_frontier_planes_all_modes,0.177817,
+selection_build,deldel.experiments._build_selection_from_frontier,0.000464,frontier
