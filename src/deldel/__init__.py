@@ -17,7 +17,13 @@ from .engine import (
     plot_frontiers_implicit_interactive_v2,
 )
 from .datasets import make_corner_class_dataset
-from .experiments import run_corner_pipeline_experiments, run_low_dim_spaces_demo
+from .experiments import (
+    prune_and_orient_planes_unified_globalmaj,
+    run_corner_pipeline_experiments,
+    run_corner_pipeline_with_low_dim,
+    run_iris_random_forest_pipeline,
+    run_low_dim_spaces_demo,
+)
 from .frontier_planes_all_modes import (
     compute_frontier_planes_all_modes,
     plot_planes_with_point_lines,
@@ -44,7 +50,10 @@ __all__ = [
     "plot_frontiers_implicit_interactive_v2",
     "plot_planes_with_point_lines",
     "make_corner_class_dataset",
+    "prune_and_orient_planes_unified_globalmaj",
     "run_corner_pipeline_experiments",
+    "run_corner_pipeline_with_low_dim",
+    "run_iris_random_forest_pipeline",
     "run_low_dim_spaces_demo",
     "find_low_dim_spaces",
     "describe_regions_report",
