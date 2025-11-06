@@ -114,6 +114,28 @@ class _PlaneRecord:
     source: str
 
 
+@dataclass
+class _PlaneCandidate:
+    mask: np.ndarray
+    geometry: Tuple[np.ndarray, float, int]
+    record: _PlaneRecord
+    mask_size: int
+    norm_in_dims: float
+
+
+@dataclass(frozen=True)
+class _SearchStrategy:
+    name: str
+    plane_order: str = "shuffle"
+    combination_mode: str = "full"
+    max_candidates: Optional[int] = None
+    max_combos_per_dim: Optional[int] = None
+    f1_relaxation: float = 0.0
+    precision_relaxation: float = 0.0
+    unique_mask_per_class: bool = False
+    min_precision_delta: float = 0.0
+
+
 def _gather_planes(sel: Mapping[str, Any], cls: int) -> List[_PlaneRecord]:
     gathered: List[_PlaneRecord] = []
     by_pair = sel.get("by_pair_augmented", {}) or {}
@@ -158,6 +180,57 @@ def _gather_planes(sel: Mapping[str, Any], cls: int) -> List[_PlaneRecord]:
             )
         )
     return gathered
+
+
+def _order_candidate_indices(
+    candidates: Sequence[_PlaneCandidate],
+    strategy: _SearchStrategy,
+    rng: np.random.Generator,
+) -> List[int]:
+    indices = list(range(len(candidates)))
+    if strategy.plane_order == "shuffle":
+        rng.shuffle(indices)
+        return indices
+    if strategy.plane_order == "deterministic":
+        indices.sort(
+            key=lambda i: (
+                str(candidates[i].record.plane_id),
+                candidates[i].mask_size,
+                candidates[i].norm_in_dims,
+            )
+        )
+        return indices
+    if strategy.plane_order == "support_desc":
+        indices.sort(
+            key=lambda i: (
+                candidates[i].mask_size,
+                candidates[i].norm_in_dims,
+                str(candidates[i].record.plane_id),
+            ),
+            reverse=True,
+        )
+        return indices
+    if strategy.plane_order == "norm_desc":
+        indices.sort(
+            key=lambda i: (
+                candidates[i].norm_in_dims,
+                candidates[i].mask_size,
+                str(candidates[i].record.plane_id),
+            ),
+            reverse=True,
+        )
+        return indices
+    return indices
+
+
+def _iter_combinations(
+    indices: Sequence[int], r: int, strategy: _SearchStrategy
+) -> Iterable[Tuple[int, ...]]:
+    if len(indices) < r:
+        return []
+    if strategy.combination_mode == "progressive":
+        return (tuple(indices[i : i + r]) for i in range(0, len(indices) - r + 1))
+    return itertools.combinations(indices, r)
 
 
 def _per_class_metrics(mask: np.ndarray, y: np.ndarray, labels: Sequence[int], baseline: Dict[int, float]):
@@ -210,7 +283,7 @@ def _should_accept(
     return metrics["f1"] >= f1_req or metrics["precision"] >= prec_req
 
 
-def find_low_dim_spaces(
+def _find_low_dim_spaces_core(
     X: np.ndarray,
     y: np.ndarray,
     sel: Mapping[str, Any],
@@ -247,6 +320,7 @@ def find_low_dim_spaces(
     max_heuristic_trials_per_region: int = 0,
     max_heuristic_accepts_per_bucket: int = 0,
     min_pos_in_region: int = 0,
+    strategy: _SearchStrategy = _SearchStrategy(name="baseline"),
 ) -> Union[Dict[int, List[Dict[str, Any]]], Tuple[Dict[int, List[Dict[str, Any]]], List[Dict[str, Any]]]]:
     X = np.asarray(X, float)
     y = np.asarray(y, int).ravel()
@@ -274,7 +348,10 @@ def find_low_dim_spaces(
 
     valuable: Dict[int, List[Dict[str, Any]]] = {k: [] for k in range(1, consider_dims + 1)}
 
+    seen_masks: Dict[Tuple[int, Tuple[int, ...]], set[str]] = {}
+
     for cls in labels:
+        rng = np.random.default_rng(int(rng_seed))
         planes_all = _gather_planes(sel, int(cls))
         by_pair: Dict[Tuple[int, int], List[_PlaneRecord]] = {}
         for p in planes_all:
@@ -286,12 +363,12 @@ def find_low_dim_spaces(
         if not planes:
             continue
 
-        plane_masks_by_dims: Dict[Tuple[int, ...], List[Tuple[np.ndarray, Tuple[np.ndarray, float, int], _PlaneRecord]]] = {}
+        plane_masks_by_dims: Dict[Tuple[int, ...], List[_PlaneCandidate]] = {}
         mu_cls = _mu_for(int(cls))
         for dim_count in range(1, consider_dims + 1):
             for dims in itertools.combinations(range(n_dims), dim_count):
                 dims = tuple(int(d) for d in dims)
-                plane_data: List[Tuple[np.ndarray, Tuple[np.ndarray, float, int], _PlaneRecord]] = []
+                candidates: List[_PlaneCandidate] = []
                 for plane in planes:
                     n_eff, b_eff, side_eff = _project_plane(plane.n, plane.b, plane.side_for_cls, dims, mu_cls)
                     if np.linalg.norm(n_eff[list(dims)]) < float(min_norm_in_dims):
@@ -299,21 +376,50 @@ def find_low_dim_spaces(
                     mask = (X @ n_eff + b_eff) <= 0.0 if side_eff >= 0 else (X @ n_eff + b_eff) >= 0.0
                     if drop_vacuous_in_legend and mask.all():
                         continue
-                    plane_data.append((mask, (n_eff, b_eff, side_eff), plane))
-                if plane_data:
-                    plane_masks_by_dims[dims] = plane_data
+                    mask_bool = np.asarray(mask, bool)
+                    candidates.append(
+                        _PlaneCandidate(
+                            mask=mask_bool,
+                            geometry=(n_eff, b_eff, side_eff),
+                            record=plane,
+                            mask_size=int(mask_bool.sum()),
+                            norm_in_dims=float(np.linalg.norm(n_eff[list(dims)])),
+                        )
+                    )
+                if candidates:
+                    plane_masks_by_dims[dims] = candidates
 
-        rng = np.random.default_rng(int(rng_seed))
-        for dims, plane_data in plane_masks_by_dims.items():
-            indices = list(range(len(plane_data)))
-            rng.shuffle(indices)
+        for dims, candidates in plane_masks_by_dims.items():
+            indices = _order_candidate_indices(candidates, strategy, rng)
+            if strategy.max_candidates is not None:
+                indices = indices[: int(strategy.max_candidates)]
+
+            combos_limit = int(strategy.max_combos_per_dim) if strategy.max_combos_per_dim else None
+            combos_generated = 0
+            stop_for_dim = False
+
             for r in range(1, int(max_planes_in_rule) + 1):
-                for combo in itertools.combinations(indices, r):
+                for combo in _iter_combinations(indices, r, strategy):
+                    if combos_limit is not None and combos_generated >= combos_limit:
+                        stop_for_dim = True
+                        break
+                    combos_generated += 1
                     mask = np.ones(n_samples, dtype=bool)
-                    planes_used = []
+                    planes_used_geom: List[Tuple[np.ndarray, float, int]] = []
+                    plane_ids: List[Any] = []
+                    sources_payload: List[Dict[str, Any]] = []
                     for idx in combo:
-                        mask &= plane_data[idx][0]
-                        planes_used.append(plane_data[idx][1])
+                        candidate = candidates[idx]
+                        mask &= candidate.mask
+                        planes_used_geom.append(candidate.geometry)
+                        plane_ids.append(candidate.record.plane_id)
+                        sources_payload.append(
+                            dict(
+                                plane_id=candidate.record.plane_id,
+                                origin_pair=candidate.record.origin_pair,
+                                source=candidate.record.source,
+                            )
+                        )
                         if not mask.any():
                             break
                     if not mask.any():
@@ -321,7 +427,8 @@ def find_low_dim_spaces(
 
                     per_class, summary = _per_class_metrics(mask, y, labels, baseline)
                     metrics = per_class[int(cls)]
-                    if not _should_accept(
+
+                    accepted = _should_accept(
                         metrics,
                         baseline[int(cls)],
                         size=summary["size"],
@@ -332,24 +439,46 @@ def find_low_dim_spaces(
                         min_abs_gain_prec=min_abs_gain_prec,
                         min_pos_in_region=min_pos_in_region,
                         pos_count=int(per_class[int(cls)]["pos"]),
-                    ):
+                    )
+
+                    if not accepted and (strategy.f1_relaxation > 0.0 or strategy.precision_relaxation > 0.0):
+                        accepted = _should_accept(
+                            metrics,
+                            baseline[int(cls)],
+                            size=summary["size"],
+                            min_support=min_support,
+                            min_rel_gain_f1=max(0.0, float(min_rel_gain_f1) - float(strategy.f1_relaxation)),
+                            min_abs_gain_f1=max(0.0, float(min_abs_gain_f1) - float(strategy.f1_relaxation)),
+                            min_lift_prec=max(1.0, float(min_lift_prec) - float(strategy.precision_relaxation)),
+                            min_abs_gain_prec=max(0.0, float(min_abs_gain_prec) - float(strategy.precision_relaxation)),
+                            min_pos_in_region=min_pos_in_region,
+                            pos_count=int(per_class[int(cls)]["pos"]),
+                        )
+
+                    if not accepted:
                         continue
 
-                    text, pieces = _format_interval_text(planes_used, dims, feature_names)
-                    plane_ids = tuple(plane_data[idx][2].plane_id for idx in combo)
+                    if strategy.min_precision_delta > 0.0:
+                        base_prec = float(baseline.get(int(cls), 0.0))
+                        if float(metrics["precision"]) < base_prec + float(strategy.min_precision_delta):
+                            continue
+
+                    text, pieces = _format_interval_text(planes_used_geom, dims, feature_names)
+
+                    signature = _mask_signature(mask)
+                    if strategy.unique_mask_per_class:
+                        key = (int(cls), dims)
+                        seen = seen_masks.setdefault(key, set())
+                        if signature in seen:
+                            continue
+                        seen.add(signature)
+
                     rec = dict(
-                        region_id=f"rg_{len(dims)}d_c{int(cls)}_{_rule_id(int(cls), dims, plane_ids, text)}",
+                        region_id=f"rg_{len(dims)}d_c{int(cls)}_{_rule_id(int(cls), dims, tuple(plane_ids), text)}",
                         target_class=int(cls),
                         dims=dims,
-                        plane_ids=plane_ids,
-                        sources=tuple(
-                            dict(
-                                plane_id=plane_data[idx][2].plane_id,
-                                origin_pair=plane_data[idx][2].origin_pair,
-                                source=plane_data[idx][2].source,
-                            )
-                            for idx in combo
-                        ),
+                        plane_ids=tuple(plane_ids),
+                        sources=tuple(sources_payload),
                         rule_text=text,
                         rule_pieces=pieces,
                         metrics=dict(
@@ -372,14 +501,23 @@ def find_low_dim_spaces(
                         parent_id=None,
                         deltas_to_parent=None,
                         planes_used=[
-                            dict(n=plane_data[idx][1][0].tolist(), b=float(plane_data[idx][1][1]), side=int(plane_data[idx][1][2]))
-                            for idx in combo
+                            dict(
+                                n=geom[0].tolist(),
+                                b=float(geom[1]),
+                                side=int(geom[2]),
+                            )
+                            for geom in planes_used_geom
                         ],
                     )
-                    rec["mask_signature"] = _mask_signature(mask)
+                    rec["mask_signature"] = signature
                     if include_masks:
                         rec["_mask"] = mask.astype(bool)
                     valuable[len(dims)].append(rec)
+
+                if stop_for_dim:
+                    break
+            if stop_for_dim:
+                continue
 
     for dim, rules in valuable.items():
         rules.sort(
@@ -398,4 +536,65 @@ def find_low_dim_spaces(
     return valuable
 
 
-__all__ = ["find_low_dim_spaces"]
+def find_low_dim_spaces(
+    X: np.ndarray,
+    y: np.ndarray,
+    sel: Mapping[str, Any],
+    **kwargs: Any,
+) -> Union[Dict[int, List[Dict[str, Any]]], Tuple[Dict[int, List[Dict[str, Any]]], List[Dict[str, Any]]]]:
+    return _find_low_dim_spaces_core(X, y, sel, strategy=_SearchStrategy(name="baseline"), **kwargs)
+
+
+def find_low_dim_spaces_deterministic(
+    X: np.ndarray,
+    y: np.ndarray,
+    sel: Mapping[str, Any],
+    **kwargs: Any,
+) -> Union[Dict[int, List[Dict[str, Any]]], Tuple[Dict[int, List[Dict[str, Any]]], List[Dict[str, Any]]]]:
+    strategy = _SearchStrategy(
+        name="deterministic",
+        plane_order="deterministic",
+        unique_mask_per_class=True,
+    )
+    return _find_low_dim_spaces_core(X, y, sel, strategy=strategy, **kwargs)
+
+
+def find_low_dim_spaces_support_first(
+    X: np.ndarray,
+    y: np.ndarray,
+    sel: Mapping[str, Any],
+    **kwargs: Any,
+) -> Union[Dict[int, List[Dict[str, Any]]], Tuple[Dict[int, List[Dict[str, Any]]], List[Dict[str, Any]]]]:
+    strategy = _SearchStrategy(
+        name="support_first",
+        plane_order="support_desc",
+        combination_mode="progressive",
+        max_candidates=8,
+        max_combos_per_dim=64,
+        f1_relaxation=0.05,
+    )
+    return _find_low_dim_spaces_core(X, y, sel, strategy=strategy, **kwargs)
+
+
+def find_low_dim_spaces_precision_boost(
+    X: np.ndarray,
+    y: np.ndarray,
+    sel: Mapping[str, Any],
+    **kwargs: Any,
+) -> Union[Dict[int, List[Dict[str, Any]]], Tuple[Dict[int, List[Dict[str, Any]]], List[Dict[str, Any]]]]:
+    strategy = _SearchStrategy(
+        name="precision_boost",
+        plane_order="norm_desc",
+        min_precision_delta=0.05,
+        precision_relaxation=0.05,
+        unique_mask_per_class=True,
+    )
+    return _find_low_dim_spaces_core(X, y, sel, strategy=strategy, **kwargs)
+
+
+__all__ = [
+    "find_low_dim_spaces",
+    "find_low_dim_spaces_deterministic",
+    "find_low_dim_spaces_support_first",
+    "find_low_dim_spaces_precision_boost",
+]

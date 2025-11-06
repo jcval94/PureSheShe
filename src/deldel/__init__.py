@@ -28,7 +28,12 @@ from .frontier_planes_all_modes import (
     compute_frontier_planes_all_modes,
     plot_planes_with_point_lines,
 )
-from .find_low_dim_spaces_fast import find_low_dim_spaces
+from .find_low_dim_spaces_fast import (
+    find_low_dim_spaces,
+    find_low_dim_spaces_deterministic,
+    find_low_dim_spaces_precision_boost,
+    find_low_dim_spaces_support_first,
+)
 from .reporting_plotting import describe_regions_report, plot_selected_regions_interactive
 
 __all__ = [
@@ -56,6 +61,9 @@ __all__ = [
     "run_iris_random_forest_pipeline",
     "run_low_dim_spaces_demo",
     "find_low_dim_spaces",
+    "find_low_dim_spaces_deterministic",
+    "find_low_dim_spaces_precision_boost",
+    "find_low_dim_spaces_support_first",
     "describe_regions_report",
     "plot_selected_regions_interactive",
 ]
