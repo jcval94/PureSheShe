@@ -20,6 +20,7 @@ import json
 import itertools
 from collections import Counter, defaultdict
 from pathlib import Path
+import warnings
 
 import numpy as np
 
@@ -615,40 +616,46 @@ def _build_demo_selection(
     )
 
 
-def run_iris_random_forest_pipeline(
+def run_corner_random_forest_pipeline(
     *,
     random_state: int = 0,
+    dataset_kwargs: Optional[Mapping[str, Any]] = None,
     deldel_config: Optional[DelDelConfig] = None,
     cp_config: Optional[ChangePointConfig] = None,
     frontier_kwargs: Optional[Mapping[str, Any]] = None,
     finder_param_grid: Optional[Sequence[Mapping[str, Any]]] = None,
     csv_dir: Optional[Union[str, Path]] = None,
 ) -> Dict[str, Any]:
-    """Execute the primary DelDel pipeline on the Iris dataset.
+    """Execute the primary DelDel pipeline on the corner dataset.
 
     The routine mirrors the reference pipeline shared by the maintainers: it
-    loads the Iris dataset, fits a compact RandomForestClassifier, extracts
-    DelDel flip records with an aggressive change-point configuration, and
-    evaluates a grid of :func:`find_low_dim_spaces` parameters.  Stage
-    runtimes and finder outcomes can be persisted as CSV files for offline
-    inspection.
+    generates the canonical synthetic dataset via
+    :func:`make_corner_class_dataset`, fits a compact
+    :class:`~sklearn.ensemble.RandomForestClassifier`, extracts DelDel flip
+    records with an aggressive change-point configuration, and evaluates a grid
+    of :func:`find_low_dim_spaces` parameters.  Stage runtimes and finder
+    outcomes can be persisted as CSV files for offline inspection.
     """
 
-    from sklearn.datasets import load_iris
     from sklearn.ensemble import RandomForestClassifier
 
     stage_timings: List[Dict[str, Any]] = []
 
+    dataset_kwargs = dict(dataset_kwargs or {})
+    dataset_kwargs.setdefault("n_per_cluster", 180)
+    dataset_kwargs.setdefault("std_class1", 0.5)
+    dataset_kwargs.setdefault("std_other", 0.85)
+    dataset_kwargs.setdefault("a", 2.8)
+    dataset_kwargs.setdefault("random_state", random_state)
+
     t0 = perf_counter()
-    data = load_iris()
-    X = np.asarray(data["data"], float)
-    y = np.asarray(data["target"], int).ravel()
-    feature_names = list(data.get("feature_names", [f"x{i}" for i in range(X.shape[1])]))
+    X, y, feature_names = make_corner_class_dataset(**dataset_kwargs)
     stage_timings.append(
         dict(
-            stage="dataset_load",
-            callable="sklearn.datasets.load_iris",
+            stage="dataset_generation",
+            callable="deldel.datasets.make_corner_class_dataset",
             duration_s=perf_counter() - t0,
+            params=json.dumps(dataset_kwargs, sort_keys=True),
         )
     )
 
@@ -861,11 +868,12 @@ def run_iris_random_forest_pipeline(
 
     summary = dict(
         dataset=dict(
-            name="iris",
+            name="corner",
             n_samples=int(X.shape[0]),
             n_dims=int(X.shape[1]),
             feature_names=feature_names,
             class_counts={int(cls): int((y == int(cls)).sum()) for cls in np.unique(y)},
+            params=dataset_kwargs,
         ),
         model=dict(
             estimator="RandomForestClassifier",
@@ -881,6 +889,25 @@ def run_iris_random_forest_pipeline(
         valuable_outputs=valuable_outputs,
     )
     return summary
+
+
+def run_iris_random_forest_pipeline(**kwargs: Any) -> Dict[str, Any]:
+    """Backward compatible alias relying on the corner dataset.
+
+    The Iris-based pipeline has been retired to align tests, experiments and
+    documentation around :func:`make_corner_class_dataset`.  The alias forwards
+    arguments to :func:`run_corner_random_forest_pipeline` and emits a
+    ``DeprecationWarning``.
+    """
+
+    warnings.warn(
+        "run_iris_random_forest_pipeline has been replaced by "
+        "run_corner_random_forest_pipeline and now uses "
+        "make_corner_class_dataset.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return run_corner_random_forest_pipeline(**kwargs)
 
 
 def run_corner_pipeline_with_low_dim(

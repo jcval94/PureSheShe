@@ -16,35 +16,36 @@ def make_corner_class_dataset(
     a: float = 3.0,
     random_state: int | None = 42,
 ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
-    """Generate a 4D dataset with class 1 occupying hypercube corners.
+    """Generate the canonical 4D DelDel dataset with three labelled regions.
 
-    The dataset features three classes:
+    The layout matches the reference implementation used across tests,
+    experiments and documentation examples:
 
-    * Class ``1`` is formed by several Gaussian blobs centred on corners of a
-      4D hypercube with edge length ``2a``.
-    * Classes ``0`` and ``2`` are compact clusters located away from the
-      hypercube corners to provide contrasting decision boundaries.
+    * Class ``1`` consists of several Gaussian blobs located at selected
+      corners of a 4D hypercube of edge length ``2a``.
+    * Classes ``0`` and ``2`` form compact clusters positioned away from the
+      corners to provide contrasting regions.
 
     Parameters
     ----------
     n_per_cluster:
-        Number of samples to draw for each Gaussian blob.
+        Number of samples per Gaussian blob.
     std_class1:
-        Standard deviation for the class ``1`` blobs.
+        Dispersion for the class ``1`` corner blobs.
     std_other:
-        Standard deviation for the class ``0`` and ``2`` blobs.
+        Dispersion for the compact class ``0`` and ``2`` clusters.
     a:
-        Controls the distance of the hypercube corners from the origin.
+        Hypercube scale parameter controlling the corner distance to the
+        origin.
     random_state:
-        Seed for the underlying random number generator.
+        Seed propagated to :func:`sklearn.datasets.make_blobs` for
+        reproducibility.
 
     Returns
     -------
-    X, y, feature_names
-        ``X`` is the feature matrix with shape ``(n_clusters * n_per_cluster,
-        4)``.  ``y`` stores the remapped class labels as integers ``{0, 1, 2}``.
-        ``feature_names`` provides canonical feature names used across the
-        DelDel codebase.
+    Tuple[np.ndarray, np.ndarray, List[str]]
+        Feature matrix ``X`` with shape ``(n_clusters * n_per_cluster, 4)``,
+        remapped labels ``y`` in ``{0, 1, 2}``, and the canonical feature names.
     """
 
     corners = np.array(
@@ -59,17 +60,11 @@ def make_corner_class_dataset(
         dtype=float,
     )
 
-    centres_class0 = np.array([[0.0, 2.5, 0.5, 0.0]])
-    centres_class2 = np.array([[-2.5, -1.5, -0.5, 1.0]])
+    centres_class0 = np.array([[0.0, 2.5, 0.5, 0.0]], dtype=float)
+    centres_class2 = np.array([[-2.5, -1.5, -0.5, 1.0]], dtype=float)
 
     centres = np.vstack([centres_class0, corners, centres_class2])
-    stds = np.concatenate(
-        (
-            np.full(len(centres_class0), std_other, dtype=float),
-            np.full(len(corners), std_class1, dtype=float),
-            np.full(len(centres_class2), std_other, dtype=float),
-        )
-    )
+    stds = [std_other] + [std_class1] * len(corners) + [std_other]
 
     X, y_raw = make_blobs(
         n_samples=[n_per_cluster] * len(centres),
@@ -82,7 +77,7 @@ def make_corner_class_dataset(
 
     y = np.zeros_like(y_raw)
     y[y_raw == 0] = 0
-    y[np.isin(y_raw, np.arange(1, 1 + len(corners)))] = 1
+    y[np.isin(y_raw, range(1, len(corners) + 1))] = 1
     y[y_raw == len(centres) - 1] = 2
 
     feature_names = ["x1", "x2", "x3", "x4"]

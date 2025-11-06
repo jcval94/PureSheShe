@@ -20,6 +20,7 @@ from .datasets import make_corner_class_dataset
 from .experiments import (
     run_corner_pipeline_experiments,
     run_corner_pipeline_with_low_dim,
+    run_corner_random_forest_pipeline,
     run_iris_random_forest_pipeline,
     run_low_dim_spaces_demo,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "prune_and_orient_planes_unified_globalmaj",
     "run_corner_pipeline_experiments",
     "run_corner_pipeline_with_low_dim",
+    "run_corner_random_forest_pipeline",
     "run_iris_random_forest_pipeline",
     "run_low_dim_spaces_demo",
     "find_low_dim_spaces",
