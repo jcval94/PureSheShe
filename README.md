@@ -46,7 +46,6 @@ Entrena un modelo, calcula planos de frontera y genera una visualización intera
 
 ```python
 import numpy as np
-from sklearn.datasets import load_iris
 from sklearn.ensemble import RandomForestClassifier
 
 from deldel import (
@@ -55,13 +54,20 @@ from deldel import (
     ChangePointConfig,
     compute_frontier_planes_all_modes,
     compute_frontier_planes_weighted,
+    make_corner_class_dataset,
     plot_frontiers_implicit_interactive_v2,
     plot_planes_with_point_lines,
 )
 
 # ====== Datos de ejemplo ======
-X, y = load_iris(return_X_y=True)
-model = RandomForestClassifier(n_estimators=30, random_state=0).fit(X, y)
+X, y, feature_names = make_corner_class_dataset(
+    n_per_cluster=220,
+    std_class1=0.45,
+    std_other=0.8,
+    a=3.0,
+    random_state=0,
+)
+model = RandomForestClassifier(n_estimators=40, random_state=0).fit(X, y)
 
 # ====== Configuración ======
 cfg = DelDelConfig(
@@ -69,13 +75,7 @@ cfg = DelDelConfig(
     random_state=0,
 )
 
-cp_cfg = ChangePointConfig(
-    enabled=False,
-    mode="treefast",
-    per_record_max_points=8,
-    max_candidates=128,
-    max_bisect_iters=8,
-)
+cp_cfg = ChangePointConfig(enabled=False)
 
 # ====== Ejecución ======
 d = DelDel(cfg, cp_cfg).fit(X, model)
@@ -93,9 +93,10 @@ fig = plot_frontiers_implicit_interactive_v2(
     planes=planes,
     show_planes=True,
     dims=(0, 1, 3),
+    feature_names=feature_names,
     detail="high",
     grid_res_3d=72,
-    extend=1.3,
+    extend=1.25,
     clamp_extend_to_X=True,
 )
 
@@ -122,11 +123,16 @@ plot_planes_with_point_lines(
 
 # --- Ejecución (igual que antes; ajusta params si quieres) ---
 sel = prune_and_orient_planes_unified_globalmaj(
-    resC, X, y,
-    max_k=10, min_improve=1e-3,
-    feature_names=[f"x{i}" for i in range(X.shape[1])],
+    resC,
+    X,
+    y,
+    max_k=10,
+    min_improve=1e-3,
+    feature_names=feature_names,
     dims_for_text=(0, 1),
-    min_region_size=10, min_abs_diff=0.02, min_rel_lift=0.05
+    min_region_size=25,
+    min_abs_diff=0.02,
+    min_rel_lift=0.05,
 )
 ```
 
