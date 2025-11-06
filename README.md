@@ -164,6 +164,20 @@ for dim_k in sorted(valuable.keys()):
     print(f"Total: {len(valuable[dim_k])} reglas válidas")
 ```
 
+### Experimento de rejilla para `find_low_dim_spaces`
+
+El directorio `experiments_outputs/` incluye un script que ejecuta la tubería basada en
+`make_corner_class_dataset` y explora distintas configuraciones de `find_low_dim_spaces`. El
+resultado queda registrado en `experiments_outputs/finder_runs_params.csv`, con métricas agregadas por
+dimensión y una columna JSON para los parámetros efectivos usados en cada corrida.
+
+```bash
+python experiments_outputs/run_find_low_dim_param_sweep.py
+```
+
+Esto generará la tabla `finder_runs_params.csv`, útil para comparar la sensibilidad del buscador ante
+variaciones en soporte mínimo, ganancias requeridas y tamaño máximo de las reglas.
+
 ## Recursos adicionales
 
 - `tests/`: ejemplos automatizados que ejercitan diferentes configuraciones.
