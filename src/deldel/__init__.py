@@ -18,12 +18,12 @@ from .engine import (
 )
 from .datasets import make_corner_class_dataset
 from .experiments import (
-    prune_and_orient_planes_unified_globalmaj,
     run_corner_pipeline_experiments,
     run_corner_pipeline_with_low_dim,
     run_iris_random_forest_pipeline,
     run_low_dim_spaces_demo,
 )
+from .globalmaj import prune_and_orient_planes_unified_globalmaj
 from .frontier_planes_all_modes import (
     compute_frontier_planes_all_modes,
     plot_planes_with_point_lines,
