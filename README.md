@@ -198,7 +198,12 @@ variaciones en soporte mínimo, ganancias requeridas y tamaño máximo de las re
 - `tests/`: ejemplos automatizados que ejercitan diferentes configuraciones.
 - `src/deldel/engine.py`: núcleo del algoritmo y estructuras de datos.
 - `src/deldel/frontier_planes_all_modes.py`: utilidades para recolectar y visualizar planos.
+
 - `src/deldel/datasets.py`: generadores de conjuntos sintéticos.
 - `src/deldel/experiments.py`: pipelines de experimentos reproducibles.
+
+## Conclusiones
+
+Los experimentos temporales sobre la tubería del README muestran que el ajuste del bosque aleatorio y la fase `DelDel.fit` concentran el mayor costo computacional, con variaciones de tiempo totales entre 0.82 s y 1.40 s según el tamaño del dataset y los parámetros de exploración de planos, mientras que los pasos de selección finales se mantienen por debajo de 6 ms incluso en configuraciones más exigentes.【F:from_df_to_sel_time.csv†L2-L18】
 
 ¡Explora y adapta DelDel a tus necesidades!
