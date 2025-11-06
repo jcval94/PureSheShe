@@ -119,6 +119,15 @@ plot_planes_with_point_lines(
     dims=(0, 1, 2),
     title="Segmentos por punto",
 )
+
+# --- Ejecución (igual que antes; ajusta params si quieres) ---
+sel = prune_and_orient_planes_unified_globalmaj(
+    resC, X, y,
+    max_k=10, min_improve=1e-3,
+    feature_names=[f"x{i}" for i in range(X.shape[1])],
+    dims_for_text=(0, 1),
+    min_region_size=10, min_abs_diff=0.02, min_rel_lift=0.05
+)
 ```
 
 ### Exploración de subespacios valiosos

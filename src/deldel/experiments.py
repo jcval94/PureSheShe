@@ -27,6 +27,7 @@ from .datasets import make_corner_class_dataset
 from .engine import ChangePointConfig, DelDel, DelDelConfig, DeltaRecord
 from .frontier_planes_all_modes import compute_frontier_planes_all_modes
 from .find_low_dim_spaces_fast import find_low_dim_spaces
+from .globalmaj import prune_and_orient_planes_unified_globalmaj
 
 
 @dataclass
@@ -521,51 +522,6 @@ def _build_selection_from_frontier(
         regions_global=dict(per_plane=[], per_class=per_class_regions),
         meta=dict(feature_names=list(feature_names)),
     )
-
-
-def prune_and_orient_planes_unified_globalmaj(
-    frontier: Mapping[Tuple[int, int], Mapping[str, Any]],
-    X: np.ndarray,
-    y: np.ndarray,
-    *,
-    max_k: int = 10,
-    min_improve: float = 1e-3,
-    feature_names: Optional[Sequence[str]] = None,
-    dims_for_text: Optional[Tuple[int, int]] = None,
-    min_region_size: int = 10,
-    min_abs_diff: float = 0.02,
-    min_rel_lift: float = 0.05,
-) -> Dict[str, Any]:
-    """Approximate the unified pruning/orientation step used in the main pipeline.
-
-    The helper reuses :func:`_build_selection_from_frontier` to generate a
-    selection payload compatible with :func:`find_low_dim_spaces`.  The
-    additional parameters are preserved in the metadata so downstream
-    consumers can inspect the configuration that guided the pruning
-    heuristics.  This keeps the public pipeline ergonomic without
-    re-implementing the full pruning stack.
-    """
-
-    selection = _build_selection_from_frontier(
-        frontier,
-        X,
-        y,
-        feature_names or [f"x{i}" for i in range(X.shape[1])],
-    )
-
-    meta = selection.setdefault("meta", {})
-    meta.update(
-        dict(
-            pruning_strategy="unified_globalmaj",
-            max_k=int(max_k),
-            min_improve=float(min_improve),
-            dims_for_text=tuple(dims_for_text) if dims_for_text is not None else None,
-            min_region_size=int(min_region_size),
-            min_abs_diff=float(min_abs_diff),
-            min_rel_lift=float(min_rel_lift),
-        )
-    )
-    return selection
 
 
 def _build_demo_selection(
