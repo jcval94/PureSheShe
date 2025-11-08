@@ -36,6 +36,11 @@ from .find_low_dim_spaces_fast import (
     find_low_dim_spaces_support_first,
 )
 from .reporting_plotting import describe_regions_report, plot_selected_regions_interactive
+from .subspace_change_detector import (
+    MultiClassSubspaceExplorer,
+    SubspacePlane,
+    SubspaceReport,
+)
 
 __all__ = [
     "ChangePointConfig",
@@ -68,4 +73,7 @@ __all__ = [
     "find_low_dim_spaces_support_first",
     "describe_regions_report",
     "plot_selected_regions_interactive",
+    "MultiClassSubspaceExplorer",
+    "SubspacePlane",
+    "SubspaceReport",
 ]

@@ -1,0 +1,24 @@
+Metodo,Tiempo (s),Candidatos metodo,Seleccionados metodo,Total candidatos unicos,Conjuntos evaluados,Reportes finales
+Metodo 1: Top-k random combinations,0.001332,27,1,620,620,15
+Metodo 2: Top-k guided combinations (mejorado),0.059515,85,9,620,620,15
+Metodo 3: Chi2 top combinations,0.001809,58,2,620,620,15
+Metodo 4: Chi2 targeted combinations (mejorado),0.02516,40,1,620,620,15
+Metodo 5: High correlation groups,0.001505,0,0,620,620,15
+Metodo 6: Correlation clusters refined (mejorado),0.016815,0,0,620,620,15
+Metodo 7: Random forest pair frequency,0.388377,60,5,620,620,15
+Metodo 8: Random forest weighted paths (mejorado),0.843652,36,4,620,620,15
+Metodo 9: Leverage score filter,0.215484,23,1,620,620,15
+Metodo 10: Leverage class-focused (mejorado),0.444384,13,0,620,620,15
+Metodo 11: Sparse random projections,0.080276,39,3,620,620,15
+Metodo 12: Sparse projections Fisher-guided (mejorado),0.058775,76,3,620,620,15
+Metodo 13: Lazy greedy dispersion,0.043318,21,3,620,620,15
+Metodo 14: Lazy greedy with variance lookahead (mejorado),0.183142,36,3,620,620,15
+Metodo 15: ExtraTrees shallow routes,0.118876,196,5,620,620,15
+Metodo 16: ExtraTrees purity-weighted (mejorado),0.179917,33,3,620,620,15
+Metodo 17: CountSketch heavy hitters,0.196847,13,1,620,620,15
+Metodo 18: CountSketch contrastive (mejorado),0.221319,45,3,620,620,15
+Metodo 19: Gradient synergy matrix,0.090816,101,9,620,620,15
+Metodo 20: Gradient-Hessian synergy (mejorado),0.124461,139,7,620,620,15
+Metodo 21: MinHash class co-occurrence,0.08611,8,0,620,620,15
+Metodo 22: MinHash contrastive bands (mejorado),0.04509,1,0,620,620,15
+Total,3.42698,620,15,620,620,15

@@ -1,0 +1,621 @@
+Conjunto,Metodo 1,Metodo 2,Metodo 3,Metodo 4,Metodo 5,Metodo 6,Metodo 7,Metodo 8,Metodo 9,Metodo 10,Metodo 11,Metodo 12,Metodo 13,Metodo 14,Metodo 15,Metodo 16,Metodo 17,Metodo 18,Metodo 19,Metodo 20,Metodo 21,Metodo 22,Score Global
+"(x0, x1)",No,Si,No,No,No,No,Si,No,No,No,Si,Si,No,No,Si,Si,No,Si,Si,Si,No,No,0.46392
+"(x0, x1, x10)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.494828
+"(x0, x1, x10, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.59147
+"(x0, x1, x11)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.582467
+"(x0, x1, x11, x13)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.614336
+"(x0, x1, x11, x17)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.595415
+"(x0, x1, x11, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.64609
+"(x0, x1, x13, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.554138
+"(x0, x1, x13, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.634623
+"(x0, x1, x13, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.618432
+"(x0, x1, x14)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.603763
+"(x0, x1, x14, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.654891
+"(x0, x1, x15)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.460782
+"(x0, x1, x15, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.530459
+"(x0, x1, x16)",No,Si,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.525391
+"(x0, x1, x16, x18)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.611839
+"(x0, x1, x16, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.636959
+"(x0, x1, x17, x8)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.577275
+"(x0, x1, x18)",No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.56376
+"(x0, x1, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.600494
+"(x0, x1, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.630179
+"(x0, x1, x18, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.596034
+"(x0, x1, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,No,0.496778
+"(x0, x1, x19, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.587575
+"(x0, x1, x2)",No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,No,No,No,0.562022
+"(x0, x1, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.651449
+"(x0, x1, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.632244
+"(x0, x1, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.470556
+"(x0, x1, x3, x4)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.568226
+"(x0, x1, x3, x8)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.539399
+"(x0, x1, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.546931
+"(x0, x1, x6)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.463335
+"(x0, x1, x7)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.556464
+"(x0, x1, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,0.541696
+"(x0, x1, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.496275
+"(x0, x10)",No,Si,Si,No,No,No,Si,No,No,No,Si,No,No,No,Si,Si,Si,Si,Si,Si,No,No,0.408853
+"(x0, x10, x13, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.604053
+"(x0, x10, x14)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.572628
+"(x0, x10, x14, x18)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.608232
+"(x0, x10, x14, x3)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.574168
+"(x0, x10, x15, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.428951
+"(x0, x10, x15, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.459778
+"(x0, x10, x16, x18)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.587207
+"(x0, x10, x16, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.601376
+"(x0, x10, x16, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.588567
+"(x0, x10, x16, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.525991
+"(x0, x10, x17)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.463121
+"(x0, x10, x18)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,No,0.531619
+"(x0, x10, x18, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.542805
+"(x0, x10, x18, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.612706
+"(x0, x10, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.615792
+"(x0, x10, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.447808
+"(x0, x10, x19, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.543588
+"(x0, x10, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.533666
+"(x0, x10, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.627502
+"(x0, x10, x2, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.5956
+"(x0, x10, x3)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.430549
+"(x0, x10, x5)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,No,0.522706
+"(x0, x10, x5, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.554865
+"(x0, x10, x6)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.423387
+"(x0, x10, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.511312
+"(x0, x11)",No,Si,No,No,No,No,Si,Si,Si,No,Si,Si,Si,Si,No,Si,No,Si,Si,Si,No,No,0.495346
+"(x0, x11, x13)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.522828
+"(x0, x11, x13, x15)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.550314
+"(x0, x11, x13, x16)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.630591
+"(x0, x11, x13, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.586132
+"(x0, x11, x13, x3)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.522873
+"(x0, x11, x13, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.58958
+"(x0, x11, x14)",No,Si,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.580492
+"(x0, x11, x14, x15)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.59702
+"(x0, x11, x14, x16)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.672445
+"(x0, x11, x14, x17)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.616163
+"(x0, x11, x14, x2)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.640437
+"(x0, x11, x14, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.631389
+"(x0, x11, x15)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.513207
+"(x0, x11, x15, x17)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.552557
+"(x0, x11, x15, x2)",No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.567574
+"(x0, x11, x15, x3)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.516379
+"(x0, x11, x15, x5)",No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.575654
+"(x0, x11, x15, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.594967
+"(x0, x11, x15, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.576018
+"(x0, x11, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.591931
+"(x0, x11, x16, x18)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.644198
+"(x0, x11, x16, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.646044
+"(x0, x11, x17)",No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,Si,No,No,No,No,No,No,No,0.536412
+"(x0, x11, x17, x2)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.59961
+"(x0, x11, x17, x3)",No,No,No,Si,No,No,No,No,Si,No,No,No,Si,Si,No,No,No,No,No,No,No,No,0.538166
+"(x0, x11, x17, x4)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.599496
+"(x0, x11, x17, x5)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.59348
+"(x0, x11, x17, x7)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.599021
+"(x0, x11, x17, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.595176
+"(x0, x11, x18)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,0.577488
+"(x0, x11, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.613857
+"(x0, x11, x18, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.630026
+"(x0, x11, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.6519
+"(x0, x11, x2)",No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.555725
+"(x0, x11, x2, x3)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.555901
+"(x0, x11, x2, x5)",No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.645562
+"(x0, x11, x2, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.652315
+"(x0, x11, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.620024
+"(x0, x11, x2, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.657423
+"(x0, x11, x3, x5)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.568553
+"(x0, x11, x3, x7)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.590534
+"(x0, x11, x3, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.57144
+"(x0, x11, x4)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.570092
+"(x0, x11, x4, x5)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.62595
+"(x0, x11, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.564632
+"(x0, x11, x5, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.632306
+"(x0, x11, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.589931
+"(x0, x11, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.563712
+"(x0, x11, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.568455
+"(x0, x12)",Si,No,No,No,No,No,Si,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.363344
+"(x0, x12, x15, x17)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.441704
+"(x0, x12, x15, x3)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.397226
+"(x0, x12, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.472666
+"(x0, x12, x16, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.503634
+"(x0, x12, x17, x2)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.51702
+"(x0, x12, x17, x3)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.422398
+"(x0, x12, x17, x5)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.513698
+"(x0, x12, x2, x3)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.494659
+"(x0, x12, x3, x5)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.470677
+"(x0, x13)",No,Si,Si,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,Si,Si,Si,No,No,0.436294
+"(x0, x13, x14, x15)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.565416
+"(x0, x13, x14, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.616213
+"(x0, x13, x15)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.466714
+"(x0, x13, x15, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.539265
+"(x0, x13, x15, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.526787
+"(x0, x13, x16, x3)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.548202
+"(x0, x13, x16, x4)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.604487
+"(x0, x13, x16, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.63995
+"(x0, x13, x17)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.48492
+"(x0, x13, x17, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.559036
+"(x0, x13, x17, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.581408
+"(x0, x13, x17, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.559287
+"(x0, x13, x18, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.627203
+"(x0, x13, x19, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.573654
+"(x0, x13, x19, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.592689
+"(x0, x13, x19, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.569084
+"(x0, x13, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.529909
+"(x0, x13, x2, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.529718
+"(x0, x13, x2, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.589852
+"(x0, x13, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.638875
+"(x0, x13, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.600636
+"(x0, x13, x3, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.544706
+"(x0, x13, x3, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.554472
+"(x0, x13, x4)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.508179
+"(x0, x13, x4, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.60243
+"(x0, x13, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,Si,No,No,0.54591
+"(x0, x13, x5, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.66575
+"(x0, x13, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.593126
+"(x0, x13, x5, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.614558
+"(x0, x13, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.554413
+"(x0, x13, x7, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.584212
+"(x0, x14)",No,Si,Si,No,No,No,Si,Si,No,No,Si,No,No,No,Si,No,No,No,Si,Si,No,No,0.50698
+"(x0, x14, x15)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.533162
+"(x0, x14, x15, x2)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.572252
+"(x0, x14, x15, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.594367
+"(x0, x14, x16)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.597464
+"(x0, x14, x17, x2)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.585761
+"(x0, x14, x18)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.591025
+"(x0, x14, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.618188
+"(x0, x14, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.645526
+"(x0, x14, x18, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.630284
+"(x0, x14, x2)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.571328
+"(x0, x14, x2, x3)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.574711
+"(x0, x14, x2, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.657861
+"(x0, x14, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,Si,No,No,No,Si,Si,No,No,0.582784
+"(x0, x14, x5, x8)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.609257
+"(x0, x14, x5, x9)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.661261
+"(x0, x14, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.623303
+"(x0, x14, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.55216
+"(x0, x14, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.647735
+"(x0, x15)",Si,Si,No,No,No,No,Si,Si,No,No,No,No,Si,Si,Si,No,No,Si,No,No,No,No,0.384046
+"(x0, x15, x16)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.484697
+"(x0, x15, x17)",No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,0.445169
+"(x0, x15, x17, x2)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.522847
+"(x0, x15, x17, x3)",No,No,No,Si,No,No,No,No,No,Si,No,No,Si,Si,No,No,No,No,No,No,No,No,0.438855
+"(x0, x15, x17, x5)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.538571
+"(x0, x15, x17, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.487546
+"(x0, x15, x2)",No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.503187
+"(x0, x15, x2, x3)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.501446
+"(x0, x15, x2, x5)",No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.615184
+"(x0, x15, x2, x8)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.567285
+"(x0, x15, x2, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.571945
+"(x0, x15, x3)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.400489
+"(x0, x15, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.481758
+"(x0, x15, x7, x9)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.53533
+"(x0, x16)",No,Si,No,No,No,No,Si,No,No,No,No,Si,No,Si,Si,Si,No,No,Si,Si,No,No,0.474744
+"(x0, x16, x17, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.506496
+"(x0, x16, x18)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.566316
+"(x0, x16, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.629886
+"(x0, x16, x18, x4)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.629093
+"(x0, x16, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.639467
+"(x0, x16, x18, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.605054
+"(x0, x16, x19)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.497676
+"(x0, x16, x2)",Si,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,0.584695
+"(x0, x16, x2, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.584474
+"(x0, x16, x2, x4)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.625873
+"(x0, x16, x2, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.651706
+"(x0, x16, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.641974
+"(x0, x16, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.485689
+"(x0, x16, x3, x9)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.525682
+"(x0, x16, x4, x5)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.641048
+"(x0, x16, x4, x9)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.625545
+"(x0, x16, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.560737
+"(x0, x16, x5, x8)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.595333
+"(x0, x16, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.56461
+"(x0, x16, x7, x8)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.634251
+"(x0, x16, x8)",Si,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.530498
+"(x0, x16, x8, x9)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.580003
+"(x0, x16, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.514044
+"(x0, x17)",No,Si,Si,No,No,No,Si,No,No,No,No,No,Si,Si,No,Si,No,No,No,Si,No,No,0.426489
+"(x0, x17, x18)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.528456
+"(x0, x17, x18, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.565724
+"(x0, x17, x19)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.449997
+"(x0, x17, x19, x3)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.445163
+"(x0, x17, x19, x5)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.54702
+"(x0, x17, x19, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.515562
+"(x0, x17, x2)",No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,0.517052
+"(x0, x17, x2, x3)",No,Si,No,Si,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,0.51647
+"(x0, x17, x2, x4)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.562235
+"(x0, x17, x2, x5)",No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.62929
+"(x0, x17, x2, x7)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.590155
+"(x0, x17, x2, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.581254
+"(x0, x17, x3)",No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,Si,No,No,No,No,No,No,0.423866
+"(x0, x17, x3, x5)",No,Si,No,Si,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,0.514303
+"(x0, x17, x3, x7)",No,No,No,Si,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,0.501919
+"(x0, x17, x3, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.478659
+"(x0, x17, x4, x9)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.567869
+"(x0, x17, x5)",No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,Si,No,No,0.516286
+"(x0, x17, x5, x7)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.610013
+"(x0, x17, x5, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.57648
+"(x0, x17, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,0.498471
+"(x0, x17, x7, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.548474
+"(x0, x17, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.508564
+"(x0, x17, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.476952
+"(x0, x18)",No,Si,No,No,No,No,Si,No,No,No,No,Si,No,No,Si,Si,Si,Si,No,No,No,No,0.507626
+"(x0, x18, x19, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.533222
+"(x0, x18, x2)",No,Si,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,Si,No,No,0.548407
+"(x0, x18, x2, x4)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.601391
+"(x0, x18, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.63719
+"(x0, x18, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.62471
+"(x0, x18, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.598681
+"(x0, x18, x3, x5)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.581299
+"(x0, x18, x4)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,No,No,0.569888
+"(x0, x18, x4, x8)",No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.629414
+"(x0, x18, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,Si,No,No,0.580157
+"(x0, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,0.594783
+"(x0, x18, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.630787
+"(x0, x18, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.543449
+"(x0, x19)",No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,Si,Si,No,Si,Si,Si,No,No,0.420803
+"(x0, x19, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.633822
+"(x0, x19, x3)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,0.419588
+"(x0, x19, x3, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.509502
+"(x0, x19, x4, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.584643
+"(x0, x19, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.519338
+"(x0, x19, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.521174
+"(x0, x19, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.485191
+"(x0, x2)",Si,Si,No,No,No,No,Si,Si,No,No,No,Si,Si,Si,No,Si,No,Si,Si,Si,No,No,0.501598
+"(x0, x2, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.497969
+"(x0, x2, x3, x5)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.613685
+"(x0, x2, x3, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.585893
+"(x0, x2, x3, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.568177
+"(x0, x2, x4)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.55637
+"(x0, x2, x4, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.654483
+"(x0, x2, x5)",No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.612503
+"(x0, x2, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.659443
+"(x0, x2, x5, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.674181
+"(x0, x2, x8)",No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,Si,No,No,No,No,No,No,0.567119
+"(x0, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.56373
+"(x0, x3)",No,Si,No,No,No,No,Si,No,No,No,No,No,Si,Si,No,Si,No,Si,Si,Si,No,No,0.373633
+"(x0, x3, x4)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.469297
+"(x0, x3, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.472439
+"(x0, x3, x5, x9)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.534627
+"(x0, x3, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,No,0.487925
+"(x0, x3, x8)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.435928
+"(x0, x3, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.438428
+"(x0, x4)",No,Si,No,No,No,No,Si,No,No,No,No,Si,No,No,Si,No,No,No,Si,Si,No,No,0.464715
+"(x0, x4, x5)",Si,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.569543
+"(x0, x4, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.558463
+"(x0, x4, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.520156
+"(x0, x4, x9)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.549788
+"(x0, x5)",No,Si,No,No,No,No,Si,Si,Si,No,Si,No,Si,Si,Si,Si,No,No,Si,Si,No,No,0.475822
+"(x0, x5, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.602968
+"(x0, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.518854
+"(x0, x5, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.587546
+"(x0, x5, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.532799
+"(x0, x6)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.366983
+"(x0, x7)",No,Si,No,No,No,No,Si,No,No,No,Si,No,Si,Si,Si,No,No,No,Si,Si,No,No,0.486997
+"(x0, x7, x8)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.573014
+"(x0, x7, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.526091
+"(x0, x8)",Si,Si,No,No,No,No,Si,No,No,No,No,Si,No,No,Si,Si,Si,Si,No,No,No,Si,0.433643
+"(x0, x9)",Si,Si,No,No,No,No,Si,No,No,No,No,Si,No,Si,Si,Si,No,No,Si,Si,No,No,0.438044
+"(x1, x10)",Si,No,Si,No,No,No,Si,No,No,No,Si,No,No,No,Si,No,Si,Si,No,No,No,No,0.265837
+"(x1, x10, x11)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.408871
+"(x1, x10, x11, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.539977
+"(x1, x10, x13, x14)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.530331
+"(x1, x10, x13, x17)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.461835
+"(x1, x10, x14, x19)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.457943
+"(x1, x10, x14, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.537586
+"(x1, x10, x15, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.411917
+"(x1, x10, x18)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.342364
+"(x1, x10, x18, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.426323
+"(x1, x10, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.45195
+"(x1, x10, x18, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.509743
+"(x1, x10, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.515514
+"(x1, x10, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.337477
+"(x1, x10, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.297415
+"(x1, x10, x4)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.458423
+"(x1, x10, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.368511
+"(x1, x10, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.497253
+"(x1, x10, x7, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.548251
+"(x1, x10, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,0.448049
+"(x1, x10, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.503744
+"(x1, x11)",No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,Si,No,No,No,No,0.291284
+"(x1, x11, x13, x5)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.515788
+"(x1, x11, x15, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.478634
+"(x1, x11, x17, x3)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.397235
+"(x1, x11, x17, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.501111
+"(x1, x11, x18)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.40043
+"(x1, x11, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.46433
+"(x1, x11, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.461691
+"(x1, x11, x9)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.440781
+"(x1, x12)",No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.157914
+"(x1, x12, x17, x3)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.304928
+"(x1, x12, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,0.338194
+"(x1, x12, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.438141
+"(x1, x13)",Si,No,Si,No,No,No,Si,No,No,No,No,Si,No,No,Si,No,No,Si,No,No,No,No,0.253322
+"(x1, x13, x14, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.544813
+"(x1, x13, x14, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.572469
+"(x1, x13, x19)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.341429
+"(x1, x13, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.405741
+"(x1, x13, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.475251
+"(x1, x13, x3)",No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.277869
+"(x1, x13, x3, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.426774
+"(x1, x13, x5, x9)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.487539
+"(x1, x13, x8)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.427422
+"(x1, x13, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.54955
+"(x1, x13, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.390402
+"(x1, x14)",No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.3454
+"(x1, x14, x15, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.51009
+"(x1, x14, x15, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.470238
+"(x1, x14, x15, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.47701
+"(x1, x14, x19)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.380815
+"(x1, x14, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.461981
+"(x1, x14, x3)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.350504
+"(x1, x14, x4, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.545072
+"(x1, x14, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.4591
+"(x1, x15)",Si,No,No,No,No,No,Si,No,No,No,Si,Si,No,Si,Si,No,No,No,No,No,No,No,0.181382
+"(x1, x15, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,0.368593
+"(x1, x15, x16, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.401603
+"(x1, x15, x16, x6)",No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,0.37995
+"(x1, x15, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.340846
+"(x1, x15, x17, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.440964
+"(x1, x15, x18, x7)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.460382
+"(x1, x15, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.449078
+"(x1, x15, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.292354
+"(x1, x15, x19, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.426364
+"(x1, x15, x19, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,0.406096
+"(x1, x15, x2)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.388408
+"(x1, x15, x5)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,0.320005
+"(x1, x15, x6)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.203351
+"(x1, x15, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.370021
+"(x1, x16)",No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,No,No,Si,No,No,No,No,0.328507
+"(x1, x16, x18)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.454724
+"(x1, x16, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,0.533527
+"(x1, x16, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.545858
+"(x1, x16, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.361513
+"(x1, x16, x19, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.47028
+"(x1, x16, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.496328
+"(x1, x16, x2, x7)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.586422
+"(x1, x16, x2, x9)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.560753
+"(x1, x16, x5)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.463622
+"(x1, x16, x7, x8)",No,No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.540984
+"(x1, x16, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.448404
+"(x1, x17)",No,No,Si,No,No,No,Si,No,No,No,Si,No,No,No,Si,No,No,Si,No,No,No,No,0.294808
+"(x1, x17, x18)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.424839
+"(x1, x17, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.485999
+"(x1, x17, x19, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.436728
+"(x1, x17, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.406316
+"(x1, x17, x2, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.499003
+"(x1, x17, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.500419
+"(x1, x17, x3)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.293876
+"(x1, x17, x4)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.41153
+"(x1, x17, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.399767
+"(x1, x17, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.413734
+"(x1, x18)",No,No,No,No,No,No,Si,No,No,No,Si,Si,No,No,Si,No,Si,Si,No,No,No,No,0.265884
+"(x1, x18, x19, x6)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.34526
+"(x1, x18, x19, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.474381
+"(x1, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,No,No,0.437996
+"(x1, x18, x2, x4)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.491568
+"(x1, x18, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.537201
+"(x1, x18, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.498412
+"(x1, x18, x4)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.434027
+"(x1, x18, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.379832
+"(x1, x18, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.4458
+"(x1, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,Si,No,No,No,No,No,0.420533
+"(x1, x18, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,No,No,0.557839
+"(x1, x18, x9)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.36699
+"(x1, x19)",No,No,Si,No,No,No,Si,No,No,No,Si,No,No,No,Si,No,Si,Si,Si,Si,No,No,0.236764
+"(x1, x19, x2)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.367854
+"(x1, x19, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.370948
+"(x1, x19, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.359525
+"(x1, x19, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.365768
+"(x1, x2)",No,No,Si,No,No,No,Si,No,No,No,Si,Si,No,No,No,No,No,Si,Si,Si,Si,No,0.335392
+"(x1, x2, x3, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.460042
+"(x1, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.468302
+"(x1, x2, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.51844
+"(x1, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,No,No,0.429785
+"(x1, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.463985
+"(x1, x3)",No,No,No,No,No,No,Si,No,No,No,Si,Si,No,No,Si,Si,No,Si,No,No,No,No,0.183402
+"(x1, x3, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.31009
+"(x1, x3, x5, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.395598
+"(x1, x4)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.319675
+"(x1, x5)",No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,Si,Si,Si,No,No,0.284909
+"(x1, x5, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.390524
+"(x1, x5, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.388831
+"(x1, x6)",No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.165857
+"(x1, x7)",Si,No,No,No,No,No,Si,No,No,No,Si,No,No,Si,No,Si,No,Si,No,No,No,No,0.327228
+"(x1, x7, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.559098
+"(x1, x7, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.476812
+"(x1, x8)",No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,Si,Si,Si,Si,No,No,No,No,0.31238
+"(x1, x9)",No,No,No,No,No,No,Si,No,Si,No,No,Si,No,No,Si,Si,No,No,No,No,No,No,0.279103
+"(x10, x11)",No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,Si,No,No,Si,No,No,No,No,0.36282
+"(x10, x11, x13)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.419844
+"(x10, x11, x14, x9)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.59988
+"(x10, x11, x15)",No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,0.403901
+"(x10, x11, x15, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.455039
+"(x10, x11, x15, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.531934
+"(x10, x11, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.442604
+"(x10, x11, x17, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.427846
+"(x10, x11, x17, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.509555
+"(x10, x11, x17, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.536973
+"(x10, x11, x18)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.46669
+"(x10, x11, x19)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.44163
+"(x10, x11, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.38535
+"(x10, x11, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.478557
+"(x10, x11, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.527502
+"(x10, x11, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.585819
+"(x10, x12)",Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.21325
+"(x10, x12, x16, x18)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.446469
+"(x10, x12, x17, x3)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.334416
+"(x10, x12, x18)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.327762
+"(x10, x13)",No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,Si,No,No,Si,No,No,No,No,0.298841
+"(x10, x13, x14)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.452893
+"(x10, x13, x14, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.470965
+"(x10, x13, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.394501
+"(x10, x13, x16, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.429457
+"(x10, x13, x16, x19)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.476267
+"(x10, x13, x16, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.550007
+"(x10, x13, x18, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.506549
+"(x10, x13, x19, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.481789
+"(x10, x13, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.452475
+"(x10, x13, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.558049
+"(x10, x13, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.408671
+"(x10, x13, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.447025
+"(x10, x14)",No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,Si,Si,No,No,0.350177
+"(x10, x14, x16, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.574236
+"(x10, x14, x16, x6)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.401499
+"(x10, x14, x16, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.464815
+"(x10, x14, x18)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.440793
+"(x10, x14, x18, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.560408
+"(x10, x14, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.544185
+"(x10, x14, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.375813
+"(x10, x14, x2, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.48701
+"(x10, x14, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.585133
+"(x10, x14, x2, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.567053
+"(x10, x14, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.532007
+"(x10, x14, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.447722
+"(x10, x14, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.466988
+"(x10, x14, x4, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.573194
+"(x10, x14, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.539083
+"(x10, x14, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.571963
+"(x10, x14, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.530782
+"(x10, x14, x7, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.581179
+"(x10, x14, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.50684
+"(x10, x14, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.423627
+"(x10, x15)",Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.234591
+"(x10, x15, x16, x18)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.464707
+"(x10, x15, x16, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.366955
+"(x10, x15, x18, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.41732
+"(x10, x15, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.309779
+"(x10, x15, x2)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.387952
+"(x10, x15, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.476038
+"(x10, x15, x3)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.280179
+"(x10, x15, x5, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.416277
+"(x10, x15, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,0.314683
+"(x10, x16)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,Si,Si,Si,No,No,0.287994
+"(x10, x16, x17, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.451621
+"(x10, x16, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.54383
+"(x10, x16, x19, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.475924
+"(x10, x16, x19, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.491175
+"(x10, x16, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.404376
+"(x10, x16, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.593558
+"(x10, x16, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.54711
+"(x10, x16, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.467137
+"(x10, x16, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.468032
+"(x10, x16, x7, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.517253
+"(x10, x16, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.443736
+"(x10, x16, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.347953
+"(x10, x17)",No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.321935
+"(x10, x17, x2, x7)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.513651
+"(x10, x17, x5)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.439263
+"(x10, x17, x5, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.482745
+"(x10, x17, x6)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.327934
+"(x10, x18)",No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,Si,Si,Si,Si,Si,Si,No,No,0.320344
+"(x10, x18, x19)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.393124
+"(x10, x18, x2)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.430846
+"(x10, x18, x2, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.495163
+"(x10, x18, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.480076
+"(x10, x18, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.479873
+"(x10, x18, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.565727
+"(x10, x18, x6)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.335497
+"(x10, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,0.505197
+"(x10, x19)",No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,Si,No,Si,Si,Si,Si,No,No,0.252275
+"(x10, x19, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.396615
+"(x10, x19, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.49422
+"(x10, x19, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.44403
+"(x10, x19, x7, x9)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.468433
+"(x10, x2)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,Si,Si,No,No,0.328877
+"(x10, x2, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.452946
+"(x10, x2, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,0.525672
+"(x10, x2, x5, x6)",No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,0.527443
+"(x10, x2, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.576636
+"(x10, x2, x7, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.564405
+"(x10, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.476885
+"(x10, x3)",No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.219791
+"(x10, x3, x9)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.314014
+"(x10, x4)",Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,0.348737
+"(x10, x4, x7)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.46028
+"(x10, x4, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.460037
+"(x10, x5)",No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,Si,Si,Si,Si,No,0.354213
+"(x10, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.482671
+"(x10, x6)",No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.206917
+"(x10, x7)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,Si,Si,No,No,0.35299
+"(x10, x7, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.473141
+"(x10, x7, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.433549
+"(x10, x8)",Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,Si,Si,Si,No,No,No,No,0.330471
+"(x10, x9)",No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,Si,No,No,Si,Si,Si,No,No,0.267137
+"(x11, x12)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.235587
+"(x11, x12, x15, x17)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.32937
+"(x11, x12, x15, x3)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.288324
+"(x11, x12, x15, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.443616
+"(x11, x12, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.366401
+"(x11, x12, x16, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.375334
+"(x11, x12, x16, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.483024
+"(x11, x12, x17, x3)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.290801
+"(x11, x12, x17, x6)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.274645
+"(x11, x12, x18, x2)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.433519
+"(x11, x13)",No,No,Si,No,No,No,Si,No,No,No,Si,Si,No,No,No,No,No,No,Si,Si,Si,No,0.313499
+"(x11, x13, x14)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.42795
+"(x11, x13, x14, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.453607
+"(x11, x13, x14, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.532174
+"(x11, x13, x15)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.355555
+"(x11, x13, x16, x6)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.437433
+"(x11, x13, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.357387
+"(x11, x13, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.485361
+"(x11, x13, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.436344
+"(x11, x13, x2, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.548971
+"(x11, x13, x2, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.519973
+"(x11, x13, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.42243
+"(x11, x13, x5, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.528146
+"(x11, x13, x6)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,0.323238
+"(x11, x13, x6, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.424589
+"(x11, x13, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.425834
+"(x11, x13, x7, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.520118
+"(x11, x13, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.418563
+"(x11, x14)",Si,No,Si,No,No,No,Si,Si,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,0.348555
+"(x11, x14, x15)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.387571
+"(x11, x14, x15, x2)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.50035
+"(x11, x14, x15, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.47868
+"(x11, x14, x16, x5)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.593698
+"(x11, x14, x2)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.500024
+"(x11, x14, x2, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.621614
+"(x11, x14, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.441323
+"(x11, x15)",No,Si,No,No,No,No,Si,Si,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,0.277696
+"(x11, x15, x16)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.407456
+"(x11, x15, x17, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.43244
+"(x11, x15, x17, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.403526
+"(x11, x15, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.43826
+"(x11, x15, x18, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.47788
+"(x11, x15, x19, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.380023
+"(x11, x15, x2)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.400638
+"(x11, x15, x2, x4)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.493719
+"(x11, x15, x2, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.539598
+"(x11, x15, x2, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.531368
+"(x11, x15, x5)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.374911
+"(x11, x15, x5, x9)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.522709
+"(x11, x15, x6)",Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.289028
+"(x11, x15, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.42672
+"(x11, x15, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.348015
+"(x11, x15, x8, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.559689
+"(x11, x15, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.451536
+"(x11, x16)",No,Si,No,No,No,No,Si,No,No,No,Si,Si,No,Si,No,No,No,No,No,Si,No,No,0.373024
+"(x11, x16, x17)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.386834
+"(x11, x16, x17, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.485834
+"(x11, x16, x18)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.456043
+"(x11, x16, x18, x2)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.54316
+"(x11, x16, x18, x8)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.517022
+"(x11, x16, x2, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.552226
+"(x11, x16, x3, x5)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.503111
+"(x11, x16, x3, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.487063
+"(x11, x16, x5)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.485422
+"(x11, x16, x6)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.371199
+"(x11, x16, x7)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.47179
+"(x11, x16, x8)",No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,No,No,0.45708
+"(x11, x16, x9)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.500337
+"(x11, x17)",No,Si,No,No,No,No,Si,No,Si,No,Si,No,No,No,Si,No,No,No,Si,Si,No,No,0.277265
+"(x11, x17, x18, x8)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.44178
+"(x11, x17, x19)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.297336
+"(x11, x17, x2)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.430234
+"(x11, x17, x2, x9)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.590414
+"(x11, x17, x3)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.298142
+"(x11, x17, x3, x4)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.42696
+"(x11, x17, x3, x5)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.392965
+"(x11, x17, x3, x7)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.419903
+"(x11, x17, x4)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.425856
+"(x11, x17, x5)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.381142
+"(x11, x17, x5, x7)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.50065
+"(x11, x17, x7, x8)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.499781
