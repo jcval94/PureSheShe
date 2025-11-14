@@ -1,0 +1,121 @@
+Conjunto,Metodo 1,Metodo 2,Metodo 3,Metodo 4,Metodo 5,Metodo 6,Metodo 7,Metodo 8,Metodo 9,Metodo 10,Metodo 11,Metodo 12,Metodo 13,Metodo 14,Metodo 15,Metodo 16,Metodo 17,Metodo 18,Metodo 19,Metodo 20,Metodo 21,Metodo 22,Score Global
+"(area error, compactness error)",No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.849577
+"(area error, compactness error, mean area)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.869455
+"(area error, compactness error, mean concave points)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.904911
+"(area error, compactness error, mean perimeter)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.869455
+"(area error, concave points error)",No,Si,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.845783
+"(area error, concave points error, mean area)",No,Si,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.882108
+"(area error, concave points error, mean concave points)",No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.911907
+"(area error, concave points error, mean concavity)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.90706
+"(area error, concave points error, mean perimeter)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.878915
+"(area error, concave points error, mean texture)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.855025
+"(area error, concavity error)",No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.859577
+"(area error, concavity error, mean area)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,No,No,0.888206
+"(area error, concavity error, mean concave points)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.904911
+"(area error, concavity error, mean perimeter)",No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,0.885678
+"(area error, concavity error, mean radius)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.881794
+"(area error, mean area)",Si,Si,Si,No,Si,Si,Si,Si,No,Si,No,No,No,No,Si,No,No,Si,No,No,Si,No,0.884302
+"(area error, mean area, mean compactness)",No,Si,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,0.901136
+"(area error, mean area, mean concave points)",No,Si,No,Si,No,No,No,Si,No,Si,No,No,Si,No,Si,No,No,No,No,No,Si,No,0.905313
+"(area error, mean area, mean concavity)",No,Si,No,Si,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,Si,No,0.897387
+"(area error, mean area, mean fractal dimension)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.893635
+"(area error, mean area, mean perimeter)",Si,Si,No,Si,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,No,No,Si,No,0.888898
+"(area error, mean area, mean radius)",Si,Si,No,Si,No,Si,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,Si,No,0.892405
+"(area error, mean area, mean smoothness)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.894065
+"(area error, mean area, mean symmetry)",No,No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.884276
+"(area error, mean area, mean texture)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,Si,No,0.883138
+"(area error, mean area, perimeter error)",No,No,Si,No,No,Si,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.892732
+"(area error, mean area, radius error)",No,No,No,No,No,Si,No,Si,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,No,0.89211
+"(area error, mean area, smoothness error)",No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.88788
+"(area error, mean area, texture error)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.88788
+"(area error, mean compactness)",No,Si,No,No,No,No,Si,No,No,No,No,No,No,Si,Si,No,No,No,No,No,Si,No,0.887492
+"(area error, mean compactness, mean concave points)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.898067
+"(area error, mean compactness, mean concavity)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,0.897429
+"(area error, mean compactness, mean perimeter)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.905067
+"(area error, mean compactness, mean radius)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.908295
+"(area error, mean compactness, mean texture)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.89152
+"(area error, mean compactness, perimeter error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.888017
+"(area error, mean compactness, radius error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.881147
+"(area error, mean compactness, smoothness error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.904927
+"(area error, mean compactness, texture error)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.898378
+"(area error, mean concave points)",No,Si,No,No,Si,Si,Si,Si,No,No,No,No,Si,Si,Si,No,No,Si,No,No,Si,No,0.90171
+"(area error, mean concave points, mean concavity)",No,No,Si,Si,No,No,No,Si,Si,No,No,No,Si,No,No,No,No,No,No,No,Si,No,0.915136
+"(area error, mean concave points, mean fractal dimension)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.918397
+"(area error, mean concave points, mean perimeter)",No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,Si,No,0.908738
+"(area error, mean concave points, mean radius)",No,No,No,Si,No,Si,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,Si,No,0.905313
+"(area error, mean concave points, mean symmetry)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.905218
+"(area error, mean concave points, mean texture)",No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.932765
+"(area error, mean concave points, perimeter error)",No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,Si,No,0.902333
+"(area error, mean concave points, radius error)",No,No,No,Si,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.909117
+"(area error, mean concave points, smoothness error)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.918597
+"(area error, mean concavity)",No,Si,No,No,Si,No,Si,Si,No,No,No,Si,No,Si,Si,No,No,Si,No,No,Si,No,0.907538
+"(area error, mean concavity, mean perimeter)",Si,No,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,No,No,Si,No,No,Si,No,0.897387
+"(area error, mean concavity, mean radius)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.900867
+"(area error, mean concavity, mean symmetry)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.897079
+"(area error, mean concavity, mean texture)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.902032
+"(area error, mean concavity, perimeter error)",No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,0.904021
+"(area error, mean concavity, radius error)",No,No,No,Si,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.904486
+"(area error, mean concavity, texture error)",No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,0.900611
+"(area error, mean fractal dimension)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.859363
+"(area error, mean fractal dimension, mean perimeter)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.890123
+"(area error, mean perimeter)",Si,Si,Si,No,Si,Si,Si,No,No,No,No,Si,No,No,Si,Si,Si,Si,No,No,Si,No,0.889192
+"(area error, mean perimeter, mean radius)",No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,0.892739
+"(area error, mean perimeter, mean symmetry)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.887967
+"(area error, mean perimeter, mean texture)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.890116
+"(area error, mean perimeter, perimeter error)",No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,No,No,0.896832
+"(area error, mean perimeter, radius error)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,0.896539
+"(area error, mean perimeter, smoothness error)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,No,No,No,0.896244
+"(area error, mean radius)",No,Si,Si,No,Si,Si,Si,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,0.884977
+"(area error, mean radius, mean texture)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.88664
+"(area error, mean radius, radius error)",No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,0.896539
+"(area error, mean smoothness)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,0.864483
+"(area error, mean symmetry)",No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.850251
+"(area error, mean symmetry, perimeter error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.841046
+"(area error, mean symmetry, radius error)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.840326
+"(area error, mean texture)",No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,Si,Si,No,No,No,No,Si,No,0.858155
+"(area error, mean texture, perimeter error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.869053
+"(area error, mean texture, radius error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.852449
+"(area error, mean texture, smoothness error)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,0.857948
+"(area error, perimeter error)",No,Si,Si,No,Si,Si,Si,No,Si,No,Si,Si,No,No,Si,No,Si,Si,No,Si,Si,No,0.854524
+"(area error, perimeter error, radius error)",No,No,No,No,No,Si,No,No,No,No,Si,Si,No,No,No,No,No,Si,No,Si,Si,No,0.848379
+"(area error, perimeter error, smoothness error)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,Si,No,No,0.855198
+"(area error, radius error)",No,No,No,No,Si,Si,Si,Si,No,No,Si,Si,No,No,No,No,Si,Si,No,Si,Si,No,0.854524
+"(area error, radius error, smoothness error)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,0.867997
+"(area error, smoothness error)",No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,Si,No,No,No,Si,No,No,0.86273
+"(area error, texture error)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.865904
+"(compactness error, concave points error)",No,No,No,No,Si,No,Si,No,No,No,Si,No,No,No,Si,No,No,Si,Si,Si,Si,No,0.660754
+"(compactness error, concave points error, concavity error)",No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,Si,No,0.675734
+"(compactness error, concave points error, mean compactness)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,0.828618
+"(compactness error, concave points error, mean concave points)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.902464
+"(compactness error, concave points error, mean concavity)",No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.864917
+"(compactness error, concave points error, mean smoothness)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.70389
+"(compactness error, concave points error, smoothness error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.681191
+"(compactness error, concavity error)",No,No,No,No,Si,No,Si,No,Si,No,No,No,No,No,Si,No,No,Si,Si,Si,Si,No,0.550822
+"(compactness error, concavity error, mean concavity)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.89667
+"(compactness error, concavity error, mean fractal dimension)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.625398
+"(compactness error, concavity error, mean radius)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.848294
+"(compactness error, concavity error, mean smoothness)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.639273
+"(compactness error, concavity error, mean symmetry)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.621704
+"(compactness error, concavity error, perimeter error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.791327
+"(compactness error, concavity error, radius error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.77641
+"(compactness error, concavity error, smoothness error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.605883
+"(compactness error, concavity error, texture error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.547819
+"(compactness error, mean area)",No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.854552
+"(compactness error, mean area, mean perimeter)",No,No,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,No,No,No,No,No,No,0.858881
+"(compactness error, mean area, mean radius)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,0.854917
+"(compactness error, mean area, mean texture)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.876763
+"(compactness error, mean area, perimeter error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.868355
+"(compactness error, mean compactness)",No,No,No,No,Si,No,Si,No,No,No,Si,No,No,No,No,No,No,Si,Si,Si,Si,No,0.821189
+"(compactness error, mean compactness, mean concave points)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,Si,No,0.89216
+"(compactness error, mean compactness, mean concavity)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,Si,No,0.881268
+"(compactness error, mean compactness, mean fractal dimension)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,0.884981
+"(compactness error, mean compactness, mean perimeter)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.902488
+"(compactness error, mean compactness, mean symmetry)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.823542
+"(compactness error, mean compactness, texture error)",No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,0.827976
+"(compactness error, mean concave points)",No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,Si,Si,No,0.902429
+"(compactness error, mean concave points, mean concavity)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.897967
+"(compactness error, mean concave points, mean perimeter)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,0.90948
+"(compactness error, mean concave points, mean radius)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.90948
+"(compactness error, mean concave points, mean symmetry)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,0.896073
+"(compactness error, mean concave points, mean texture)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.93023
+"(compactness error, mean concave points, perimeter error)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.89471

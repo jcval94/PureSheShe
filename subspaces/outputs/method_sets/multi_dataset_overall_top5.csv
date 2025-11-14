@@ -1,0 +1,6 @@
+rank,method_index,method_internal,method_label,dataset_coverage,top_50_si_total,total_si_total,elapsed_total,elapsed_mean,elapsed_max
+1,15,method_8_extratrees,ExtraTrees shallow routes,4,101,154,0.411340,0.102835,0.107814
+2,20,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),4,83,132,0.036973,0.009243,0.012397
+3,2,method_1b_topk_guided,Top-k guided combinations (mejorado),4,104,131,0.032069,0.008017,0.020890
+4,19,method_10_gradient_synergy,Gradient synergy matrix,4,72,127,0.061806,0.015451,0.020880
+5,12,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),4,86,114,0.030000,0.007500,0.008724

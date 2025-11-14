@@ -29,7 +29,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import combinations
 import math
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Set
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Set
 
 from time import perf_counter
 
@@ -113,7 +113,9 @@ class MultiClassSubspaceExplorer:
         cv_splits: int = 3,
         mi_max_features: Optional[int] = None,
         max_total_candidates: Optional[int] = None,
+        max_candidates_per_method: Optional[int] = None,
         random_state: Optional[int] = None,
+        enabled_methods: Optional[Sequence[str]] = None,
     ) -> None:
         self.max_sets = int(max_sets)
         self.combo_sizes = tuple(int(s) for s in combo_sizes if int(s) >= 1)
@@ -129,6 +131,9 @@ class MultiClassSubspaceExplorer:
         self.max_total_candidates = (
             None if max_total_candidates is None else int(max_total_candidates)
         )
+        self.max_candidates_per_method = (
+            None if max_candidates_per_method is None else int(max_candidates_per_method)
+        )
         self.random_state = random_state
         self._rng = np.random.RandomState(random_state)
         self.feature_names_: Optional[List[str]] = None
@@ -143,7 +148,7 @@ class MultiClassSubspaceExplorer:
         self.method_candidate_sets_: Dict[str, Set[Tuple[str, ...]]] = {}
         self.candidate_sources_: Dict[Tuple[str, ...], Set[str]] = {}
         self.all_candidate_sets_: List[Tuple[str, ...]] = []
-        self.method_name_map_: Dict[str, str] = {
+        base_method_map: Dict[str, str] = {
             "method_1_topk_random": "Top-k random combinations",
             "method_1b_topk_guided": "Top-k guided combinations (mejorado)",
             "method_2_chi2": "Chi2 top combinations",
@@ -167,8 +172,32 @@ class MultiClassSubspaceExplorer:
             "method_11_minhash_lsh": "MinHash class co-occurrence",
             "method_11b_minhash_refined": "MinHash contrastive bands (mejorado)",
         }
+        self._full_method_name_map = dict(base_method_map)
+        if enabled_methods is None:
+            self.method_name_map_ = dict(base_method_map)
+        else:
+            normalized_keys: Set[str] = set()
+            friendly_lookup = {name.lower(): key for key, name in base_method_map.items()}
+            for entry in enabled_methods:
+                if entry in base_method_map:
+                    normalized_keys.add(entry)
+                else:
+                    key = friendly_lookup.get(str(entry).lower())
+                    if key is None:
+                        raise ValueError(
+                            f"Unknown method '{entry}'. Expected one of: {sorted(base_method_map)}"
+                        )
+                    normalized_keys.add(key)
+            if not normalized_keys:
+                raise ValueError("enabled_methods no puede estar vacío")
+            ordered_keys = [key for key in base_method_map if key in normalized_keys]
+            self.method_name_map_ = {key: base_method_map[key] for key in ordered_keys}
+        self._enabled_method_keys: Set[str] = set(self.method_name_map_.keys())
         self.candidate_reports_: Dict[Tuple[str, ...], SubspaceReport] = {}
         self.evaluated_reports_: List[SubspaceReport] = []
+
+    def _method_enabled(self, method_key: str) -> bool:
+        return method_key in self._enabled_method_keys
 
     def fit(
         self,
@@ -253,15 +282,31 @@ class MultiClassSubspaceExplorer:
         candidate_sources: Dict[Tuple[str, ...], Set[str]] = {}
         timings: Dict[str, float] = {key: 0.0 for key in self.method_name_map_}
 
+        def _method_rng(method_key: str) -> np.random.RandomState:
+            if self.random_state is None:
+                return self._rng
+            return np.random.RandomState(self.random_state)
+
         def _add_candidate(combo: Tuple[str, ...], method_key: str) -> None:
+            if not self._method_enabled(method_key):
+                return
             combo_sorted = tuple(sorted(combo))
             method_sets[method_key].add(combo_sorted)
             candidate_sources.setdefault(combo_sorted, set()).add(method_key)
 
-        start = perf_counter()
-        if chi2_scores:
+        def _time_block(method_key: str, func: Callable[[], None]) -> None:
+            if not self._method_enabled(method_key):
+                return
+            start = perf_counter()
+            func()
+            timings[method_key] += perf_counter() - start
+
+        def _run_method_2_chi2() -> None:
+            if not chi2_scores:
+                return
             sorted_by_chi2 = sorted(chi2_scores.items(), key=lambda kv: kv[1], reverse=True)
             chi2_top = [name for name, _ in sorted_by_chi2[: self.chi2_pool]]
+            rng = _method_rng("method_2_chi2")
             for size in self.combo_sizes:
                 if len(chi2_top) < size:
                     continue
@@ -272,7 +317,7 @@ class MultiClassSubspaceExplorer:
                     seen_idx: Set[Tuple[int, ...]] = set()
                     iterator = []
                     while len(seen_idx) < self.random_samples:
-                        idx = tuple(sorted(self._rng.choice(len(chi2_top), size=size, replace=False)))
+                        idx = tuple(sorted(rng.choice(len(chi2_top), size=size, replace=False)))
                         if idx in seen_idx:
                             continue
                         seen_idx.add(idx)
@@ -280,83 +325,94 @@ class MultiClassSubspaceExplorer:
                     iterator = iter(iterator)
                 for combo in iterator:
                     _add_candidate(combo, "method_2_chi2")
-        timings["method_2_chi2"] += perf_counter() - start
 
-        start = perf_counter()
-        guided_chi2 = _chi2_guided_candidates(
-            table,
-            chi2_scores,
-            mi_scores,
-            self.combo_sizes,
-        )
-        for combo in guided_chi2:
-            _add_candidate(combo, "method_2b_chi2_guided")
-        timings["method_2b_chi2_guided"] += perf_counter() - start
+        _time_block("method_2_chi2", _run_method_2_chi2)
 
-        start = perf_counter()
-        for size in self.combo_sizes:
-            if pool_idx.size < size:
-                continue
-            n_possible = math.comb(pool_idx.size, size)
-            n_draws = min(self.random_samples, n_possible)
-            seen: set[Tuple[int, ...]] = set()
-            while len(seen) < n_draws:
-                idx = tuple(sorted(self._rng.choice(pool_idx, size=size, replace=False)))
-                if idx in seen:
+        def _run_method_2b() -> None:
+            guided_chi2 = _chi2_guided_candidates(
+                table,
+                chi2_scores,
+                mi_scores,
+                self.combo_sizes,
+            )
+            for combo in guided_chi2:
+                _add_candidate(combo, "method_2b_chi2_guided")
+
+        _time_block("method_2b_chi2_guided", _run_method_2b)
+
+        def _run_method_1() -> None:
+            rng = _method_rng("method_1_topk_random")
+            for size in self.combo_sizes:
+                if pool_idx.size < size:
                     continue
-                seen.add(idx)
-                combo = tuple(self.feature_names_[i] for i in idx)
+                n_possible = math.comb(pool_idx.size, size)
+                n_draws = min(self.random_samples, n_possible)
+                seen: Set[Tuple[int, ...]] = set()
+                while len(seen) < n_draws:
+                    idx = tuple(sorted(rng.choice(pool_idx, size=size, replace=False)))
+                    if idx in seen:
+                        continue
+                    seen.add(idx)
+                    combo = tuple(self.feature_names_[i] for i in idx)
+                    _add_candidate(combo, "method_1_topk_random")
+                    if sum(len(s) for s in method_sets.values()) > self.random_samples * len(self.combo_sizes) * 2:
+                        break
+            mi_neighbor = _mi_neighbor_combos(ranked_features, mi_scores, self.combo_sizes)
+            for combo in mi_neighbor:
                 _add_candidate(combo, "method_1_topk_random")
-                if sum(len(s) for s in method_sets.values()) > self.random_samples * len(self.combo_sizes) * 2:
-                    break
-        mi_neighbor = _mi_neighbor_combos(ranked_features, mi_scores, self.combo_sizes)
-        for combo in mi_neighbor:
-            _add_candidate(combo, "method_1_topk_random")
-        timings["method_1_topk_random"] += perf_counter() - start
 
-        start = perf_counter()
-        guided_topk = _topk_guided_candidates(
-            table,
-            ranked_features,
-            mi_scores,
-            self.combo_sizes,
-            self._rng,
-        )
-        for combo in guided_topk:
-            _add_candidate(combo, "method_1b_topk_guided")
-        timings["method_1b_topk_guided"] += perf_counter() - start
+        _time_block("method_1_topk_random", _run_method_1)
 
-        start = perf_counter()
-        corr_cols = list(numeric_cols)
-        if self.corr_max_features is not None and len(corr_cols) > self.corr_max_features:
-            idx = np.sort(self._rng.choice(len(corr_cols), size=self.corr_max_features, replace=False))
-            corr_cols = [corr_cols[i] for i in idx]
-        corr_pairs = _high_corr_groups(table, corr_cols, threshold=self.corr_threshold)
-        for combo in corr_pairs:
-            if len(combo) in self.combo_sizes:
-                _add_candidate(tuple(combo), "method_3_corr_groups")
-            elif len(combo) > 1:
-                for size in self.combo_sizes:
-                    if size < len(combo):
-                        for sub in combinations(combo, size):
-                            _add_candidate(tuple(sub), "method_3_corr_groups")
-        timings["method_3_corr_groups"] += perf_counter() - start
+        def _run_method_1b() -> None:
+            rng = _method_rng("method_1b_topk_guided")
+            guided_topk = _topk_guided_candidates(
+                table,
+                ranked_features,
+                mi_scores,
+                self.combo_sizes,
+                rng,
+            )
+            for combo in guided_topk:
+                _add_candidate(combo, "method_1b_topk_guided")
 
-        start = perf_counter()
-        corr_guided = _correlation_guided_candidates(
-            table,
-            numeric_cols,
-            mi_scores,
-            self.combo_sizes,
-            self.corr_threshold,
-            self._rng,
-        )
-        for combo in corr_guided:
-            _add_candidate(combo, "method_3b_corr_guided")
-        timings["method_3b_corr_guided"] += perf_counter() - start
+        _time_block("method_1b_topk_guided", _run_method_1b)
 
-        start = perf_counter()
-        if len(top_pool) >= 2:
+        def _run_method_3() -> None:
+            rng = _method_rng("method_3_corr_groups")
+            corr_cols = list(numeric_cols)
+            if self.corr_max_features is not None and len(corr_cols) > self.corr_max_features:
+                idx = np.sort(rng.choice(len(corr_cols), size=self.corr_max_features, replace=False))
+                corr_cols = [corr_cols[i] for i in idx]
+            corr_pairs = _high_corr_groups(table, corr_cols, threshold=self.corr_threshold)
+            for combo in corr_pairs:
+                if len(combo) in self.combo_sizes:
+                    _add_candidate(tuple(combo), "method_3_corr_groups")
+                elif len(combo) > 1:
+                    for size in self.combo_sizes:
+                        if size < len(combo):
+                            for sub in combinations(combo, size):
+                                _add_candidate(tuple(sub), "method_3_corr_groups")
+
+        _time_block("method_3_corr_groups", _run_method_3)
+
+        def _run_method_3b() -> None:
+            rng = _method_rng("method_3b_corr_guided")
+            corr_guided = _correlation_guided_candidates(
+                table,
+                numeric_cols,
+                mi_scores,
+                self.combo_sizes,
+                self.corr_threshold,
+                rng,
+            )
+            for combo in corr_guided:
+                _add_candidate(combo, "method_3b_corr_guided")
+
+        _time_block("method_3b_corr_guided", _run_method_3b)
+
+        def _run_method_4() -> None:
+            if len(top_pool) < 2:
+                return
             rf_pairs = _rf_pairs(
                 table,
                 top_pool,
@@ -367,10 +423,12 @@ class MultiClassSubspaceExplorer:
             )
             for pair in rf_pairs:
                 _add_candidate(tuple(pair), "method_4_rf_paths")
-        timings["method_4_rf_paths"] += perf_counter() - start
 
-        start = perf_counter()
-        if len(top_pool) >= 2:
+        _time_block("method_4_rf_paths", _run_method_4)
+
+        def _run_method_4b() -> None:
+            if len(top_pool) < 2:
+                return
             rf_weighted = _rf_weighted_candidates(
                 table,
                 top_pool,
@@ -382,85 +440,102 @@ class MultiClassSubspaceExplorer:
             )
             for combo in rf_weighted:
                 _add_candidate(combo, "method_4b_rf_weighted")
-        timings["method_4b_rf_weighted"] += perf_counter() - start
 
-        start = perf_counter()
-        if self.feature_names_:
+        _time_block("method_4b_rf_weighted", _run_method_4b)
+
+        def _run_method_5() -> None:
+            if not self.feature_names_:
+                return
+            rng = _method_rng("method_5_leverage")
             leverage_sets = _leverage_candidates(
                 table,
                 self.feature_names_,
                 self.combo_sizes,
                 self.filter_top_k,
-                self._rng,
+                rng,
             )
             for combo in leverage_sets:
                 _add_candidate(combo, "method_5_leverage")
-        timings["method_5_leverage"] += perf_counter() - start
 
-        start = perf_counter()
-        if self.feature_names_:
+        _time_block("method_5_leverage", _run_method_5)
+
+        def _run_method_5b() -> None:
+            if not self.feature_names_:
+                return
+            rng = _method_rng("method_5b_leverage_class")
             leverage_class_sets = _leverage_class_candidates(
                 table,
                 y,
                 self.feature_names_,
                 self.combo_sizes,
                 self.filter_top_k,
-                self._rng,
+                rng,
             )
             for combo in leverage_class_sets:
                 _add_candidate(combo, "method_5b_leverage_class")
-        timings["method_5b_leverage_class"] += perf_counter() - start
 
-        start = perf_counter()
-        sparse_proj_sets = _sparse_projection_candidates(
-            table,
-            y,
-            ranked_features,
-            self.combo_sizes,
-            self._rng,
-        )
-        for combo in sparse_proj_sets:
-            _add_candidate(combo, "method_6_sparse_proj")
-        timings["method_6_sparse_proj"] += perf_counter() - start
+        _time_block("method_5b_leverage_class", _run_method_5b)
 
-        start = perf_counter()
-        sparse_guided_sets = _sparse_projection_guided_candidates(
-            table,
-            y,
-            ranked_features,
-            self.combo_sizes,
-            self._rng,
-        )
-        for combo in sparse_guided_sets:
-            _add_candidate(combo, "method_6b_sparse_proj_guided")
-        timings["method_6b_sparse_proj_guided"] += perf_counter() - start
+        def _run_method_6() -> None:
+            rng = _method_rng("method_6_sparse_proj")
+            sparse_proj_sets = _sparse_projection_candidates(
+                table,
+                y,
+                ranked_features,
+                self.combo_sizes,
+                rng,
+            )
+            for combo in sparse_proj_sets:
+                _add_candidate(combo, "method_6_sparse_proj")
 
-        start = perf_counter()
-        lazy_sets = _lazy_greedy_candidates(
-            table,
-            ranked_features,
-            self.combo_sizes,
-            mi_scores,
-            self._rng,
-        )
-        for combo in lazy_sets:
-            _add_candidate(combo, "method_7_lazy_greedy")
-        timings["method_7_lazy_greedy"] += perf_counter() - start
+        _time_block("method_6_sparse_proj", _run_method_6)
 
-        start = perf_counter()
-        lazy_refined = _lazy_greedy_refined(
-            table,
-            ranked_features,
-            self.combo_sizes,
-            mi_scores,
-            self._rng,
-        )
-        for combo in lazy_refined:
-            _add_candidate(combo, "method_7b_lazy_greedy_refined")
-        timings["method_7b_lazy_greedy_refined"] += perf_counter() - start
+        def _run_method_6b() -> None:
+            rng = _method_rng("method_6b_sparse_proj_guided")
+            sparse_guided_sets = _sparse_projection_guided_candidates(
+                table,
+                y,
+                ranked_features,
+                self.combo_sizes,
+                rng,
+            )
+            for combo in sparse_guided_sets:
+                _add_candidate(combo, "method_6b_sparse_proj_guided")
 
-        start = perf_counter()
-        if len(top_pool) >= 2:
+        _time_block("method_6b_sparse_proj_guided", _run_method_6b)
+
+        def _run_method_7() -> None:
+            rng = _method_rng("method_7_lazy_greedy")
+            lazy_sets = _lazy_greedy_candidates(
+                table,
+                ranked_features,
+                self.combo_sizes,
+                mi_scores,
+                rng,
+            )
+            for combo in lazy_sets:
+                _add_candidate(combo, "method_7_lazy_greedy")
+
+        _time_block("method_7_lazy_greedy", _run_method_7)
+
+        def _run_method_7b() -> None:
+            rng = _method_rng("method_7b_lazy_greedy_refined")
+            lazy_refined = _lazy_greedy_refined(
+                table,
+                ranked_features,
+                self.combo_sizes,
+                mi_scores,
+                rng,
+            )
+            for combo in lazy_refined:
+                _add_candidate(combo, "method_7b_lazy_greedy_refined")
+
+        _time_block("method_7b_lazy_greedy_refined", _run_method_7b)
+
+        def _run_method_8() -> None:
+            if len(top_pool) < 2:
+                return
+            rng = _method_rng("method_8_extratrees")
             extra_sets = _extra_trees_routes(
                 table,
                 top_pool,
@@ -468,14 +543,17 @@ class MultiClassSubspaceExplorer:
                 self.combo_sizes,
                 self.rf_estimators,
                 max(2, min(self.rf_max_depth or 3, 3)),
-                self._rng,
+                rng,
             )
             for combo in extra_sets:
                 _add_candidate(combo, "method_8_extratrees")
-        timings["method_8_extratrees"] += perf_counter() - start
 
-        start = perf_counter()
-        if len(top_pool) >= 2:
+        _time_block("method_8_extratrees", _run_method_8)
+
+        def _run_method_8b() -> None:
+            if len(top_pool) < 2:
+                return
+            rng = _method_rng("method_8b_extratrees_refined")
             extra_refined = _extra_trees_refined(
                 table,
                 top_pool,
@@ -483,88 +561,121 @@ class MultiClassSubspaceExplorer:
                 self.combo_sizes,
                 self.rf_estimators,
                 max(2, min(self.rf_max_depth or 3, 3)),
-                self._rng,
+                rng,
             )
             for combo in extra_refined:
                 _add_candidate(combo, "method_8b_extratrees_refined")
-        timings["method_8b_extratrees_refined"] += perf_counter() - start
 
-        start = perf_counter()
-        sketch_sets = _countsketch_candidates(
-            table,
-            y,
-            ranked_features,
-            self.combo_sizes,
-            self._rng,
-            max_features=self.filter_top_k,
-        )
-        for combo in sketch_sets:
-            _add_candidate(combo, "method_9_countsketch")
-        timings["method_9_countsketch"] += perf_counter() - start
+        _time_block("method_8b_extratrees_refined", _run_method_8b)
 
-        start = perf_counter()
-        sketch_refined = _countsketch_refined_candidates(
-            table,
-            y,
-            ranked_features,
-            self.combo_sizes,
-            self._rng,
-        )
-        for combo in sketch_refined:
-            _add_candidate(combo, "method_9b_countsketch_refined")
-        timings["method_9b_countsketch_refined"] += perf_counter() - start
+        def _run_method_9() -> None:
+            rng = _method_rng("method_9_countsketch")
+            sketch_sets = _countsketch_candidates(
+                table,
+                y,
+                ranked_features,
+                self.combo_sizes,
+                rng,
+                max_features=self.filter_top_k,
+            )
+            for combo in sketch_sets:
+                _add_candidate(combo, "method_9_countsketch")
 
-        start = perf_counter()
-        grad_sets = _gradient_synergy_candidates(
-            table,
-            y,
-            ranked_features,
-            self.combo_sizes,
-            self._rng,
-        )
-        for combo in grad_sets:
-            _add_candidate(combo, "method_10_gradient_synergy")
-        timings["method_10_gradient_synergy"] += perf_counter() - start
+        _time_block("method_9_countsketch", _run_method_9)
 
-        start = perf_counter()
-        grad_hessian_sets = _gradient_hessian_candidates(
-            table,
-            y,
-            ranked_features,
-            self.combo_sizes,
-            self._rng,
-        )
-        for combo in grad_hessian_sets:
-            _add_candidate(combo, "method_10b_gradient_hessian")
-        timings["method_10b_gradient_hessian"] += perf_counter() - start
+        def _run_method_9b() -> None:
+            rng = _method_rng("method_9b_countsketch_refined")
+            sketch_refined = _countsketch_refined_candidates(
+                table,
+                y,
+                ranked_features,
+                self.combo_sizes,
+                rng,
+            )
+            for combo in sketch_refined:
+                _add_candidate(combo, "method_9b_countsketch_refined")
 
-        start = perf_counter()
-        lsh_sets = _minhash_lsh_candidates(
-            table,
-            y,
-            ranked_features,
-            self.combo_sizes,
-            self._rng,
-        )
-        for combo in lsh_sets:
-            _add_candidate(combo, "method_11_minhash_lsh")
-        timings["method_11_minhash_lsh"] += perf_counter() - start
+        _time_block("method_9b_countsketch_refined", _run_method_9b)
 
-        start = perf_counter()
-        lsh_refined_sets = _minhash_refined_candidates(
-            table,
-            y,
-            ranked_features,
-            self.combo_sizes,
-            self._rng,
-        )
-        for combo in lsh_refined_sets:
-            _add_candidate(combo, "method_11b_minhash_refined")
-        timings["method_11b_minhash_refined"] += perf_counter() - start
+        def _run_method_10() -> None:
+            rng = _method_rng("method_10_gradient_synergy")
+            grad_sets = _gradient_synergy_candidates(
+                table,
+                y,
+                ranked_features,
+                self.combo_sizes,
+                rng,
+            )
+            for combo in grad_sets:
+                _add_candidate(combo, "method_10_gradient_synergy")
+
+        _time_block("method_10_gradient_synergy", _run_method_10)
+
+        def _run_method_10b() -> None:
+            rng = _method_rng("method_10b_gradient_hessian")
+            grad_hessian_sets = _gradient_hessian_candidates(
+                table,
+                y,
+                ranked_features,
+                self.combo_sizes,
+                rng,
+            )
+            for combo in grad_hessian_sets:
+                _add_candidate(combo, "method_10b_gradient_hessian")
+
+        _time_block("method_10b_gradient_hessian", _run_method_10b)
+
+        def _run_method_11() -> None:
+            rng = _method_rng("method_11_minhash_lsh")
+            lsh_sets = _minhash_lsh_candidates(
+                table,
+                y,
+                ranked_features,
+                self.combo_sizes,
+                rng,
+            )
+            for combo in lsh_sets:
+                _add_candidate(combo, "method_11_minhash_lsh")
+
+        _time_block("method_11_minhash_lsh", _run_method_11)
+
+        def _run_method_11b() -> None:
+            rng = _method_rng("method_11b_minhash_refined")
+            lsh_refined_sets = _minhash_refined_candidates(
+                table,
+                y,
+                ranked_features,
+                self.combo_sizes,
+                rng,
+            )
+            for combo in lsh_refined_sets:
+                _add_candidate(combo, "method_11b_minhash_refined")
+
+        _time_block("method_11b_minhash_refined", _run_method_11b)
 
         candidate_sets: Set[Tuple[str, ...]] = set()
         for combos in method_sets.values():
             candidate_sets.update(combos)
+
+        if self.max_candidates_per_method is not None:
+            limit = int(self.max_candidates_per_method)
+            for method_key, combos in list(method_sets.items()):
+                if len(combos) <= limit:
+                    continue
+                sorted_combos = sorted(combos)
+                keep = set(sorted_combos[:limit])
+                removed = set(sorted_combos[limit:])
+                method_sets[method_key] = keep
+                for combo in removed:
+                    methods = candidate_sources.get(combo)
+                    if not methods:
+                        continue
+                    methods.discard(method_key)
+                    if not methods:
+                        candidate_sources.pop(combo, None)
+            candidate_sets = set()
+            for combos in method_sets.values():
+                candidate_sets.update(combos)
 
         candidate_list = sorted(candidate_sets)
         if self.max_total_candidates is not None and len(candidate_list) > self.max_total_candidates:
@@ -2180,9 +2291,9 @@ def _logistic_l1_importance(X: np.ndarray, y: np.ndarray, random_state: Optional
         penalty="l1",
         solver="saga",
         C=0.8,
-        max_iter=200,
+        max_iter=120,
         multi_class="auto",
-        n_jobs=-1,
+        n_jobs=1,
         random_state=random_state,
     )
     try:

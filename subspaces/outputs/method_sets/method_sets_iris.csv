@@ -1,0 +1,15 @@
+Conjunto,Metodo 1,Metodo 2,Metodo 3,Metodo 4,Metodo 5,Metodo 6,Metodo 7,Metodo 8,Metodo 9,Metodo 10,Metodo 11,Metodo 12,Metodo 13,Metodo 14,Metodo 15,Metodo 16,Metodo 17,Metodo 18,Metodo 19,Metodo 20,Metodo 21,Metodo 22,Score Global
+"(petal length (cm), petal length (cm))",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,0.9364
+"(petal length (cm), petal length (cm), sepal width (cm))",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,0.944422
+"(petal length (cm), petal width (cm))",Si,Si,Si,Si,Si,Si,Si,Si,Si,Si,No,Si,Si,Si,Si,Si,Si,Si,Si,Si,Si,No,0.960268
+"(petal length (cm), petal width (cm), sepal length (cm))",Si,Si,Si,Si,No,Si,No,Si,Si,Si,No,Si,Si,Si,Si,Si,No,Si,Si,Si,Si,No,0.960268
+"(petal length (cm), petal width (cm), sepal width (cm))",Si,Si,Si,Si,No,No,No,Si,Si,Si,No,Si,Si,Si,Si,Si,No,Si,Si,Si,No,No,0.952273
+"(petal length (cm), sepal length (cm))",Si,Si,Si,Si,Si,Si,Si,Si,Si,Si,No,Si,No,No,Si,Si,No,Si,Si,Si,Si,No,0.928558
+"(petal length (cm), sepal length (cm), sepal width (cm))",Si,Si,Si,Si,No,No,No,Si,Si,Si,No,Si,No,Si,Si,Si,No,Si,Si,Si,No,No,0.9364
+"(petal length (cm), sepal width (cm))",Si,Si,Si,Si,No,No,Si,Si,Si,Si,No,Si,No,Si,Si,Si,No,Si,Si,Si,No,Si,0.920054
+"(petal width (cm), petal width (cm))",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,0.960268
+"(petal width (cm), petal width (cm), sepal length (cm))",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,0.952245
+"(petal width (cm), sepal length (cm))",Si,Si,Si,Si,Si,Si,Si,Si,Si,Si,No,Si,Si,Si,Si,Si,Si,Si,Si,Si,Si,Si,0.960268
+"(petal width (cm), sepal length (cm), sepal width (cm))",Si,Si,Si,Si,No,No,No,Si,Si,Si,No,Si,Si,Si,Si,Si,No,Si,No,Si,No,No,0.960268
+"(petal width (cm), sepal width (cm))",Si,Si,Si,Si,No,No,Si,Si,Si,Si,No,Si,Si,Si,Si,Si,No,Si,Si,Si,No,No,0.960268
+"(sepal length (cm), sepal width (cm))",Si,Si,Si,Si,No,No,Si,Si,Si,Si,No,Si,No,No,Si,Si,No,Si,Si,Si,No,No,0.800932

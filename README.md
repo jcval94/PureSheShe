@@ -1,6 +1,8 @@
 # DelDel
 
-DelDel es una biblioteca ligera para instrumentar modelos de clasificación y analizar sus fronteras de decisión. Incluye utilidades para registrar llamadas al modelo, explorar pares de puntos, detectar cambios de etiqueta y visualizar fronteras con Plotly.
+DelDel es una biblioteca ligera para instrumentar clasificadores y descubrir reglas en subespacios de baja dimensión. La
+configuración por defecto se centra en el `MultiClassSubspaceExplorer`, que ahora puede ejecutarse con un bundle curado de los
+cinco mejores métodos derivados del análisis multi-dataset.
 
 ## Instalación
 
@@ -8,202 +10,116 @@ DelDel es una biblioteca ligera para instrumentar modelos de clasificación y an
 pip install .
 ```
 
-## Importaciones principales
+## Bundle de métodos núcleo
 
-El paquete expone en su nivel superior las clases y funciones más utilizadas:
+El módulo `subspaces.experiments.core_method_bundle` encapsula los cinco métodos ganadores y los expone a través de la función
+`run_core_method_bundle`. El bundle incluye:
 
-```python
-from deldel import (
-    DelDel,
-    DelDelConfig,
-    ChangePointConfig,
-    compute_frontier_planes_all_modes,
-    compute_frontier_planes_weighted,
-    plot_frontiers_implicit_interactive_v2,
-    plot_planes_with_point_lines,
-)
-```
+1. **ExtraTrees shallow routes** (`method_8_extratrees`)
+2. **Gradient-Hessian synergy (mejorado)** (`method_10b_gradient_hessian`)
+3. **Top-k guided combinations (mejorado)** (`method_1b_topk_guided`)
+4. **Gradient synergy matrix** (`method_10_gradient_synergy`)
+5. **Sparse projections Fisher-guided (mejorado)** (`method_6b_sparse_proj_guided`)
 
-## Acceso a utilidades internas del repositorio
+Los parámetros expuestos se reducen a los imprescindibles (`max_sets`, `combo_sizes`, `random_state`, `cv_splits`) y se aplican
+heurísticas robustas para el resto de la configuración.
 
-Si necesitas piezas más específicas, puedes importarlas directamente desde los módulos que viven en `src/deldel/`:
+### Ejemplo rápido de uso
 
-```python
-from deldel.engine import build_weighted_frontier, fit_tls_plane_weighted
-from deldel.frontier_planes_all_modes import (
-    compute_frontier_planes_all_modes,
-    plot_planes_with_point_lines,
-)
-from deldel.datasets import make_corner_class_dataset
-from deldel.experiments import run_corner_pipeline_experiments
-```
-
-Revisa estos archivos para extender el comportamiento o comprender los detalles de implementación.
-
-## Ejemplo rápido
-
-Entrena un modelo, calcula planos de frontera y genera una visualización interactiva:
+El siguiente fragmento ajusta un modelo base con `DelDel`, recopila los registros de cambios (`DeltaRecord`) y lanza el bundle con
+un máximo de cinco combinaciones evaluadas por método.
 
 ```python
-import numpy as np
+from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
 
-from deldel import (
-    DelDel,
-    DelDelConfig,
-    ChangePointConfig,
-    compute_frontier_planes_all_modes,
-    compute_frontier_planes_weighted,
-    make_corner_class_dataset,
-    plot_frontiers_implicit_interactive_v2,
-    plot_planes_with_point_lines,
-)
+from deldel import ChangePointConfig, DelDel, DelDelConfig
+from subspaces.experiments.core_method_bundle import run_core_method_bundle
 
-# ====== Datos de ejemplo ======
-X, y, feature_names = make_corner_class_dataset(
-    n_per_cluster=220,
-    std_class1=0.45,
-    std_other=0.8,
-    a=3.0,
+# Dataset y modelo de referencia
+X, y = make_classification(
+    n_samples=1200,
+    n_features=20,
+    n_informative=8,
+    class_sep=1.2,
     random_state=0,
 )
-model = RandomForestClassifier(n_estimators=40, random_state=0).fit(X, y)
+model = RandomForestClassifier(n_estimators=200, random_state=0).fit(X, y)
 
-# ====== Configuración ======
-cfg = DelDelConfig(
-    segments_target=120,
+# Registros generados por DelDel
+cfg = DelDelConfig(segments_target=180, random_state=0)
+records = DelDel(cfg, ChangePointConfig(enabled=False)).fit(X, model).records_
+
+# Bundle con los cinco métodos
+bundle = run_core_method_bundle(
+    X,
+    y,
+    records,
+    max_sets=5,
+    combo_sizes=(2, 3),
     random_state=0,
 )
 
-cp_cfg = ChangePointConfig(enabled=False)
-
-# ====== Ejecución ======
-d = DelDel(cfg, cp_cfg).fit(X, model)
-print("Top-5 records con cambios de etiqueta:")
-for r in d.topk(5):
-    print(f"y0={r.y0} → y1={r.y1} | flips={r.cp_count} | ΔL2={r.delta_norm_l2:.3f}")
-
-records = d.records_
-planes = compute_frontier_planes_weighted(records, prefer_cp=True, weight_map="softmax")
-
-fig = plot_frontiers_implicit_interactive_v2(
-    records,
-    X,
-    y,
-    planes=planes,
-    show_planes=True,
-    dims=(0, 1, 3),
-    feature_names=feature_names,
-    detail="high",
-    grid_res_3d=72,
-    extend=1.25,
-    clamp_extend_to_X=True,
-)
-
-pairs = sorted({tuple(sorted((r.y0, r.y1))) for r in records if r.y0 != r.y1})
-resC = compute_frontier_planes_all_modes(
-    records,
-    pairs=pairs,
-    mode="C",
-    min_cluster_size=10,
-    max_models_per_round=6,
-    seed=0,
-)
-
-plot_planes_with_point_lines(
-    resC,
-    records=records,
-    line_kind="segment",
-    show_planes=False,
-    plane_opacity=0.25,
-    line_opacity=0.75,
-    dims=(0, 1, 2),
-    title="Segmentos por punto",
-)
-
-# --- Ejecución (igual que antes; ajusta params si quieres) ---
-sel = prune_and_orient_planes_unified_globalmaj(
-    resC,
-    X,
-    y,
-    max_k=10,
-    min_improve=1e-3,
-    feature_names=feature_names,
-    dims_for_text=(0, 1),
-    min_region_size=25,
-    min_abs_diff=0.02,
-    min_rel_lift=0.05,
-)
+for report in bundle.reports:
+    print(report.method_key, report.global_yes, report.top50_yes)
 ```
 
-### Exploración de subespacios valiosos
+### Comparar contra ejecuciones individuales
 
-Para ir más allá de la visualización y detectar reglas en subespacios de baja dimensión, puedes apoyarte en
-`find_low_dim_spaces`. El siguiente fragmento imprime las reglas halladas por dimensión y recopila los
-identificadores de planos involucrados:
+`run_single_method` reutiliza la misma configuración y permite validar que cada técnica produce los mismos conteos cuando se
+corre por separado.
 
 ```python
-%%time
-# 9s
-valuable = find_low_dim_spaces(
-    X, y, sel,
-    feature_names=[f"x{i}" for i in range(X.shape[1])],
-    max_planes_in_rule=3,       # conjunciones hasta 3 planos
-    max_planes_per_pair=4,      # como tope por par
-    min_support=40,             # evita reglas con muy pocos puntos
-    min_rel_gain_f1=0.05,       # pide F1 al menos 30% sobre baseline
-    min_lift_prec=1.40,         # o bien precision con lift >= 1.4
-    consider_dims_up_to=X.shape[1],  # busca 1..d
-    rng_seed=0,
-)
+from subspaces.experiments.core_method_bundle import run_single_method, CORE_METHOD_KEYS
 
-
-planos_ = []
-# Presentación: de 1 a d dimensiones
-for dim_k in sorted(valuable.keys()):
-    print('---------------------------------------------------------------------------------------------------------------')
-    if not valuable[dim_k]:
-        continue
-    print(f"\n=== Espacios valiosos en {dim_k}D ===")
-    for r in valuable[dim_k]:
-        print('-------------------------------------------------')
-        cls = r["target_class"]; dims = r["dims"]; pid = r["plane_ids"]
-        m = r["metrics"]
-        print(f"Clase {cls} | dims={dims} | rule: {r['rule_text']}")
-        print(f"  F1={m['f1']:.3f}  Prec={m['precision']:.3f}  Rec={m['recall']:.3f}  "
-              f"size={m['size']}  lift(P)={m['lift_precision']:.2f}  baseline={m['baseline']:.3f}")
-        print(r['plane_ids'])
-        planos_.append(r['plane_ids'])
-
-
-    print(f"Total: {len(valuable[dim_k])} reglas válidas")
+for key in CORE_METHOD_KEYS:
+    explorer = run_single_method(X, y, records, key, max_sets=5, combo_sizes=(2, 3), random_state=0)
+    report = explorer.get_report()[0]
+    print(f"{key}: Sí globales={report.global_yes}, Top50={report.top50_yes}")
 ```
 
-### Experimento de rejilla para `find_low_dim_spaces`
+## Resultados reproducibles en datasets grandes
 
-El directorio `experiments_outputs/` incluye un script que ejecuta la tubería basada en
-`make_corner_class_dataset` y explora distintas configuraciones de `find_low_dim_spaces`. El
-resultado queda registrado en `experiments_outputs/finder_runs_params.csv`, con métricas agregadas por
-dimensión y una columna JSON para los parámetros efectivos usados en cada corrida.
+El script `subspaces/scripts/run_core_bundle_large_datasets.py` aplica el bundle sobre tres datasets sintéticos de mayor escala y
+genera reportes en `subspaces/outputs/core_bundle/`.
 
 ```bash
-python experiments_outputs/run_find_low_dim_param_sweep.py
+PYTHONPATH=src:. python subspaces/scripts/run_core_bundle_large_datasets.py
 ```
 
-Esto generará la tabla `finder_runs_params.csv`, útil para comparar la sensibilidad del buscador ante
-variaciones en soporte mínimo, ganancias requeridas y tamaño máximo de las reglas.
+### Estadísticas por dataset
+
+| Clave | Dataset | Muestras | Columnas | Tiempo bundle (s) | Reportes evaluados |
+| --- | --- | --- | --- | --- | --- |
+| mix_large | Synthetic Mix Large | 1 400 | 24 | 29.3253 | 3 |
+| wide_large | Synthetic Wide Large | 1 300 | 30 | 29.1262 | 3 |
+| imbalanced_large | Synthetic Imbalanced Large | 1 250 | 26 | 25.8487 | 3 |
+
+Los detalles completos están disponibles en `subspaces/outputs/core_bundle/core_bundle_dataset_stats.csv`.
+
+### Métricas por método dentro del bundle
+
+| Dataset | Método | Top 50 “Si” | Total “Si” | Tiempo (s) |
+| --- | --- | --- | --- | --- |
+| Synthetic Mix Large | ExtraTrees shallow routes | 0 | 120 | 0.200697 |
+| Synthetic Mix Large | Gradient-Hessian synergy (mejorado) | 0 | 120 | 0.064258 |
+| Synthetic Mix Large | Top-k guided combinations (mejorado) | 2 | 90 | 0.029602 |
+| Synthetic Mix Large | Gradient synergy matrix | 0 | 120 | 0.130676 |
+| Synthetic Mix Large | Sparse projections Fisher-guided (mejorado) | 3 | 97 | 0.025454 |
+| Synthetic Wide Large | ExtraTrees shallow routes | 0 | 120 | 0.203004 |
+| Synthetic Wide Large | Gradient-Hessian synergy (mejorado) | 0 | 120 | 0.061770 |
+| Synthetic Wide Large | Top-k guided combinations (mejorado) | 3 | 90 | 0.029600 |
+| Synthetic Wide Large | Gradient synergy matrix | 0 | 120 | 0.039737 |
+| Synthetic Wide Large | Sparse projections Fisher-guided (mejorado) | 0 | 99 | 0.023454 |
+| Synthetic Imbalanced Large | ExtraTrees shallow routes | 1 | 120 | 0.204090 |
+| Synthetic Imbalanced Large | Gradient-Hessian synergy (mejorado) | 1 | 120 | 0.024008 |
+| Synthetic Imbalanced Large | Top-k guided combinations (mejorado) | 2 | 90 | 0.030443 |
+| Synthetic Imbalanced Large | Gradient synergy matrix | 0 | 120 | 0.030586 |
+| Synthetic Imbalanced Large | Sparse projections Fisher-guided (mejorado) | 0 | 105 | 0.021795 |
+
+Los resultados se guardan en `subspaces/outputs/core_bundle/core_bundle_summary.csv` para facilitar comparaciones futuras.
 
 ## Recursos adicionales
 
-- `tests/`: ejemplos automatizados que ejercitan diferentes configuraciones.
-- `src/deldel/engine.py`: núcleo del algoritmo y estructuras de datos.
-- `src/deldel/frontier_planes_all_modes.py`: utilidades para recolectar y visualizar planos.
-
-- `src/deldel/datasets.py`: generadores de conjuntos sintéticos.
-- `src/deldel/experiments.py`: pipelines de experimentos reproducibles.
-
-## Conclusiones
-
-Los experimentos temporales sobre la tubería del README muestran que el ajuste del bosque aleatorio y la fase `DelDel.fit` concentran el mayor costo computacional, con variaciones de tiempo totales entre 0.82 s y 1.40 s según el tamaño del dataset y los parámetros de exploración de planos, mientras que los pasos de selección finales se mantienen por debajo de 6 ms incluso en configuraciones más exigentes.【F:from_df_to_sel_time.csv†L2-L18】
-
-¡Explora y adapta DelDel a tus necesidades!
+- `subspaces/scripts/run_multi_dataset_method_analysis.py`: produce los rankings históricos por dataset y el top 5 global.
+- `tests/test_core_method_bundle.py`: comprueba la paridad entre el bundle y las ejecuciones individuales.
