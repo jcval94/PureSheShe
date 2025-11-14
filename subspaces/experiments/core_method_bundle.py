@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 from deldel.engine import DeltaRecord
 from deldel.subspace_change_detector import MultiClassSubspaceExplorer, SubspaceReport
@@ -24,6 +24,17 @@ class CoreBundleResult:
 
     explorer: MultiClassSubspaceExplorer
     reports: Sequence[SubspaceReport]
+
+
+@dataclass(frozen=True)
+class CoreMethodSummary:
+    """Resumen ejecutivo por método dentro del bundle núcleo."""
+
+    method_key: str
+    method_name: str
+    candidate_sets: int
+    selected_reports: int
+    elapsed_seconds: float
 
 
 def _create_bundle_explorer(
@@ -79,6 +90,41 @@ def run_core_method_bundle(
     explorer.fit(X, y, records)
     reports = explorer.get_report()
     return CoreBundleResult(explorer=explorer, reports=reports)
+
+
+def summarize_core_bundle(result: CoreBundleResult) -> List[CoreMethodSummary]:
+    """Genera métricas compactas por método tras ejecutar el bundle.
+
+    La función no altera el resultado original; únicamente consolida información
+    de ``MultiClassSubspaceExplorer`` en una estructura fácil de consumir para
+    logging o visualizaciones.  ``run_core_method_bundle`` se mantiene
+    independiente y puede usarse sin invocar este resumen auxiliar.
+    """
+
+    explorer = result.explorer
+    method_keys = list(explorer.method_name_map_.keys())
+    selected_counts = {key: 0 for key in method_keys}
+    for report in result.reports:
+        combo = tuple(sorted(report.features))
+        for method_key in explorer.candidate_sources_.get(combo, set()):
+            if method_key in selected_counts:
+                selected_counts[method_key] += 1
+
+    summaries: List[CoreMethodSummary] = []
+    for method_key in method_keys:
+        friendly = explorer.method_name_map_[method_key]
+        candidates = explorer.method_candidate_sets_.get(method_key, set())
+        elapsed = explorer.method_timings_.get(friendly, 0.0)
+        summaries.append(
+            CoreMethodSummary(
+                method_key=method_key,
+                method_name=friendly,
+                candidate_sets=len(candidates),
+                selected_reports=selected_counts.get(method_key, 0),
+                elapsed_seconds=float(elapsed),
+            )
+        )
+    return summaries
 
 
 def run_single_method(
