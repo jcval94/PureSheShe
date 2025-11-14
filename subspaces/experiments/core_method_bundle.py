@@ -8,6 +8,8 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 from deldel.engine import DeltaRecord
 from deldel.subspace_change_detector import MultiClassSubspaceExplorer, SubspaceReport
 
+from .adaptive_sampling import AdaptiveSamplingInfo, maybe_adaptive_sample
+
 
 CORE_METHOD_KEYS: Tuple[str, ...] = (
     "method_8_extratrees",  # ExtraTrees shallow routes
@@ -24,6 +26,7 @@ class CoreBundleResult:
 
     explorer: MultiClassSubspaceExplorer
     reports: Sequence[SubspaceReport]
+    sampling_info: AdaptiveSamplingInfo
 
 
 @dataclass(frozen=True)
@@ -35,6 +38,9 @@ class CoreMethodSummary:
     candidate_sets: int
     selected_reports: int
     elapsed_seconds: float
+
+
+_maybe_adaptive_sample = maybe_adaptive_sample
 
 
 def _create_bundle_explorer(
@@ -72,6 +78,7 @@ def run_core_method_bundle(
     combo_sizes: Sequence[int] = (2, 3),
     random_state: Optional[int] = None,
     cv_splits: int = 3,
+    adaptive_sampling: bool = True,
 ) -> CoreBundleResult:
     """Ejecuta ``MultiClassSubspaceExplorer`` limitado a los cinco métodos ganadores.
 
@@ -80,6 +87,15 @@ def run_core_method_bundle(
     balanceadas para los datasets grandes utilizados en las evaluaciones.
     """
 
+    records_list = list(records)
+    sampled_X, sampled_y, sampled_records, sampling_info = _maybe_adaptive_sample(
+        X,
+        y,
+        records_list,
+        adaptive_sampling=adaptive_sampling,
+        random_state=random_state,
+    )
+
     explorer = _create_bundle_explorer(
         max_sets=max_sets,
         combo_sizes=combo_sizes,
@@ -87,9 +103,13 @@ def run_core_method_bundle(
         cv_splits=cv_splits,
         enabled_methods=CORE_METHOD_KEYS,
     )
-    explorer.fit(X, y, records)
+    explorer.fit(sampled_X, sampled_y, sampled_records)
     reports = explorer.get_report()
-    return CoreBundleResult(explorer=explorer, reports=reports)
+    return CoreBundleResult(
+        explorer=explorer,
+        reports=reports,
+        sampling_info=sampling_info,
+    )
 
 
 def summarize_core_bundle(result: CoreBundleResult) -> List[CoreMethodSummary]:
@@ -137,8 +157,18 @@ def run_single_method(
     combo_sizes: Sequence[int] = (2, 3),
     random_state: Optional[int] = None,
     cv_splits: int = 3,
+    adaptive_sampling: bool = True,
 ) -> MultiClassSubspaceExplorer:
     """Ejecuta el explorador sólo con un método del bundle para validación."""
+
+    records_list = list(records)
+    sampled_X, sampled_y, sampled_records, _ = _maybe_adaptive_sample(
+        X,
+        y,
+        records_list,
+        adaptive_sampling=adaptive_sampling,
+        random_state=random_state,
+    )
 
     explorer = _create_bundle_explorer(
         max_sets=max_sets,
@@ -147,6 +177,6 @@ def run_single_method(
         cv_splits=cv_splits,
         enabled_methods=(method_key,),
     )
-    explorer.fit(X, y, records)
+    explorer.fit(sampled_X, sampled_y, sampled_records)
     return explorer
 
