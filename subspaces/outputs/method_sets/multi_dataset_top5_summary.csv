@@ -1,0 +1,21 @@
+dataset_key,dataset_name,rank,method_index,method_internal,method_label,elapsed_seconds,top_50_si_count,total_si_count
+iris,Iris,1,3,method_2_chi2,Chi2 top combinations,0.000037,10,10
+iris,Iris,2,4,method_2b_chi2_guided,Chi2 targeted combinations (mejorado),0.000173,10,10
+iris,Iris,3,1,method_1_topk_random,Top-k random combinations,0.000583,10,10
+iris,Iris,4,2,method_1b_topk_guided,Top-k guided combinations (mejorado),0.001659,10,10
+iris,Iris,5,18,method_9b_countsketch_refined,CountSketch contrastive (mejorado),0.001702,10,10
+wine,Wine,1,15,method_8_extratrees,ExtraTrees shallow routes,0.107814,32,51
+wine,Wine,2,20,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),0.012397,28,47
+wine,Wine,3,19,method_10_gradient_synergy,Gradient synergy matrix,0.009749,22,46
+wine,Wine,4,12,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),0.007455,24,31
+wine,Wine,5,2,method_1b_topk_guided,Top-k guided combinations (mejorado),0.005085,27,30
+breast_cancer,Breast cancer,1,15,method_8_extratrees,ExtraTrees shallow routes,0.101610,18,30
+breast_cancer,Breast cancer,2,2,method_1b_topk_guided,Top-k guided combinations (mejorado),0.020890,21,27
+breast_cancer,Breast cancer,3,18,method_9b_countsketch_refined,CountSketch contrastive (mejorado),0.038316,21,23
+breast_cancer,Breast cancer,4,7,method_4_rf_paths,Random forest pair frequency,0.214957,19,22
+breast_cancer,Breast cancer,5,8,method_4b_rf_weighted,Random forest weighted paths (mejorado),0.220681,16,22
+titanic_synth,Titanic (sintético),1,2,method_1b_topk_guided,Top-k guided combinations (mejorado),0.004434,46,64
+titanic_synth,Titanic (sintético),2,15,method_8_extratrees,ExtraTrees shallow routes,0.101767,41,63
+titanic_synth,Titanic (sintético),3,12,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),0.007472,42,61
+titanic_synth,Titanic (sintético),4,19,method_10_gradient_synergy,Gradient synergy matrix,0.017278,34,58
+titanic_synth,Titanic (sintético),5,20,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),0.008235,33,56

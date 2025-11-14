@@ -1,0 +1,16 @@
+dataset_key,dataset_name,method_key,method_name,top50_si,global_si,runtime_seconds
+mix_large,Synthetic Mix Large,method_8_extratrees,ExtraTrees shallow routes,0,120,0.200697
+mix_large,Synthetic Mix Large,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),0,120,0.064258
+mix_large,Synthetic Mix Large,method_1b_topk_guided,Top-k guided combinations (mejorado),2,90,0.029602
+mix_large,Synthetic Mix Large,method_10_gradient_synergy,Gradient synergy matrix,0,120,0.130676
+mix_large,Synthetic Mix Large,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),3,97,0.025454
+wide_large,Synthetic Wide Large,method_8_extratrees,ExtraTrees shallow routes,0,120,0.203004
+wide_large,Synthetic Wide Large,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),0,120,0.06177
+wide_large,Synthetic Wide Large,method_1b_topk_guided,Top-k guided combinations (mejorado),3,90,0.0296
+wide_large,Synthetic Wide Large,method_10_gradient_synergy,Gradient synergy matrix,0,120,0.039737
+wide_large,Synthetic Wide Large,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),0,99,0.023454
+imbalanced_large,Synthetic Imbalanced Large,method_8_extratrees,ExtraTrees shallow routes,1,120,0.20409
+imbalanced_large,Synthetic Imbalanced Large,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),1,120,0.024008
+imbalanced_large,Synthetic Imbalanced Large,method_1b_topk_guided,Top-k guided combinations (mejorado),2,90,0.030443
+imbalanced_large,Synthetic Imbalanced Large,method_10_gradient_synergy,Gradient synergy matrix,0,120,0.030586
+imbalanced_large,Synthetic Imbalanced Large,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),0,105,0.021795

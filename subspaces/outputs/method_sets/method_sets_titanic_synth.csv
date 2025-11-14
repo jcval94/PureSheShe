@@ -1,0 +1,121 @@
+Conjunto,Metodo 1,Metodo 2,Metodo 3,Metodo 4,Metodo 5,Metodo 6,Metodo 7,Metodo 8,Metodo 9,Metodo 10,Metodo 11,Metodo 12,Metodo 13,Metodo 14,Metodo 15,Metodo 16,Metodo 17,Metodo 18,Metodo 19,Metodo 20,Metodo 21,Metodo 22,Score Global
+"(age, alone)",No,Si,No,No,No,No,Si,No,Si,Si,Si,Si,No,No,Si,Si,No,No,Si,Si,No,No,0.593651
+"(age, alone, deck)",No,Si,No,Si,No,No,No,No,No,Si,No,Si,No,No,Si,Si,No,No,No,No,No,No,0.593104
+"(age, alone, embarked)",No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,Si,No,No,No,0.598088
+"(age, alone, family_size)",No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,No,Si,No,No,No,Si,No,No,0.595908
+"(age, alone, fare)",No,Si,No,Si,No,No,No,No,No,Si,No,Si,Si,Si,Si,Si,No,No,Si,No,No,No,0.612512
+"(age, alone, parch)",No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,Si,No,No,No,No,Si,No,No,0.597849
+"(age, alone, pclass)",No,Si,No,Si,No,No,No,No,No,Si,No,Si,No,No,Si,Si,No,No,No,No,No,No,0.626921
+"(age, alone, sex)",No,Si,No,Si,No,No,No,No,Si,Si,No,Si,No,No,Si,Si,No,No,No,Si,No,No,0.61558
+"(age, alone, sibsp)",No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,Si,No,No,No,0.588918
+"(age, deck)",No,Si,No,Si,No,No,Si,No,No,Si,No,Si,No,No,Si,Si,No,No,Si,Si,No,No,0.592106
+"(age, deck, embarked)",No,No,No,Si,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,Si,Si,No,No,0.598207
+"(age, deck, family_size)",No,Si,No,Si,No,No,No,No,No,Si,No,Si,No,No,No,Si,No,No,No,No,No,No,0.597841
+"(age, deck, fare)",No,Si,No,Si,No,No,No,No,No,Si,No,Si,Si,Si,No,No,No,No,No,No,No,No,0.610519
+"(age, deck, parch)",No,Si,No,Si,No,No,No,No,Si,Si,No,Si,No,No,Si,Si,No,No,Si,No,No,No,0.600059
+"(age, deck, pclass)",No,Si,No,Si,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,0.625301
+"(age, deck, sex)",No,Si,No,Si,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,0.625979
+"(age, deck, sibsp)",No,Si,No,Si,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,0.590528
+"(age, embarked)",No,Si,No,No,No,No,Si,Si,No,Si,Si,Si,No,No,No,No,No,Si,Si,Si,No,No,0.58253
+"(age, embarked, family_size)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,0.588159
+"(age, embarked, fare)",No,Si,No,Si,No,No,No,Si,No,Si,No,Si,No,Si,No,No,No,No,Si,No,No,No,0.601619
+"(age, embarked, parch)",No,No,No,Si,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,0.600865
+"(age, embarked, pclass)",No,No,No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,Si,No,No,0.618443
+"(age, embarked, sex)",No,No,No,Si,No,No,No,Si,Si,Si,No,Si,No,No,No,No,No,No,Si,No,No,No,0.622381
+"(age, embarked, sibsp)",No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,0.591341
+"(age, family_size)",No,Si,No,No,No,No,Si,Si,No,Si,No,Si,No,Si,Si,Si,No,No,Si,Si,No,No,0.591622
+"(age, family_size, fare)",No,Si,Si,Si,No,No,No,Si,No,Si,No,No,No,Si,Si,Si,No,No,No,No,No,No,0.611232
+"(age, family_size, parch)",No,No,No,Si,No,No,No,Si,No,Si,No,No,No,No,Si,No,No,No,No,Si,No,No,0.595663
+"(age, family_size, pclass)",No,No,No,Si,No,No,No,Si,Si,Si,No,No,No,Si,Si,Si,No,No,No,No,No,No,0.626057
+"(age, family_size, sex)",No,Si,No,Si,No,No,No,Si,No,Si,No,Si,No,No,Si,No,No,No,No,No,No,No,0.624181
+"(age, family_size, sibsp)",No,No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,Si,No,No,0.594115
+"(age, fare)",No,Si,No,Si,No,No,Si,Si,Si,Si,No,Si,Si,Si,Si,Si,No,No,Si,Si,No,No,0.601404
+"(age, fare, parch)",No,Si,No,Si,No,No,No,Si,Si,Si,No,Si,Si,Si,Si,No,No,No,No,No,No,No,0.6073
+"(age, fare, pclass)",No,Si,No,Si,No,No,No,Si,No,Si,No,Si,Si,Si,Si,Si,No,No,Si,No,No,No,0.631137
+"(age, fare, sex)",No,Si,No,Si,No,No,No,Si,No,Si,No,Si,Si,Si,Si,Si,No,No,No,No,No,No,0.631147
+"(age, fare, sibsp)",No,Si,No,Si,No,No,No,Si,No,Si,No,No,Si,Si,No,No,No,No,No,Si,No,No,0.599775
+"(age, parch)",No,Si,No,No,No,No,Si,Si,No,Si,Si,Si,No,No,Si,Si,No,Si,Si,Si,No,No,0.605497
+"(age, parch, pclass)",No,Si,Si,Si,No,No,No,Si,No,Si,No,No,No,No,Si,Si,No,No,No,Si,No,No,0.642749
+"(age, parch, sex)",No,Si,No,Si,No,No,No,Si,No,Si,No,Si,No,No,Si,No,No,No,No,No,No,No,0.625163
+"(age, parch, sibsp)",No,Si,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,Si,No,No,0.595663
+"(age, pclass)",Si,Si,No,Si,No,No,Si,Si,Si,Si,Si,Si,No,No,Si,Si,No,No,Si,Si,No,No,0.613988
+"(age, pclass, sex)",No,Si,Si,Si,No,No,No,Si,No,Si,No,Si,No,No,Si,Si,No,No,No,Si,No,No,0.633309
+"(age, pclass, sibsp)",No,Si,No,Si,No,No,No,Si,No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,0.615849
+"(age, sex)",No,Si,No,Si,No,No,Si,Si,Si,Si,Si,Si,No,No,Si,Si,No,Si,Si,Si,No,No,0.62827
+"(age, sex, sibsp)",No,Si,No,Si,No,No,No,Si,No,Si,No,Si,No,No,Si,Si,No,No,No,No,No,No,0.622327
+"(age, sibsp)",No,Si,No,No,No,No,Si,Si,No,Si,Si,Si,No,No,Si,Si,No,No,Si,Si,No,No,0.590729
+"(alone, deck)",No,Si,No,No,No,No,Si,No,No,No,No,Si,Si,No,Si,Si,No,Si,Si,Si,Si,Si,0.445946
+"(alone, deck, embarked)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,Si,Si,No,No,0.454032
+"(alone, deck, family_size)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,No,Si,No,Si,No,No,0.454949
+"(alone, deck, fare)",No,Si,No,No,No,No,No,No,No,Si,No,Si,No,No,No,No,No,No,No,No,No,No,0.511865
+"(alone, deck, parch)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,No,Si,No,0.470178
+"(alone, deck, pclass)",No,No,No,No,No,No,No,No,No,No,No,Si,No,Si,Si,No,No,No,No,No,No,No,0.603024
+"(alone, deck, sex)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,Si,No,No,No,Si,0.583349
+"(alone, deck, sibsp)",No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,No,Si,No,0.448863
+"(alone, embarked)",No,Si,No,No,No,No,Si,No,No,No,Si,Si,No,No,Si,No,No,Si,Si,Si,Si,No,0.418919
+"(alone, embarked, family_size)",No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,Si,Si,Si,No,No,0.459431
+"(alone, embarked, fare)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.52079
+"(alone, embarked, parch)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,No,Si,No,No,Si,No,0.45768
+"(alone, embarked, pclass)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.601434
+"(alone, embarked, sex)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,Si,No,0.583349
+"(alone, embarked, sibsp)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,0.422826
+"(alone, family_size)",No,Si,No,No,Si,Si,Si,No,No,No,No,Si,No,No,No,Si,No,Si,Si,Si,No,No,0.427268
+"(alone, family_size, fare)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,Si,Si,No,No,0.517627
+"(alone, family_size, parch)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,Si,No,No,0.470718
+"(alone, family_size, pclass)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,Si,No,No,0.598542
+"(alone, family_size, sex)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,Si,Si,No,No,0.580704
+"(alone, family_size, sibsp)",No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,Si,Si,No,No,0.469009
+"(alone, fare)",No,Si,No,No,No,No,Si,No,No,No,No,Si,Si,Si,Si,Si,No,No,Si,Si,No,No,0.510112
+"(alone, fare, parch)",No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,No,No,0.521111
+"(alone, fare, pclass)",No,Si,No,No,No,No,No,No,No,No,No,Si,No,No,Si,Si,No,No,No,No,No,No,0.597349
+"(alone, fare, sex)",No,Si,No,No,No,No,No,No,No,No,No,Si,No,No,Si,Si,No,No,No,No,No,No,0.592315
+"(alone, parch)",No,Si,No,No,No,No,Si,No,Si,No,Si,Si,No,No,Si,No,No,Si,Si,Si,Si,No,0.490049
+"(alone, parch, pclass)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.60448
+"(alone, parch, sex)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,0.580072
+"(alone, parch, sibsp)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,Si,Si,No,0.470718
+"(alone, pclass)",No,Si,No,No,No,No,Si,No,Si,No,No,Si,No,Si,Si,Si,No,Si,Si,Si,No,No,0.601434
+"(alone, pclass, sex)",No,No,No,Si,No,No,No,No,Si,No,No,Si,No,No,Si,No,No,Si,Si,Si,No,No,0.623362
+"(alone, pclass, sibsp)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.600525
+"(alone, sex)",No,Si,No,No,No,No,Si,No,No,No,Si,Si,No,No,Si,Si,No,Si,Si,Si,Si,Si,0.583349
+"(alone, sex, sibsp)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,Si,No,0.582996
+"(alone, sibsp)",No,Si,No,No,Si,Si,Si,No,No,No,No,Si,No,No,Si,No,No,Si,Si,Si,Si,No,0.427356
+"(deck, embarked)",No,Si,No,No,No,No,Si,Si,No,No,Si,Si,No,Si,Si,No,No,Si,Si,Si,No,No,0.392924
+"(deck, embarked, family_size)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.494312
+"(deck, embarked, fare)",No,No,Si,No,No,No,No,Si,No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,0.497943
+"(deck, embarked, parch)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,0.516822
+"(deck, embarked, pclass)",No,No,No,No,No,No,No,Si,No,No,No,No,No,No,Si,No,No,No,Si,No,No,No,0.603805
+"(deck, embarked, sex)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.583349
+"(deck, embarked, sibsp)",No,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,No,Si,No,No,No,0.391659
+"(deck, family_size)",No,Si,No,No,No,No,Si,No,Si,No,Si,Si,No,No,Si,Si,No,Si,Si,Si,No,No,0.49196
+"(deck, family_size, fare)",No,Si,Si,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,0.515358
+"(deck, family_size, parch)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,0.507598
+"(deck, family_size, sex)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.581312
+"(deck, family_size, sibsp)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,0.514948
+"(deck, fare)",No,Si,No,No,No,No,Si,Si,No,Si,No,Si,Si,Si,Si,Si,No,No,Si,Si,No,No,0.501688
+"(deck, fare, parch)",No,Si,No,No,No,No,No,No,No,Si,No,No,No,No,Si,No,No,No,Si,Si,No,No,0.51572
+"(deck, fare, pclass)",No,Si,No,No,No,No,No,Si,No,Si,No,No,No,No,Si,No,No,No,No,No,No,No,0.603152
+"(deck, fare, sex)",No,Si,No,No,No,No,No,No,No,Si,No,Si,No,No,Si,Si,No,No,No,No,No,No,0.601144
+"(deck, fare, sibsp)",No,Si,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,No,No,Si,No,No,No,0.502277
+"(deck, parch)",No,Si,No,No,No,No,Si,No,No,No,No,Si,No,No,Si,Si,No,Si,Si,Si,Si,No,0.506657
+"(deck, parch, pclass)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.607083
+"(deck, parch, sex)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,Si,No,No,Si,No,No,No,No,0.571769
+"(deck, parch, sibsp)",No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,Si,No,No,Si,No,0.507598
+"(deck, pclass)",No,Si,No,No,No,No,Si,Si,No,No,No,Si,No,No,Si,Si,No,Si,Si,Si,No,No,0.60846
+"(deck, pclass, sex)",No,No,No,Si,No,No,No,No,No,No,No,No,No,No,Si,Si,No,Si,Si,Si,No,No,0.63258
+"(deck, pclass, sibsp)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,No,No,0.59997
+"(deck, sex)",No,Si,Si,No,No,No,Si,No,No,No,Si,Si,No,No,No,Si,No,Si,Si,Si,No,Si,0.583349
+"(deck, sex, sibsp)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,No,No,No,0.583349
+"(deck, sibsp)",No,Si,No,No,No,No,Si,No,No,No,Si,Si,No,No,No,Si,No,Si,Si,Si,Si,No,0.404569
+"(embarked, family_size)",No,Si,Si,No,No,No,Si,No,Si,No,Si,Si,No,No,No,No,No,Si,Si,Si,No,No,0.448839
+"(embarked, family_size, fare)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.497325
+"(embarked, family_size, parch)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,Si,No,No,0.510191
+"(embarked, family_size, pclass)",No,No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,0.602629
+"(embarked, family_size, sex)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,No,No,No,No,No,0.580704
+"(embarked, family_size, sibsp)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,Si,Si,No,No,0.471684
+"(embarked, fare)",No,Si,No,No,No,No,Si,Si,No,No,Si,Si,No,Si,Si,Si,No,Si,Si,Si,No,No,0.48464
+"(embarked, fare, parch)",No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,Si,No,No,Si,No,No,No,0.529383
+"(embarked, fare, pclass)",No,Si,Si,No,No,No,No,Si,No,No,No,No,No,No,Si,Si,No,No,No,No,No,No,0.607122
+"(embarked, fare, sex)",No,Si,No,No,No,No,No,Si,No,No,No,No,No,No,No,No,No,No,No,Si,No,No,0.599639
+"(embarked, fare, sibsp)",No,Si,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,0.487402
+"(embarked, parch)",No,Si,No,No,No,No,Si,Si,Si,No,Si,No,No,No,Si,Si,No,Si,Si,Si,Si,No,0.437486
+"(embarked, parch, pclass)",No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Si,No,Si,No,No,No,No,0.600762

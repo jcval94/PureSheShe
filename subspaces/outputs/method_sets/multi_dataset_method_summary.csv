@@ -1,0 +1,81 @@
+dataset_key,dataset_name,method_index,method_internal,method_label,elapsed_seconds,top_50_si_count,total_si_count
+iris,Iris,1,method_1_topk_random,Top-k random combinations,0.000583,10,10
+iris,Iris,2,method_1b_topk_guided,Top-k guided combinations (mejorado),0.001659,10,10
+iris,Iris,3,method_2_chi2,Chi2 top combinations,0.000037,10,10
+iris,Iris,4,method_2b_chi2_guided,Chi2 targeted combinations (mejorado),0.000173,10,10
+iris,Iris,5,method_3_corr_groups,High correlation groups,0.000523,3,3
+iris,Iris,6,method_3b_corr_guided,Correlation clusters refined (mejorado),0.001166,4,4
+iris,Iris,7,method_4_rf_paths,Random forest pair frequency,0.214598,6,6
+iris,Iris,8,method_4b_rf_weighted,Random forest weighted paths (mejorado),0.177477,10,10
+iris,Iris,9,method_5_leverage,Leverage score filter,0.004117,10,10
+iris,Iris,10,method_5b_leverage_class,Leverage class-focused (mejorado),0.004973,10,10
+iris,Iris,11,method_6_sparse_proj,Sparse random projections,0.004976,0,0
+iris,Iris,12,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),0.006349,10,10
+iris,Iris,13,method_7_lazy_greedy,Lazy greedy dispersion,0.001755,6,6
+iris,Iris,14,method_7b_lazy_greedy_refined,Lazy greedy with variance lookahead (mejorado),0.005888,8,8
+iris,Iris,15,method_8_extratrees,ExtraTrees shallow routes,0.100149,10,10
+iris,Iris,16,method_8b_extratrees_refined,ExtraTrees purity-weighted (mejorado),0.165808,10,10
+iris,Iris,17,method_9_countsketch,CountSketch heavy hitters,0.002423,2,2
+iris,Iris,18,method_9b_countsketch_refined,CountSketch contrastive (mejorado),0.001702,10,10
+iris,Iris,19,method_10_gradient_synergy,Gradient synergy matrix,0.013899,9,9
+iris,Iris,20,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),0.006849,10,10
+wine,Wine,1,method_1_topk_random,Top-k random combinations,0.000171,6,6
+wine,Wine,2,method_1b_topk_guided,Top-k guided combinations (mejorado),0.005085,27,30
+wine,Wine,3,method_2_chi2,Chi2 top combinations,0.000767,9,9
+wine,Wine,4,method_2b_chi2_guided,Chi2 targeted combinations (mejorado),0.001527,12,13
+wine,Wine,5,method_3_corr_groups,High correlation groups,0.001109,2,2
+wine,Wine,6,method_3b_corr_guided,Correlation clusters refined (mejorado),0.003117,3,3
+wine,Wine,7,method_4_rf_paths,Random forest pair frequency,0.222076,21,22
+wine,Wine,8,method_4b_rf_weighted,Random forest weighted paths (mejorado),0.194768,20,30
+wine,Wine,9,method_5_leverage,Leverage score filter,0.004747,7,12
+wine,Wine,10,method_5b_leverage_class,Leverage class-focused (mejorado),0.014115,11,18
+wine,Wine,11,method_6_sparse_proj,Sparse random projections,0.008140,9,9
+wine,Wine,12,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),0.007455,24,31
+wine,Wine,13,method_7_lazy_greedy,Lazy greedy dispersion,0.004309,8,9
+wine,Wine,14,method_7b_lazy_greedy_refined,Lazy greedy with variance lookahead (mejorado),0.038307,6,7
+wine,Wine,15,method_8_extratrees,ExtraTrees shallow routes,0.107814,32,51
+wine,Wine,16,method_8b_extratrees_refined,ExtraTrees purity-weighted (mejorado),0.176992,21,24
+wine,Wine,17,method_9_countsketch,CountSketch heavy hitters,0.031381,1,1
+wine,Wine,18,method_9b_countsketch_refined,CountSketch contrastive (mejorado),0.033738,19,22
+wine,Wine,19,method_10_gradient_synergy,Gradient synergy matrix,0.009749,22,46
+wine,Wine,20,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),0.012397,28,47
+breast_cancer,Breast cancer,1,method_1_topk_random,Top-k random combinations,0.000323,5,5
+breast_cancer,Breast cancer,2,method_1b_topk_guided,Top-k guided combinations (mejorado),0.020890,21,27
+breast_cancer,Breast cancer,3,method_2_chi2,Chi2 top combinations,0.000648,6,6
+breast_cancer,Breast cancer,4,method_2b_chi2_guided,Chi2 targeted combinations (mejorado),0.003693,14,16
+breast_cancer,Breast cancer,5,method_3_corr_groups,High correlation groups,0.001505,10,10
+breast_cancer,Breast cancer,6,method_3b_corr_guided,Correlation clusters refined (mejorado),0.014081,15,16
+breast_cancer,Breast cancer,7,method_4_rf_paths,Random forest pair frequency,0.214957,19,22
+breast_cancer,Breast cancer,8,method_4b_rf_weighted,Random forest weighted paths (mejorado),0.220681,16,22
+breast_cancer,Breast cancer,9,method_5_leverage,Leverage score filter,0.005047,4,7
+breast_cancer,Breast cancer,10,method_5b_leverage_class,Leverage class-focused (mejorado),0.009089,12,20
+breast_cancer,Breast cancer,11,method_6_sparse_proj,Sparse random projections,0.005861,5,8
+breast_cancer,Breast cancer,12,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),0.008724,10,12
+breast_cancer,Breast cancer,13,method_7_lazy_greedy,Lazy greedy dispersion,0.005730,5,5
+breast_cancer,Breast cancer,14,method_7b_lazy_greedy_refined,Lazy greedy with variance lookahead (mejorado),0.050780,4,8
+breast_cancer,Breast cancer,15,method_8_extratrees,ExtraTrees shallow routes,0.101610,18,30
+breast_cancer,Breast cancer,16,method_8b_extratrees_refined,ExtraTrees purity-weighted (mejorado),0.182930,8,9
+breast_cancer,Breast cancer,17,method_9_countsketch,CountSketch heavy hitters,0.032510,3,3
+breast_cancer,Breast cancer,18,method_9b_countsketch_refined,CountSketch contrastive (mejorado),0.038316,21,23
+breast_cancer,Breast cancer,19,method_10_gradient_synergy,Gradient synergy matrix,0.020880,7,14
+breast_cancer,Breast cancer,20,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),0.009492,12,19
+titanic_synth,Titanic (sintético),1,method_1_topk_random,Top-k random combinations,0.000145,1,1
+titanic_synth,Titanic (sintético),2,method_1b_topk_guided,Top-k guided combinations (mejorado),0.004434,46,64
+titanic_synth,Titanic (sintético),3,method_2_chi2,Chi2 top combinations,0.000929,6,9
+titanic_synth,Titanic (sintético),4,method_2b_chi2_guided,Chi2 targeted combinations (mejorado),0.001314,26,34
+titanic_synth,Titanic (sintético),5,method_3_corr_groups,High correlation groups,0.000864,2,2
+titanic_synth,Titanic (sintético),6,method_3b_corr_guided,Correlation clusters refined (mejorado),0.001656,2,3
+titanic_synth,Titanic (sintético),7,method_4_rf_paths,Random forest pair frequency,0.243883,27,27
+titanic_synth,Titanic (sintético),8,method_4b_rf_weighted,Random forest weighted paths (mejorado),0.304410,27,36
+titanic_synth,Titanic (sintético),9,method_5_leverage,Leverage score filter,0.005163,15,22
+titanic_synth,Titanic (sintético),10,method_5b_leverage_class,Leverage class-focused (mejorado),0.007093,30,53
+titanic_synth,Titanic (sintético),11,method_6_sparse_proj,Sparse random projections,0.006688,16,16
+titanic_synth,Titanic (sintético),12,method_6b_sparse_proj_guided,Sparse projections Fisher-guided (mejorado),0.007472,42,61
+titanic_synth,Titanic (sintético),13,method_7_lazy_greedy,Lazy greedy dispersion,0.004935,10,13
+titanic_synth,Titanic (sintético),14,method_7b_lazy_greedy_refined,Lazy greedy with variance lookahead (mejorado),0.029926,16,18
+titanic_synth,Titanic (sintético),15,method_8_extratrees,ExtraTrees shallow routes,0.101767,41,63
+titanic_synth,Titanic (sintético),16,method_8b_extratrees_refined,ExtraTrees purity-weighted (mejorado),0.182517,35,44
+titanic_synth,Titanic (sintético),17,method_9_countsketch,CountSketch heavy hitters,0.018737,0,0
+titanic_synth,Titanic (sintético),18,method_9b_countsketch_refined,CountSketch contrastive (mejorado),0.020082,21,52
+titanic_synth,Titanic (sintético),19,method_10_gradient_synergy,Gradient synergy matrix,0.017278,34,58
+titanic_synth,Titanic (sintético),20,method_10b_gradient_hessian,Gradient-Hessian synergy (mejorado),0.008235,33,56
