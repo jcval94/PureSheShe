@@ -33,8 +33,14 @@ un máximo de cinco combinaciones evaluadas por método.
 from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
 
-from deldel import ChangePointConfig, DelDel, DelDelConfig
-from subspaces.experiments.core_method_bundle import run_core_method_bundle
+from deldel import (
+    ChangePointConfig,
+    DelDel,
+    DelDelConfig,
+    compute_frontier_planes_all_modes,
+    prune_and_orient_planes_unified_globalmaj,
+)
+from subspaces.experiments.core_method_bundle import run_core_method_bundle, summarize_core_bundle
 
 # Dataset y modelo de referencia
 X, y = make_classification(
@@ -50,6 +56,28 @@ model = RandomForestClassifier(n_estimators=200, random_state=0).fit(X, y)
 cfg = DelDelConfig(segments_target=180, random_state=0)
 records = DelDel(cfg, ChangePointConfig(enabled=False)).fit(X, model).records_
 
+# Planos frontera (modo C mejorado)
+res_c = compute_frontier_planes_all_modes(
+    records,
+    mode="C",
+    min_cluster_size=12,
+    max_models_per_round=6,
+    seed=0,
+)
+
+# Selección global orientada
+sel = prune_and_orient_planes_unified_globalmaj(
+    res_c,
+    X,
+    y,
+    feature_names=[f"f{i}" for i in range(X.shape[1])],
+    max_k=8,
+    min_improve=1e-3,
+    min_region_size=25,
+    min_abs_diff=0.02,
+    min_rel_lift=0.05,
+)
+
 # Bundle con los cinco métodos
 bundle = run_core_method_bundle(
     X,
@@ -62,6 +90,16 @@ bundle = run_core_method_bundle(
 
 for report in bundle.reports:
     print(report.method_key, report.global_yes, report.top50_yes)
+
+# Resumen ejecutivo por método
+for method_summary in summarize_core_bundle(bundle):
+    print(
+        f"{method_summary.method_name}: {method_summary.selected_reports} seleccionados,",
+        f"{method_summary.candidate_sets} candidatos,",
+        f"{method_summary.elapsed_seconds:.4f}s"
+    )
+
+print(f"Selección final con {len(sel['winning_planes'])} planos ganadores")
 ```
 
 ### Comparar contra ejecuciones individuales
