@@ -1,0 +1,16 @@
+dataset,call,n_rows,n_unique,consistent,max_abs_diff
+small,1,969,600,True,0.0
+small,2,969,600,True,0.0
+small,3,969,600,True,0.0
+small,4,969,600,True,0.0
+small,5,969,600,True,0.0
+medium,1,3855,2400,True,0.0
+medium,2,3855,2400,True,0.0
+medium,3,3855,2400,True,0.0
+medium,4,3855,2400,True,0.0
+medium,5,3855,2400,True,0.0
+large,1,11568,7200,True,0.0
+large,2,11568,7200,True,0.0
+large,3,11568,7200,True,0.0
+large,4,11568,7200,True,0.0
+large,5,11568,7200,True,0.0
