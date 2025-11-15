@@ -35,21 +35,42 @@ def _log_model_call(entry: Dict[str, Any]) -> None:
         cb(entry)
 
 def _infer_stage() -> str:
+    frame = inspect.currentframe()
+    if frame is None:
+        return "unknown"
+
+    result = "unknown"
+    first_candidate = None
     try:
-        for fr in inspect.stack():
-            func = fr.function
-            if func in {"scores", "_scores_raw", "_predict_labels"}:
-                continue
-            loc = fr.frame.f_locals
-            if "self" in loc:
-                try: clsname = loc["self"].__class__.__name__
-                except Exception: clsname = None
-                if clsname == "DelDel":
-                    return f"{clsname}.{func}"
-        top = inspect.stack()[1]
-        return f"{top.frame.f_globals.get('__name__','__main__')}.{top.function}"
+        frame = frame.f_back  # skip current frame
+        while frame:
+            func = frame.f_code.co_name
+            if func not in {"scores", "_scores_raw", "_predict_labels"}:
+                if first_candidate is None:
+                    first_candidate = frame
+                loc = frame.f_locals
+                self_obj = loc.get("self")
+                if self_obj is not None:
+                    try:
+                        clsname = self_obj.__class__.__name__
+                    except Exception:
+                        clsname = None
+                    if clsname == "DelDel":
+                        result = f"{clsname}.{func}"
+                        break
+            frame = frame.f_back
+
+        if result == "unknown" and first_candidate is not None:
+            module = first_candidate.f_globals.get("__name__", "__main__")
+            result = f"{module}.{first_candidate.f_code.co_name}"
+
+        return result
     except Exception:
         return "unknown"
+    finally:
+        # break reference cycles: https://docs.python.org/3/library/inspect.html#the-interpreter-stack
+        frame = None
+        first_candidate = None
 
 @contextmanager
 def _collect_calls(target_list: List[Dict[str, Any]]):
@@ -240,46 +261,6 @@ class ScoreAdaptor:
 # -------------------------
 # Secante + bisección (vectorizado) para flips
 # -------------------------
-def batch_false_position_flip(
-    adaptor: ScoreAdaptor,
-    A: np.ndarray, B: np.ndarray,
-    yA: np.ndarray, yB: np.ndarray,
-    iters: int = 2, final_bisect: int = 8
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    m, d = A.shape
-    SA = adaptor.scores(A); SB = adaptor.scores(B)
-    hA = SA[np.arange(m), yA] - SA[np.arange(m), yB]
-    hB = SB[np.arange(m), yA] - SB[np.arange(m), yB]
-
-    denom = (hA - hB)
-    t = np.clip(hA / (denom + 1e-12), 1e-4, 1-1e-4)
-    X = (1.0 - t)[:, None]*A + t[:, None]*B
-    S = adaptor.scores(X); y = np.argmax(S, axis=1)
-
-    for _ in range(max(0, iters-1)):
-        hX = S[np.arange(m), yA] - S[np.arange(m), yB]
-        maskA = (y == yA) | ((hX > 0) & (y != yA) & (y != yB))
-        maskB = (y == yB) | ((hX <= 0) & (y != yA) & (y != yB))
-        A = np.where(maskA[:, None], X, A); B = np.where(maskB[:, None], X, B)
-        SA = np.where(maskA[:, None], S, SA); SB = np.where(maskB[:, None], S, SB)
-        hA = SA[np.arange(m), yA] - SA[np.arange(m), yB]
-        hB = SB[np.arange(m), yA] - SB[np.arange(m), yB]
-        t = np.clip(hA / ((hA - hB) + 1e-12), 1e-4, 1-1e-4)
-        X = (1.0 - t)[:, None]*A + t[:, None]*B
-        S = adaptor.scores(X); y = np.argmax(S, axis=1)
-
-    lo = np.zeros(m); hi = np.ones(m); XA, XB = A.copy(), B.copy()
-    for _ in range(final_bisect):
-        mid = 0.5*(lo+hi)
-        XM = (1.0 - mid)[:, None]*XA + mid[:, None]*XB
-        SM = adaptor.scores(XM); yM = np.argmax(SM, axis=1)
-        goA = (yM == yA)
-        lo = np.where(goA, mid, lo); hi = np.where(goA, hi, mid)
-        XA = np.where(goA[:,None], XM, XA); XB = np.where(~goA[:,None], XM, XB)
-    Xstar = (1.0 - hi)[:, None]*A + hi[:, None]*B
-    Sstar = adaptor.scores(Xstar); ystar = np.argmax(Sstar, axis=1)
-    return Xstar, ystar, Sstar
-
 def batch_false_position_flip(
     adaptor: ScoreAdaptor,
     A: np.ndarray, B: np.ndarray,

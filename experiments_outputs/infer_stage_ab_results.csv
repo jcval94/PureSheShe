@@ -1,0 +1,5 @@
+scenario,legacy_value,current_value,values_match,dataframe_label,dataframe_rows,dataframe_cols,cache_expected,duplicate_groups
+fake_deldel_stage,DelDel.stage,DelDel.stage,yes,,,,,
+plain_helper,deldel.stage_infer_ab.helper,deldel.stage_infer_ab.helper,yes,,,,,
+score_adaptor_dataframe_small,DelDel.stage,DelDel.stage,yes,dense_float,3,4,yes,
+score_adaptor_dataframe_duplicate_rows,DelDel.stage,DelDel.stage,yes,duplicate_rows,4,5,yes,2
