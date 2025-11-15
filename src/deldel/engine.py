@@ -165,6 +165,8 @@ class ScoreAdaptor:
         self.cache_decimals = int(cache_decimals)
         self._cache: Dict[bytes, np.ndarray] = {}
         self._pd_cols = None  # cachea nombres de columnas si hay
+        self._round_buffer: Optional[np.ndarray] = None
+        self._cache_key_dtype: Optional[np.dtype] = None
 
     def _maybe_frame(self, X: np.ndarray):
         # convierte a DataFrame una sola vez por batch si el modelo lo requiere
@@ -180,14 +182,64 @@ class ScoreAdaptor:
         return X
     def scores_dedup(self, X: np.ndarray) -> np.ndarray:
         import numpy as np
+
         X = np.asarray(X, float)
         if X.ndim == 1:
             return self.scores(X)
-        Q = np.round(X, getattr(self, "cache_decimals", 6))
-        uniq, idx, inv = np.unique(Q, axis=0, return_index=True, return_inverse=True)
-        Suniq = self._scores_raw(uniq)
-        keys = [u.tobytes() for u in uniq]
-        for k, val in zip(keys, Suniq): self._cache[k] = val
+
+        decimals = int(getattr(self, "cache_decimals", 6))
+        cache_enabled = bool(getattr(self, "cache_enabled", True))
+
+        # --- Reuse a rounding buffer to avoid per-batch allocations --------------------
+        buf = getattr(self, "_round_buffer", None)
+        if buf is None or buf.shape != X.shape:
+            buf = np.empty_like(X)
+            self._round_buffer = buf
+        np.around(X, decimals=decimals, out=buf)
+
+        Q = buf if buf.flags.c_contiguous else np.ascontiguousarray(buf)
+
+        # View each row as a raw byte string so uniqueness + hashing are allocation-free
+        key_dtype = getattr(self, "_cache_key_dtype", None)
+        itemsize = Q.dtype.itemsize * (Q.shape[1] if Q.ndim > 1 else 1)
+        if key_dtype is None or key_dtype.itemsize != itemsize:
+            key_dtype = np.dtype((np.void, itemsize))
+            self._cache_key_dtype = key_dtype
+
+        row_view = Q.view(key_dtype).reshape(-1)
+        uniq_view, idx, inv = np.unique(row_view, return_index=True, return_inverse=True)
+        uniq = Q[idx]
+
+        if not cache_enabled:
+            Suniq = self._scores_raw(uniq)
+            return Suniq[inv]
+
+        cache = self._cache
+        scores_list: List[np.ndarray] = [None] * len(uniq)  # type: ignore[list-item]
+        miss_idx: List[int] = []
+        miss_keys: List[bytes] = []
+
+        for pos, key_void in enumerate(uniq_view):
+            key = key_void.tobytes()
+            cached = cache.get(key)
+            if cached is None:
+                miss_idx.append(pos)
+                miss_keys.append(key)
+            else:
+                scores_list[pos] = cached
+
+        if miss_idx:
+            S_new = self._scores_raw(uniq[miss_idx])
+            for local_pos, cache_pos in enumerate(miss_idx):
+                val = S_new[local_pos]
+                cache[miss_keys[local_pos]] = val
+                scores_list[cache_pos] = val
+
+        if len(scores_list) == 0:
+            return self._scores_raw(uniq)[inv]
+
+        # All entries are guaranteed to be filled (hits or misses)
+        Suniq = np.stack(scores_list, axis=0)
         return Suniq[inv]
 
     def _scores_raw(self, X: np.ndarray) -> np.ndarray:
