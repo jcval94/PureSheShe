@@ -36,6 +36,7 @@ from .find_low_dim_spaces_fast import (
     find_low_dim_spaces_support_first,
 )
 from .reporting_plotting import describe_regions_report, plot_selected_regions_interactive
+from . import stage_infer_ab
 from .subspace_change_detector import (
     MultiClassSubspaceExplorer,
     SubspacePlane,
@@ -76,4 +77,5 @@ __all__ = [
     "MultiClassSubspaceExplorer",
     "SubspacePlane",
     "SubspaceReport",
+    "stage_infer_ab",
 ]
