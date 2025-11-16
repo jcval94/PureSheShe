@@ -67,6 +67,11 @@ heurísticas robustas para el resto de la configuración.
 El siguiente fragmento ajusta un modelo base con `DelDel`, recopila los registros de cambios (`DeltaRecord`) y lanza el bundle con
 un máximo de cinco combinaciones evaluadas por método.
 
+> **ImportError/ModuleNotFoundError**<br>
+> Si al ejecutar el ejemplo aparece `ModuleNotFoundError: No module named 'subspaces'`, significa que el paquete no ha sido
+> instalado en el entorno actual. Basta con instalar el proyecto (p. ej. `pip install .` o `pip install -e .`) o, para notebooks
+> rápidos, añadir `src/` al `PYTHONPATH` con `import sys; sys.path.append('/ruta/a/PureSheShe/src')` antes de los imports.
+
 ```python
 from sklearn.datasets import make_classification
 from sklearn.ensemble import RandomForestClassifier
