@@ -11,10 +11,22 @@ authors = [{name = "DelDel Team"}]
 requires-python = ">=3.9"
 license = {text = "MIT"}
 dependencies = [
-    "numpy",
-    "scikit-learn",
-    "plotly",
+    "numpy>=1.23",
+    "pandas>=1.5",
+    "plotly>=5.14",
+    "scikit-learn>=1.3",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [project.urls]
 Homepage = "https://example.com/deldel"

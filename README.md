@@ -6,9 +6,47 @@ cinco mejores métodos derivados del análisis multi-dataset.
 
 ## Instalación
 
+El proyecto utiliza la convención de *src layout*, por lo que los paquetes se encuentran dentro de `src/`. A partir de la
+configuración declarada en `pyproject.toml` (sección `[tool.setuptools]`) basta con ejecutar:
+
 ```bash
+git clone https://github.com/<usuario>/PureSheShe.git
+cd PureSheShe
 pip install .
 ```
+
+El comando `pip install .` funciona en cualquier entorno compatible (incluido Google Colab) porque ahora el paquete especifica
+explícitamente dónde se encuentran los módulos Python. Para desarrollo activo puede usarse `pip install -e .`.
+
+> **¿Qué le faltaba al paquete?**<br>
+> Solo era necesario indicar a `setuptools` que debía buscar los paquetes dentro de `src/`. Esto se resolvió agregando las
+> secciones `[tool.setuptools]` y `[tool.setuptools.packages.find]` al `pyproject.toml`, habilitando instalaciones directas tras
+> un `git clone` sin pasos adicionales.
+
+### Requirements y dependencias
+
+Los requerimientos de ejecución se declaran en dos sitios sincronizados:
+
+- `[project.dependencies]` dentro de `pyproject.toml`.
+- Los archivos planos `requirements.txt` (ejecución) y `requirements-dev.txt` (desarrollo/tests).
+
+Si solo se necesita preparar un entorno para correr scripts directamente desde `src/` (sin instalar el paquete), basta con:
+
+```bash
+pip install -r requirements.txt
+```
+
+Para ejecutar la batería de pruebas o trabajar en modo editable es conveniente instalar también las dependencias de
+desarrollo:
+
+```bash
+pip install -r requirements-dev.txt
+# o, si ya instalaste el paquete:
+pip install -e .[dev]
+```
+
+Ambos archivos están pensados para usarse en Colab o entornos aislados donde resulta útil listar explícitamente las
+dependencias antes de hacer `pip install .`. La guía `docs/COLAB.md` incluye ejemplos con cada flujo.
 
 ## Bundle de métodos núcleo
 
@@ -161,3 +199,24 @@ Los resultados se guardan en `subspaces/outputs/core_bundle/core_bundle_summary.
 
 - `subspaces/scripts/run_multi_dataset_method_analysis.py`: produce los rankings históricos por dataset y el top 5 global.
 - `tests/test_core_method_bundle.py`: comprueba la paridad entre el bundle y las ejecuciones individuales.
+- `docs/COLAB.md`: guía paso a paso para clonar, instalar y usar DelDel dentro de Google Colab.
+
+### Uso rápido en Google Colab
+
+1. Abra un notebook nuevo y ejecute:
+
+   ```python
+   !git clone https://github.com/<usuario>/PureSheShe.git
+   %cd PureSheShe
+   !pip install .
+   ```
+
+2. Importe los módulos necesarios dentro del mismo notebook:
+
+   ```python
+   import deldel
+   from subspaces.experiments.core_method_bundle import run_core_method_bundle
+   ```
+
+3. Siga cualquiera de los ejemplos descritos anteriormente o revise la guía completa en `docs/COLAB.md` para más detalles (modo
+editable, configuración de `PYTHONPATH`, etc.).
