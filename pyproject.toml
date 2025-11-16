@@ -23,10 +23,8 @@ dev = [
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
+packages = ["deldel", "subspaces"]
+package-dir = {"deldel" = "src/deldel", "subspaces" = "subspaces"}
 
 [project.urls]
 Homepage = "https://example.com/deldel"

@@ -6,22 +6,24 @@ cinco mejores métodos derivados del análisis multi-dataset.
 
 ## Instalación
 
-El proyecto utiliza la convención de *src layout*, por lo que los paquetes se encuentran dentro de `src/`. A partir de la
-configuración declarada en `pyproject.toml` (sección `[tool.setuptools]`) basta con ejecutar:
+El proyecto utiliza la convención de *src layout* y, gracias a la configuración en `pyproject.toml`, tanto `deldel` como
+`subspaces` quedan disponibles tras la instalación. Todo el proceso se resume en un único bloque de comandos:
 
 ```bash
 git clone https://github.com/<usuario>/PureSheShe.git
 cd PureSheShe
-pip install .
+pip install .        # instalación estándar (incluye subspaces.*)
+# o, para desarrollo editable con extras:
+pip install -e .[dev]
 ```
 
-El comando `pip install .` funciona en cualquier entorno compatible (incluido Google Colab) porque ahora el paquete especifica
-explícitamente dónde se encuentran los módulos Python. Para desarrollo activo puede usarse `pip install -e .`.
+El comando `pip install .` funciona en cualquier entorno compatible (incluido Google Colab) porque el paquete expone
+explícitamente ambos módulos. Para flujos de desarrollo también se puede instalar en modo editable con extras (`-e .[dev]`).
 
 > **¿Qué le faltaba al paquete?**<br>
-> Solo era necesario indicar a `setuptools` que debía buscar los paquetes dentro de `src/`. Esto se resolvió agregando las
-> secciones `[tool.setuptools]` y `[tool.setuptools.packages.find]` al `pyproject.toml`, habilitando instalaciones directas tras
-> un `git clone` sin pasos adicionales.
+> Solo era necesario decirle a `setuptools` dónde vivían `deldel` (en `src/`) y `subspaces` (en la raíz). Esto se resolvió
+> declarando explícitamente ambos paquetes y sus rutas dentro de `[tool.setuptools]` en `pyproject.toml`, habilitando
+> instalaciones directas tras un `git clone` sin pasos adicionales.
 
 ### Requirements y dependencias
 
