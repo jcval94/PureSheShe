@@ -6,22 +6,26 @@ cinco mejores métodos derivados del análisis multi-dataset.
 
 ## Instalación
 
-El proyecto utiliza la convención de *src layout*, por lo que los paquetes se encuentran dentro de `src/`. A partir de la
-configuración declarada en `pyproject.toml` (sección `[tool.setuptools]`) basta con ejecutar:
+El proyecto utiliza la convención de *src layout* y, gracias a la configuración en `pyproject.toml`, tanto `deldel` como
+`subspaces` quedan disponibles tras la instalación. Todo el proceso se resume en un único bloque de comandos:
 
 ```bash
 git clone https://github.com/<usuario>/PureSheShe.git
 cd PureSheShe
-pip install .
+pip install .        # instalación estándar (incluye subspaces.*)
+# o, para desarrollo editable con extras:
+pip install -e .[dev]
 ```
 
-El comando `pip install .` funciona en cualquier entorno compatible (incluido Google Colab) porque ahora el paquete especifica
-explícitamente dónde se encuentran los módulos Python. Para desarrollo activo puede usarse `pip install -e .`.
+El comando `pip install .` funciona en cualquier entorno compatible (incluido Google Colab) porque el paquete expone
+explícitamente ambos módulos. Además, el backend local definido en `deldel_build_backend.py` no necesita descargar
+dependencias de compilación (por ejemplo `setuptools`), así que la instalación estándar funciona aun sin conexión a PyPI.
+Para flujos de desarrollo también se puede instalar en modo editable con extras (`-e .[dev]`).
 
 > **¿Qué le faltaba al paquete?**<br>
-> Solo era necesario indicar a `setuptools` que debía buscar los paquetes dentro de `src/`. Esto se resolvió agregando las
-> secciones `[tool.setuptools]` y `[tool.setuptools.packages.find]` al `pyproject.toml`, habilitando instalaciones directas tras
-> un `git clone` sin pasos adicionales.
+> Solo era necesario decirle al backend local dónde vivían `deldel` (en `src/`) y `subspaces` (en la raíz). Esto se resolvió
+> declarando explícitamente ambos paquetes y sus rutas dentro de `pyproject.toml`, habilitando instalaciones directas tras un
+> `git clone` sin pasos adicionales.
 
 ### Requirements y dependencias
 
@@ -132,7 +136,12 @@ bundle = run_core_method_bundle(
 )
 
 for report in bundle.reports:
-    print(report.method_key, report.global_yes, report.top50_yes)
+    combo = tuple(sorted(report.features))
+    source_methods = ", ".join(sorted(bundle.explorer.candidate_sources_.get(combo, [])))
+    print(
+        f"{combo}: {source_methods or '-'} | F1={report.mean_macro_f1:.3f}±{report.std_macro_f1:.3f} |",
+        f"Cobertura={report.coverage_ratio:.3f} | Lift={report.lift_vs_majority:.3f}"
+    )
 
 # Resumen ejecutivo por método
 for method_summary in summarize_core_bundle(bundle):
@@ -156,7 +165,10 @@ from subspaces.experiments.core_method_bundle import run_single_method, CORE_MET
 for key in CORE_METHOD_KEYS:
     explorer = run_single_method(X, y, records, key, max_sets=5, combo_sizes=(2, 3), random_state=0)
     report = explorer.get_report()[0]
-    print(f"{key}: Sí globales={report.global_yes}, Top50={report.top50_yes}")
+    print(
+        f"{key}: F1={report.mean_macro_f1:.3f}±{report.std_macro_f1:.3f} |",
+        f"Cobertura={report.coverage_ratio:.3f} | Lift={report.lift_vs_majority:.3f}"
+    )
 ```
 
 ## Resultados reproducibles en datasets grandes

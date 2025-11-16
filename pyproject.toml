@@ -1,6 +1,7 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = []
+build-backend = "deldel_build_backend"
+backend-path = ["."]
 
 [project]
 name = "deldel"
@@ -22,11 +23,9 @@ dev = [
     "pytest>=7.0",
 ]
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
 [project.urls]
 Homepage = "https://example.com/deldel"
+
+[tool.deldel.package-map]
+deldel = "src/deldel"
+subspaces = "subspaces"
