@@ -1,0 +1,5 @@
+# Runtime dependencies for DelDel. Keep in sync with pyproject.toml.
+numpy>=1.23
+pandas>=1.5
+plotly>=5.14
+scikit-learn>=1.3
