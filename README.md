@@ -147,6 +147,44 @@ for method_summary in summarize_core_bundle(bundle):
 print(f"Selección final con {len(sel['winning_planes'])} planos ganadores")
 ```
 
+### Obtener los subespacios top por método
+
+`SubspaceReport` ahora incluye metadatos de procedencia (`method_key` y `method_keys`) que
+permiten identificar rápidamente qué método generó cada subespacio. El siguiente fragmento
+recorre todos los reportes y arma un diccionario con el mejor subespacio devuelto por cada
+método del bundle:
+
+```python
+from subspaces.experiments.core_method_bundle import CORE_METHOD_KEYS, run_core_method_bundle
+
+bundle = run_core_method_bundle(
+    X,
+    y,
+    records,
+    max_sets=5,
+    combo_sizes=(2, 3),
+    random_state=0,
+)
+
+top_subspaces = {}
+for key in CORE_METHOD_KEYS:
+    candidatos = [r for r in bundle.reports if key in r.method_keys]
+    if not candidatos:
+        continue
+    mejor = max(candidatos, key=lambda r: r.mean_macro_f1)
+    top_subspaces[key] = {
+        "features": mejor.features,  # columnas que definen el subespacio
+        "f1": mejor.mean_macro_f1,
+        "planes": mejor.planes,      # planos/half-spaces cuando hay registros disponibles
+    }
+
+for key, info in top_subspaces.items():
+    print(f"{key}: {info['features']} (F1={info['f1']:.3f}, planos={len(info['planes'])})")
+```
+
+Si se quiere inspeccionar sólo los subespacios con planos generados, basta con filtrar
+`info['planes']` o descartar los que tengan la lista vacía.
+
 ### Comparar contra ejecuciones individuales
 
 `run_single_method` reutiliza la misma configuración y permite validar que cada técnica produce los mismos conteos cuando se

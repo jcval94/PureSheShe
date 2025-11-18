@@ -71,7 +71,30 @@ class SubspaceReport:
     support: int
     variance_ratio: float
     l1_importance: float
+    method_keys: Tuple[str, ...] = ()
+    method_key: Optional[str] = None
+    global_yes: int = 0
+    top50_yes: int = 0
     planes: List[SubspacePlane] = field(default_factory=list)
+
+
+def _top_hits_by_method(
+    reports: Sequence[SubspaceReport],
+    candidate_sources: Dict[Tuple[str, ...], Set[str]],
+    method_keys: Sequence[str],
+    *,
+    top_k: int = 50,
+) -> Dict[str, int]:
+    """Cuenta cuántos reportes top-k provienen de cada método."""
+
+    sorted_reports = sorted(reports, key=lambda r: r.mean_macro_f1, reverse=True)[:top_k]
+    counts: Dict[str, int] = {key: 0 for key in method_keys}
+    for report in sorted_reports:
+        combo = tuple(sorted(report.features))
+        for method_key in candidate_sources.get(combo, set()):
+            if method_key in counts:
+                counts[method_key] += 1
+    return counts
 
 
 @dataclass
@@ -262,7 +285,38 @@ class MultiClassSubspaceExplorer:
     def get_report(self) -> List[SubspaceReport]:
         """Devuelve los mejores subespacios encontrados."""
 
-        return list(self.report_)
+        return self._annotate_reports(list(self.report_))
+
+    def _annotate_reports(
+        self, reports: Sequence[SubspaceReport]
+    ) -> List[SubspaceReport]:
+        """Completa los reportes con metadatos de origen por método."""
+
+        if not reports:
+            return []
+
+        method_keys = list(self.method_name_map_.keys())
+        top_hits = _top_hits_by_method(
+            reports,
+            self.candidate_sources_,
+            method_keys,
+            top_k=50,
+        )
+        global_counts = {
+            key: len(self.method_candidate_sets_.get(key, set())) for key in method_keys
+        }
+
+        annotated: List[SubspaceReport] = []
+        for report in reports:
+            combo = tuple(sorted(report.features))
+            origins = tuple(sorted(self.candidate_sources_.get(combo, set())))
+            report.method_keys = origins
+            report.method_key = origins[0] if origins else None
+            report.global_yes = sum(global_counts.get(key, 0) for key in origins)
+            report.top50_yes = sum(top_hits.get(key, 0) for key in origins)
+            annotated.append(report)
+
+        return annotated
 
     def _build_candidate_sets(
         self,
