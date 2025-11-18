@@ -755,7 +755,7 @@ class DelDel:
         self._y: Optional[np.ndarray] = None
         self.calls_: List[Dict[str, Any]] = []
 
-    def _pair_candidates_round_robin(self, labels):
+    def _pair_candidates_round_robin(self, labels, *, verbose: bool = False):
         """
         Selección de segmentos con:
           - Objetivo global exacto: segments_target (mezclado por round-robin al final).
@@ -788,6 +788,8 @@ class DelDel:
         w_ent  = float(getattr(self.cfg, "w_ent", 0.35))
         w_dist = float(getattr(self.cfg, "w_dist", 0.20))
 
+        vprint = print if verbose else (lambda *args, **kwargs: None)
+
         # Unicidad / caps / adaptación
         origin_global_budget   = int(getattr(self.cfg, "origin_global_budget", 2))   # veces máx que un origen puede aparecer en TOTAL
         max_dest_reuse_per_pair= int(getattr(self.cfg, "max_dest_reuse_per_pair", 2))# veces máx que un mismo destino (jj) se use en un par
@@ -797,17 +799,17 @@ class DelDel:
         adaptive_q_near_delta  = float(getattr(self.cfg, "adaptive_q_near_delta", -0.05)) # q_near ↓ ⇒ más "cerca"
         adaptive_q_far_delta   = float(getattr(self.cfg, "adaptive_q_far_delta",  +0.05)) # q_far ↑  ⇒ más "lejos"
 
-        print("\n=== [_pair_candidates_round_robin] ===")
-        print(f"segments_target={segments_target} | near_frac={near_frac} | "
-              f"k_near_base={k_near_base} | k_far_per_i={k_far_per_i} | "
-              f"q_near={q_near} | q_far={q_far} | margin_q={margin_q} | pregate_tau={pregate_tau}")
-        print(f"[Uniqueness] origin_global_budget={origin_global_budget} | "
-              f"max_dest_reuse_per_pair={max_dest_reuse_per_pair} | adaptive_rounds={adaptive_rounds}")
+        vprint("\n=== [_pair_candidates_round_robin] ===")
+        vprint(f"segments_target={segments_target} | near_frac={near_frac} | "
+               f"k_near_base={k_near_base} | k_far_per_i={k_far_per_i} | "
+               f"q_near={q_near} | q_far={q_far} | margin_q={margin_q} | pregate_tau={pregate_tau}")
+        vprint(f"[Uniqueness] origin_global_budget={origin_global_budget} | "
+               f"max_dest_reuse_per_pair={max_dest_reuse_per_pair} | adaptive_rounds={adaptive_rounds}")
 
         # =================== Datos base ===================
         X, P, y = self._X, self._P, self._y
         if X is None or P is None or y is None:
-            print(" [ERROR] X/P/y no inicializados. Regresando vacío.")
+            vprint(" [ERROR] X/P/y no inicializados. Regresando vacío.")
             return [], [], [], []
         n, d = X.shape
         C = P.shape[1]
@@ -900,13 +902,13 @@ class DelDel:
         for i in range(missing):
             quotas[remainders[i][1]] += 1
 
-        print("Pares (no ordenados) y cuotas objetivo (producto de marginales salvo override):", quotas)
-        print("Proporciones por clase (p_hat):", {i: round(float(p_hat[i]), 4) for i in present})
+        vprint("Pares (no ordenados) y cuotas objetivo (producto de marginales salvo override):", quotas)
+        vprint("Proporciones por clase (p_hat):", {i: round(float(p_hat[i]), 4) for i in present})
 
-        print("Pares (no ordenados) y cuotas objetivo:", quotas)
+        vprint("Pares (no ordenados) y cuotas objetivo:", quotas)
 
         if not pairs_all:
-            print("No hay pares disponibles con labels presentes.")
+            vprint("No hay pares disponibles con labels presentes.")
             return [], [], [], []
 
         # =================== Utils locales ===================
@@ -1056,11 +1058,11 @@ class DelDel:
             }
             s = bag["stats"]
             thr = bag["thresholds"]
-            print(f"[{(a,b)}] bag: candidatos={s.get('n_candidates',0)} | orígenes_únicos={s.get('uniq_origins',0)} "
-                  f"| thr_a={thr.get('thr_a',0):.4f}, thr_b={thr.get('thr_b',0):.4f} | "
-                  f"qn={thr.get('q_near_val',0):.3f}, qf={thr.get('q_far_val',0):.3f}")
+            vprint(f"[{(a,b)}] bag: candidatos={s.get('n_candidates',0)} | orígenes_únicos={s.get('uniq_origins',0)} "
+                   f"| thr_a={thr.get('thr_a',0):.4f}, thr_b={thr.get('thr_b',0):.4f} | "
+                   f"qn={thr.get('q_near_val',0):.3f}, qf={thr.get('q_far_val',0):.3f}")
             if s.get("heavy_origins_top10"):
-                print(f"    Heavy-origins top10: {s['heavy_origins_top10']}")
+                vprint(f"    Heavy-origins top10: {s['heavy_origins_top10']}")
 
         # Orden de servicio: pares con MENOR capacidad primero (evita cuellos)
         order_pairs = sorted(pairs_all, key=lambda k: bags[k]["stats"].get("uniq_origins", 0))
@@ -1220,20 +1222,20 @@ class DelDel:
 
         # Resumen por par
         total_sel = sum(len(per_pair_lists[k]) for k in pairs_all)
-        print("[Resumen por par] segmentos:",
-              {k: len(per_pair_lists[k]) for k in pairs_all},
-              "| objetivo:", quotas)
+        vprint("[Resumen por par] segmentos:",
+               {k: len(per_pair_lists[k]) for k in pairs_all},
+               "| objetivo:", quotas)
         for k in pairs_all:
             reasons = per_pair_reasons[k]
-            print(f"  {k}: picked={len(per_pair_lists[k])} | target={quotas[k]} | "
-                  f"reasons={reasons} | uniq_origins_in_bag={bags[k]['stats'].get('uniq_origins',0)}")
+            vprint(f"  {k}: picked={len(per_pair_lists[k])} | target={quotas[k]} | "
+                   f"reasons={reasons} | uniq_origins_in_bag={bags[k]['stats'].get('uniq_origins',0)}")
 
         # =================== Garantizar EXACTAMENTE segments_target ===================
         if total_sel < segments_target:
             # Fase de relleno global: tratar de completar dentro de cada par primero;
             # si aún falta, redistribuir flexibilizando per-pair (pero sin cambiar las clases del par).
             missing_total = segments_target - total_sel
-            print(f"[Relleno global] faltan={missing_total}. Se relajan límites y se reintenta en todos los pares.")
+            vprint(f"[Relleno global] faltan={missing_total}. Se relajan límites y se reintenta en todos los pares.")
             # Vuelta 1: repetir _pick_for_pair con límites más laxos
             for key in order_pairs:
                 if len(per_pair_lists[key]) < quotas[key]:
@@ -1245,8 +1247,8 @@ class DelDel:
         # Recalcular (por si aún no se llegó, forzaremos redistribución final a pares con más stock)
         total_sel = sum(len(per_pair_lists[k]) for k in pairs_all)
         if total_sel < segments_target:
-            print(f"[Aviso] No fue posible alcanzar segments_target={segments_target} con las restricciones. "
-                  f"Seleccionados={total_sel}. Se hará un último intento redistributivo dentro de los mismos pares.")
+            vprint(f"[Aviso] No fue posible alcanzar segments_target={segments_target} con las restricciones. "
+                   f"Seleccionados={total_sel}. Se hará un último intento redistributivo dentro de los mismos pares.")
             # Último intento: tomar del resto de candidatos aunque rompa más las reglas (pero sin cambiar el par)
             for key in order_pairs:
                 need = quotas[key] - len(per_pair_lists[key])
@@ -1270,8 +1272,8 @@ class DelDel:
         keys = [k for k in pairs_all if len(per_pair_lists[k]) > 0]
         ptr = {k:0 for k in keys}
         exhausted = set()
-        print("\n[Round-robin final]")
-        print("Resumen elegidos por par:", {k: len(per_pair_lists[k]) for k in keys})
+        vprint("\n[Round-robin final]")
+        vprint("Resumen elegidos por par:", {k: len(per_pair_lists[k]) for k in keys})
         while len(A_list) < segments_target and len(exhausted) < len(keys):
             for k in keys:
                 if k in exhausted:
@@ -1288,7 +1290,7 @@ class DelDel:
                 if len(A_list) >= segments_target:
                     break
 
-        print(f"TOTAL seleccionados: {len(A_list)} segmentos (objetivo={segments_target})")
+        vprint(f"TOTAL seleccionados: {len(A_list)} segmentos (objetivo={segments_target})")
 
         if len(A_list) == 0:
             return [], [], [], []
@@ -1297,12 +1299,14 @@ class DelDel:
 
 
     # ---------- API principal ----------
-    def fit(self, X: np.ndarray, model: Any) -> "DelDel":
+    def fit(self, X: np.ndarray, model: Any, verbose: bool = False) -> "DelDel":
         with _collect_calls(self.calls_):
 
             self.calls_.clear()
             from time import perf_counter
             from contextlib import contextmanager
+
+            vprint = print if verbose else (lambda *args, **kwargs: None)
 
             @contextmanager
             def _tick(name: str):
@@ -1333,10 +1337,10 @@ class DelDel:
                 self._y = np.argmax(self._P, axis=1)
                 labels = sorted(np.unique(self._y).tolist())
                 counts["n_labels"] = len(labels)
-                print('labels', labels)
+                vprint('labels', labels)
 
             with _tick("02_pair_candidates_round_robin"):
-                A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels)
+                A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbose=verbose)
 
             if not A_batches:
                 _get_logger("DelDel", logging.WARNING).warning(
@@ -1477,10 +1481,12 @@ class DelDel:
             return self
 
 
-    def fit(self, X: np.ndarray, model: Any) -> "DelDel":
+    def fit(self, X: np.ndarray, model: Any, verbose: bool = False) -> "DelDel":
         from time import perf_counter
         from contextlib import contextmanager
         from collections import Counter  # <-- añadido para los conteos
+
+        vprint = print if verbose else (lambda *args, **kwargs: None)
 
         @contextmanager
         def _tick(name: str):
@@ -1509,10 +1515,10 @@ class DelDel:
             self._y = np.argmax(self._P, axis=1)
             labels = sorted(np.unique(self._y).tolist())
             counts["n_labels"] = len(labels)
-            print('labels', labels)
+            vprint('labels', labels)
 
         with _tick("02_pair_candidates_round_robin"):
-            A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels)
+            A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbose=verbose)
             # print("pair_candidates_round_robin", A_batches)
             # print("pair_candidates_round_robin", B_batches)
             # print("pair_candidates_round_robin", yA_list)
@@ -1539,12 +1545,12 @@ class DelDel:
 
 
         for b_idx, (A, B) in enumerate(zip(A_batches, B_batches)):
-            if b_idx==0:
-                print("Ver A: ", A)
-                print("Ver B: ", B)
-                print("Ver yA: ", yA_list)
-                print("Ver yB: ", yB_list)
-            print(b_idx)
+            if b_idx == 0:
+                vprint("Ver A: ", A)
+                vprint("Ver B: ", B)
+                vprint("Ver yA: ", yA_list)
+                vprint("Ver yB: ", yB_list)
+            vprint(b_idx)
             batch_stat = {"batch_index": b_idx}
             yA = np.asarray(yA_list, int)
             yB = np.asarray(yB_list, int)
@@ -1556,9 +1562,9 @@ class DelDel:
                     iters=self.cfg.secant_iters, final_bisect=self.cfg.final_bisect
                 )
                 batch_stat["flip_ms"] = (perf_counter() - t_fp0) * 1000.0
-                print("Ver Xstar: ", Xstar.shape, type(Xstar), Xstar)
-                print("Ver ystar: ", ystar.shape, type(ystar), ystar)
-                print("Ver Sstar: ", Sstar.shape, type(Sstar), Sstar)
+                vprint("Ver Xstar: ", Xstar.shape, type(Xstar), Xstar)
+                vprint("Ver ystar: ", ystar.shape, type(ystar), ystar)
+                vprint("Ver Sstar: ", Sstar.shape, type(Sstar), Sstar)
 
             with _tick("04_scores_A"):
                 t_sa0 = perf_counter()
@@ -1619,7 +1625,7 @@ class DelDel:
         # === LOG de pares tras 05_build_records (todos los records construidos) ===
         pairs_after_05 = dict(Counter((r.y0, r.y1) for r in all_records))
         counts["pair_counts_after_05_build_records"] = pairs_after_05
-        print("pair_counts_after_05_build_records", pairs_after_05)
+        vprint("pair_counts_after_05_build_records", pairs_after_05)
 
         counts["n_records_total"] = len(all_records)
         counts["n_success_total"] = int(sum(1 for r in all_records if r.success))
@@ -1633,7 +1639,7 @@ class DelDel:
         # === LOG de pares tras 06_group_by_pair (sólo exitosos) ===
         pairs_after_06 = {k: len(v) for k, v in by_pair.items()}
         counts["pair_counts_after_06_group_by_pair_success"] = pairs_after_06
-        print("pair_counts_after_06_group_by_pair_success", pairs_after_06)
+        vprint("pair_counts_after_06_group_by_pair_success", pairs_after_06)
 
         with _tick("07_pairwise_norm_and_score"):
             for key, idxs in by_pair.items():
@@ -1660,7 +1666,7 @@ class DelDel:
         # === LOG de pares tras 08_sort_records (self.records_ ordenados) ===
         pairs_after_08 = dict(Counter((r.y0, r.y1) for r in self.records_))
         counts["pair_counts_after_08_sort_records"] = pairs_after_08
-        print("pair_counts_after_08_sort_records", pairs_after_08)
+        vprint("pair_counts_after_08_sort_records", pairs_after_08)
 
         if self.cp_cfg.enabled:
             with _tick("09_compute_change_points_for_records"):
