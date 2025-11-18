@@ -79,6 +79,41 @@ print(f"Accuracy en el dataset sintético: {clf.score(X, y):.3f}")
 plot_corner_class_dataset(X, y, feature_names)
 ```
 
+## Visualización interactiva de fronteras y superficies
+
+```python
+planes   = compute_frontier_planes_weighted(records, prefer_cp=True, weight_map='softmax')
+
+fig = plot_frontiers_implicit_interactive_v2(
+    records, X, y,
+    planes=planes, show_planes=True,
+    dims=(0,1,3),
+    detail="high",              # preset más denso
+    grid_res_3d=72,             # o 80–96 si ves “escalones”
+    extend=1.3, clamp_extend_to_X=True
+)
+```
+
+```python
+records = d.records_
+quadrics = fit_quadrics_from_records_weighted(
+    records, mode="logistic", C=8.0, density_k=8
+)
+
+X_sample = X[:1000]
+y_sample = y[:1000]
+
+fig = plot_frontiers_implicit_interactive_v2(
+    records, X_sample, y_sample,
+    quadrics=quadrics,
+    show_planes=False,
+    dims=(0,1,3),
+    detail="high",              # preset más denso
+    grid_res_3d=72,             # o 80–96 si ves “escalones”
+    extend=4.3, clamp_extend_to_X=True
+)
+```
+
 ## Bundle de métodos núcleo
 
 El módulo `subspaces.experiments.core_method_bundle` encapsula los cinco métodos ganadores y los expone a través de la función
