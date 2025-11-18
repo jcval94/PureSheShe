@@ -84,4 +84,81 @@ def make_corner_class_dataset(
     return X, y, feature_names
 
 
-__all__ = ["make_corner_class_dataset"]
+def plot_corner_class_dataset(
+    X: np.ndarray,
+    y: np.ndarray,
+    feature_names: List[str],
+    *,
+    show: bool = True,
+):
+    """Visualize the 4D corner dataset using PCA (3D) and a scatter matrix.
+
+    Imports for plotting are intentionally delayed to avoid making ``matplotlib``
+    and ``pandas`` hard dependencies of the module. Callers can disable
+    ``show`` to retrieve the figures without triggering ``plt.show`` during
+    automated runs.
+
+    Parameters
+    ----------
+    X:
+        Feature matrix returned by :func:`make_corner_class_dataset`.
+    y:
+        Labels in ``{0, 1, 2}``.
+    feature_names:
+        Names corresponding to the columns of ``X``.
+    show:
+        Whether to execute ``plt.show()`` after generating each figure.
+
+    Returns
+    -------
+    dict
+        Dictionary with the PCA and scatter-matrix figures keyed as
+        ``{"pca": Figure, "scatter": Figure}``.
+    """
+
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    from sklearn.decomposition import PCA
+
+    classes = np.unique(y)
+    tab10 = plt.cm.tab10(np.linspace(0, 1, 10))
+
+    pca = PCA(n_components=3).fit(X)
+    Xp = pca.transform(X)
+
+    fig_pca = plt.figure(figsize=(8, 7))
+    ax = fig_pca.add_subplot(111, projection="3d")
+    for c in classes:
+        mask = y == c
+        ax.scatter(
+            Xp[mask, 0],
+            Xp[mask, 1],
+            Xp[mask, 2],
+            s=15,
+            alpha=0.7,
+            label=f"Clase {c}",
+            color=tab10[int(c)],
+        )
+    ax.set_title("PCA 3D del dataset")
+    ax.legend()
+    if show:
+        plt.show()
+
+    df = pd.DataFrame(X, columns=feature_names)
+    df["class"] = y
+    axes = pd.plotting.scatter_matrix(
+        df,
+        c=[tab10[int(c)] for c in df["class"]],
+        figsize=(10, 10),
+        alpha=0.5,
+        diagonal="hist",
+    )
+    fig_scatter = axes[0, 0].get_figure()
+    fig_scatter.suptitle("Matriz de dispersión 4D", y=1.02)
+    if show:
+        plt.show()
+
+    return {"pca": fig_pca, "scatter": fig_scatter}
+
+
+__all__ = ["make_corner_class_dataset", "plot_corner_class_dataset"]

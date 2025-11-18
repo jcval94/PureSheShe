@@ -50,6 +50,35 @@ pip install -e .[dev]
 Ambos archivos están pensados para usarse en Colab o entornos aislados donde resulta útil listar explícitamente las
 dependencias antes de hacer `pip install .`. La guía `docs/COLAB.md` incluye ejemplos con cada flujo.
 
+## Dataset sintético en esquinas 4D
+
+`deldel.datasets.make_corner_class_dataset` replica el dataset 4D con clases en las esquinas de un hipercubo que se usa en
+las pruebas y ejemplos de la librería. Devuelve una tupla `(X, y, feature_names)` lista para alimentar cualquier
+clasificador de scikit-learn. La función `plot_corner_class_dataset` (opcional) genera un PCA 3D y una matriz de dispersión
+para explorar la estructura del dataset; solo requiere tener instalados `matplotlib` y `pandas`.
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+
+from deldel.datasets import make_corner_class_dataset, plot_corner_class_dataset
+
+# Dataset 4D con 3 clases (clase 1 en esquinas)
+X, y, feature_names = make_corner_class_dataset(
+    n_per_cluster=150,
+    std_class1=0.4,
+    std_other=0.7,
+    a=3.0,
+    random_state=42,
+)
+
+# Entrenar un clasificador rápido
+clf = RandomForestClassifier(n_estimators=200, random_state=0).fit(X, y)
+print(f"Accuracy en el dataset sintético: {clf.score(X, y):.3f}")
+
+# Visualización opcional (requiere matplotlib/pandas)
+plot_corner_class_dataset(X, y, feature_names)
+```
+
 ## Bundle de métodos núcleo
 
 El módulo `subspaces.experiments.core_method_bundle` encapsula los cinco métodos ganadores y los expone a través de la función
