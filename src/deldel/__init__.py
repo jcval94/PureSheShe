@@ -14,8 +14,8 @@ from .engine import (
     fit_quadric_svd_weighted,
     fit_quadrics_from_records_weighted,
     fit_cubic_from_records_weighted,
-    plot_frontiers_implicit_interactive_v2,
 )
+from .graphing import plot_frontiers_implicit_interactive_v2
 from .datasets import make_corner_class_dataset
 from .experiments import (
     run_corner_pipeline_experiments,
