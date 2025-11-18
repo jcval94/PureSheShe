@@ -98,6 +98,97 @@ def test_bundle_summary_matches_explorer_maps() -> None:
     assert result.sampling_info.original_size == len(y)
 
 
+def test_reports_include_method_metadata() -> None:
+    X, y = make_classification(
+        n_samples=140,
+        n_features=9,
+        n_informative=6,
+        n_classes=4,
+        random_state=5,
+    )
+
+    result = run_core_method_bundle(
+        X,
+        y,
+        records=[],
+        max_sets=3,
+        combo_sizes=(2,),
+        random_state=5,
+        cv_splits=2,
+    )
+
+    explorer = result.explorer
+    reports = result.reports
+    method_keys = list(explorer.method_name_map_.keys())
+
+    # Conteos esperados por método
+    expected_global = {
+        key: len(explorer.method_candidate_sets_.get(key, set())) for key in method_keys
+    }
+    top_hits = {
+        key: 0 for key in method_keys
+    }
+    for report in sorted(reports, key=lambda r: r.mean_macro_f1, reverse=True)[:50]:
+        combo = tuple(sorted(report.features))
+        for method in explorer.candidate_sources_.get(combo, set()):
+            if method in top_hits:
+                top_hits[method] += 1
+
+    assert reports, "los reportes no deben estar vacíos"
+    for report in reports:
+        combo = tuple(sorted(report.features))
+        expected_origins = tuple(sorted(explorer.candidate_sources_.get(combo, set())))
+        assert report.method_keys == expected_origins
+        assert report.method_key == (expected_origins[0] if expected_origins else None)
+        assert report.global_yes == sum(expected_global.get(key, 0) for key in expected_origins)
+        assert report.top50_yes == sum(top_hits.get(key, 0) for key in expected_origins)
+
+
+def test_extract_top_subspaces_by_method() -> None:
+    X, y = make_classification(
+        n_samples=160,
+        n_features=10,
+        n_informative=6,
+        n_classes=3,
+        random_state=13,
+    )
+
+    bundle = run_core_method_bundle(
+        X,
+        y,
+        records=[],
+        max_sets=3,
+        combo_sizes=(2,),
+        random_state=13,
+        cv_splits=2,
+    )
+
+    top_subspaces = {}
+    for key in CORE_METHOD_KEYS:
+        candidates = [r for r in bundle.reports if key in r.method_keys]
+        if not candidates:
+            continue
+        best = max(candidates, key=lambda r: r.mean_macro_f1)
+        top_subspaces[key] = {
+            "features": best.features,
+            "f1": best.mean_macro_f1,
+            "planes": best.planes,
+        }
+
+    assert top_subspaces, "al menos un método debe aportar subespacios"
+    assert set(top_subspaces).issubset(CORE_METHOD_KEYS)
+
+    for method_key, payload in top_subspaces.items():
+        ranked = sorted(
+            (r for r in bundle.reports if method_key in r.method_keys),
+            key=lambda r: r.mean_macro_f1,
+            reverse=True,
+        )
+        assert payload["features"] == ranked[0].features
+        assert payload["f1"] == ranked[0].mean_macro_f1
+        assert payload["planes"] == ranked[0].planes
+
+
 def test_records_to_selection_pipeline() -> None:
     X, y = make_classification(
         n_samples=140,
