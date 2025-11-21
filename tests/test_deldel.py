@@ -66,7 +66,6 @@ def dataset(corner_dataset):
     X = corner_dataset["X"]
     y = corner_dataset["y"]
     model = LogisticRegression(
-        multi_class="multinomial",
         max_iter=500,
         random_state=0,
         solver="lbfgs",

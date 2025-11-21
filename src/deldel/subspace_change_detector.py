@@ -1712,7 +1712,6 @@ def _gradient_hessian_candidates(
     clf = LogisticRegression(
         penalty="l2",
         C=0.8,
-        multi_class="auto",
         solver="lbfgs",
         max_iter=200,
     )
@@ -2119,7 +2118,6 @@ def _gradient_synergy_candidates(
     clf = LogisticRegression(
         penalty="l2",
         C=1.0,
-        multi_class="auto",
         solver="lbfgs",
         max_iter=200,
     )
@@ -2290,7 +2288,6 @@ def _evaluate_subspace(
         clf = LogisticRegression(
             penalty="l2",
             C=1.0,
-            multi_class="auto",
             max_iter=200,
             solver="lbfgs",
         )
@@ -2346,7 +2343,6 @@ def _logistic_l1_importance(X: np.ndarray, y: np.ndarray, random_state: Optional
         solver="saga",
         C=0.8,
         max_iter=120,
-        multi_class="auto",
         n_jobs=1,
         random_state=random_state,
     )
