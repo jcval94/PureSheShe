@@ -175,7 +175,7 @@ class MultiClassSubspaceExplorer:
         self.method_candidate_sets_: Dict[str, Set[Tuple[str, ...]]] = {}
         self.candidate_sources_: Dict[Tuple[str, ...], Set[str]] = {}
         self.all_candidate_sets_: List[Tuple[str, ...]] = []
-        
+
         self.fast_eval_budget = int(fast_eval_budget)
         self.fast_eval_top_frac = float(fast_eval_top_frac)
         self.fast_compute_secondary_metrics = bool(fast_compute_secondary_metrics)
@@ -231,11 +231,7 @@ class MultiClassSubspaceExplorer:
     def _method_enabled(self, method_key: str) -> bool:
         return method_key in self._enabled_method_keys
     
-    def _stable_hash32(text: str) -> int:
-        """Hash estable 32-bit para derivar seeds por método."""
-        import hashlib  # asegúrate de tener este import disponible
-        h = hashlib.md5(text.encode("utf-8")).hexdigest()[:8]
-        return int(h, 16)
+
 
     def precompute_analysis(self, X: Any, y: Sequence[int]) -> Dict[str, Any]:
         """
@@ -604,6 +600,12 @@ class MultiClassSubspaceExplorer:
         }
         candidate_sources: Dict[Tuple[str, ...], Set[str]] = {}
         timings: Dict[str, float] = {key: 0.0 for key in active_method_keys}
+
+        def _stable_hash32(text: str) -> int:
+            """Hash estable 32-bit para derivar seeds por método."""
+            import hashlib  # asegúrate de tener este import disponible
+            h = hashlib.md5(text.encode("utf-8")).hexdigest()[:8]
+            return int(h, 16)
 
         def _method_rng(mkey: str) -> np.random.RandomState:
             if self.random_state is None:
