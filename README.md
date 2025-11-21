@@ -165,13 +165,16 @@ El módulo `subspaces.experiments.core_method_bundle` encapsula los cinco métod
 4. **Gradient synergy matrix** (`method_10_gradient_synergy`)
 5. **Sparse projections Fisher-guided (mejorado)** (`method_6b_sparse_proj_guided`)
 
-Los parámetros expuestos se reducen a los imprescindibles (`max_sets`, `combo_sizes`, `random_state`, `cv_splits`) y se aplican
-heurísticas robustas para el resto de la configuración.
+Los parámetros expuestos se reducen a los imprescindibles (`combo_sizes`, `random_state`, `cv_splits` y un `max_sets` opcional)
+con heurísticas robustas para el resto.  Por defecto `max_sets=None`, así que el explorador conserva todos los subespacios
+encontrados y los ordena de mayor a menor F1 sin recortes posteriores.
 
 ### Ejemplo rápido de uso
 
-El siguiente fragmento ajusta un modelo base con `DelDel`, recopila los registros de cambios (`DeltaRecord`) y lanza el bundle con
-un máximo de cinco combinaciones evaluadas por método.
+El siguiente fragmento ajusta un modelo base con `DelDel`, recopila los registros de cambios (`DeltaRecord`) y lanza el bundle
+conservando todas las combinaciones evaluadas, ordenadas de mejor a peor. Si se quiere priorizar velocidad, el mismo flujo
+admite presets rápidos (`preset="fast"`) o ultra rápidos (`preset="ultra_fast"` con `skip_feature_stats=True` y
+`skip_attach_planes=True`) desde el explorador subyacente.
 
 > **ImportError/ModuleNotFoundError**<br>
 > Si al ejecutar el ejemplo aparece `ModuleNotFoundError: No module named 'subspaces'`, significa que el paquete no ha sido
@@ -227,14 +230,34 @@ sel = prune_and_orient_planes_unified_globalmaj(
     min_rel_lift=0.05,
 )
 
-# Bundle con los cinco métodos
+# Bundle con los cinco métodos (sin recortes finales)
 bundle = run_core_method_bundle(
     X,
     y,
     records,
-    max_sets=5,
     combo_sizes=(2, 3),
     random_state=0,
+)
+
+# Exploraciones rápidas opcionales (fuera del bundle) usando el mismo análisis
+from deldel.subspace_change_detector import MultiClassSubspaceExplorer
+
+explorer_fast = MultiClassSubspaceExplorer()
+explorer_fast.fit(
+    X,
+    y,
+    records,
+    preset="fast",               # CV ligero y poda agresiva
+)
+
+explorer_ultra = MultiClassSubspaceExplorer()
+explorer_ultra.fit(
+    X,
+    y,
+    records,
+    preset="ultra_fast",         # usa proxy MI sin CV
+    skip_feature_stats=True,      # evita stumps/chi2
+    skip_attach_planes=True,      # omite planos derivados de records
 )
 
 for report in bundle.reports:
@@ -265,7 +288,6 @@ bundle = run_core_method_bundle(
     X,
     y,
     records,
-    max_sets=5,
     combo_sizes=(2, 3),
     random_state=0,
 )
@@ -343,6 +365,15 @@ Los detalles completos están disponibles en `subspaces/outputs/core_bundle/core
 | Synthetic Imbalanced Large | Sparse projections Fisher-guided (mejorado) | 0 | 105 | 0.021795 |
 
 Los resultados se guardan en `subspaces/outputs/core_bundle/core_bundle_summary.csv` para facilitar comparaciones futuras.
+
+### Conclusiones rápidas sobre presets y skips
+
+El barrido `experiments_outputs/core_bundle_preset_matrix.csv` ya no recorta los reportes: en `high_quality` y
+`ultra_fast` se devuelven todos los conjuntos generados (37–46 y 20 respectivamente), preservando el ranking completo.
+`fast` mantiene el mejor F1 de `high_quality` (≈0.52–0.57) con un presupuesto de 10 evaluaciones por dataset y tiempos de
+~0.43–0.51 s; al activar `skip_feature_stats`+`skip_attach_planes` se ahorran ~0.01–0.18 s sin perder el mejor F1 ni variar
+el número de candidatos. `ultra_fast` sigue respondiendo en ~0.07–0.11 s con los 20 candidatos generados, pero el F1 se
+queda cerca del baseline, útil solo para inspecciones relámpago.
 
 ## Recursos adicionales
 

@@ -33,7 +33,7 @@ def _make_table(n_samples: int = 60) -> tuple[DummyTable, np.ndarray]:
 def test_explorer_tracks_candidate_metadata() -> None:
     table, y = _make_table()
     explorer = MultiClassSubspaceExplorer(
-        max_sets=5,
+        max_sets=None,
         combo_sizes=(2,),
         filter_top_k=6,
         chi2_pool=6,
@@ -89,6 +89,7 @@ def test_explorer_tracks_candidate_metadata() -> None:
     if reports:
         first = tuple(sorted(reports[0].features))
         assert first in explorer.candidate_sources_
+        assert len(reports) == len(explorer.evaluated_reports_)
 
     kept = set(map(tuple, explorer.all_candidate_sets_))
     for combos in explorer.method_candidate_sets_.values():
@@ -127,3 +128,16 @@ def test_pick_diverse_by_size_cycles_groupings() -> None:
     assert len(set(sizes)) >= 2
     assert sizes[0] == 3  # highest score retained
     assert 4 in sizes  # larger combos also represented
+
+
+def test_pick_diverse_without_limit_keeps_order() -> None:
+    explorer = MultiClassSubspaceExplorer(max_sets=None, combo_sizes=(2, 3, 4), random_state=0)
+    ordered = [
+        _make_report(4, 0.97),
+        _make_report(2, 0.95),
+        _make_report(3, 0.9),
+    ]
+
+    selected = explorer._pick_diverse_by_size(ordered)
+
+    assert [r.features for r in selected] == [r.features for r in ordered]

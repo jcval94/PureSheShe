@@ -45,7 +45,7 @@ _maybe_adaptive_sample = maybe_adaptive_sample
 
 def _create_bundle_explorer(
     *,
-    max_sets: int,
+    max_sets: Optional[int],
     combo_sizes: Sequence[int],
     random_state: Optional[int],
     cv_splits: int,
@@ -57,7 +57,8 @@ def _create_bundle_explorer(
     ----------
     max_sets:
         Cantidad máxima de combinaciones finales que el explorador intentará
-        devolver.
+        devolver.  Usa ``None`` (valor por defecto) para devolver todas las
+        combinaciones generadas, ordenadas de mejor a peor.
     combo_sizes:
         Tamaños de las combinaciones de columnas que se van a evaluar.
         Cada número indica cuántas columnas forman un subespacio: ``(2, 3)``
@@ -97,7 +98,7 @@ def run_core_method_bundle(
     y,
     records: Iterable[DeltaRecord],
     *,
-    max_sets: int = 30,
+    max_sets: Optional[int] = None,
     combo_sizes: Sequence[int] = (2, 3),
     random_state: Optional[int] = None,
     cv_splits: int = 3,
@@ -118,7 +119,9 @@ def run_core_method_bundle(
     records:
         Secuencia de ``DeltaRecord`` generados previamente por DelDel.
     max_sets:
-        Límite de conjuntos de columnas que se conservarán al final.
+        Límite opcional de conjuntos de columnas que se conservarán al final;
+        usa ``None`` (por defecto) para conservar todos los subespacios
+        evaluados.
     combo_sizes:
         Tamaños de las combinaciones a explorar.  Cada valor representa cuántas
         columnas se agrupan en un subespacio candidato: ``(2, 3)`` evalúa pares
@@ -209,7 +212,7 @@ def run_single_method(
     records: Iterable[DeltaRecord],
     method_key: str,
     *,
-    max_sets: int = 30,
+    max_sets: Optional[int] = None,
     combo_sizes: Sequence[int] = (2, 3),
     random_state: Optional[int] = None,
     cv_splits: int = 3,
@@ -229,7 +232,8 @@ def run_single_method(
     method_key:
         Clave interna del método que se desea probar en solitario.
     max_sets:
-        Número máximo de subespacios que se devolverán.
+        Número máximo de subespacios que se devolverán; usa ``None`` para
+        conservarlos todos en orden descendente de F1.
     combo_sizes:
         Tamaños de las combinaciones de columnas a evaluar.  ``(2, 3)`` recorre
         pares y tríos, útil para capturar interacciones simples; ``(1,)`` se
