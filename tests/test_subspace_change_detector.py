@@ -45,7 +45,7 @@ def test_explorer_tracks_candidate_metadata() -> None:
         random_state=0,
     )
 
-    explorer.fit(table, y, records=[])
+    explorer.fit(table, y, records=[], method_key=None)
     reports = explorer.get_report()
 
     expected_methods = {
