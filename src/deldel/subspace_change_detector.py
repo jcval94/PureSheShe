@@ -124,7 +124,7 @@ class MultiClassSubspaceExplorer:
     def __init__(
         self,
         *,
-        max_sets: int = 35,
+        max_sets: Optional[int] = None,
         combo_sizes: Sequence[int] = (2, 3),
         filter_top_k: int = 20,
         chi2_pool: int = 20,
@@ -144,7 +144,7 @@ class MultiClassSubspaceExplorer:
         fast_eval_top_frac: float = 0.80,        # % explotación vs exploración
         fast_compute_secondary_metrics: bool = False,  # si calcular var_ratio/l1_imp
     ) -> None:
-        self.max_sets = int(max_sets)
+        self.max_sets = None if max_sets is None else int(max_sets)
         self.combo_sizes = tuple(int(s) for s in combo_sizes if int(s) >= 1)
         self.filter_top_k = int(filter_top_k)
         self.chi2_pool = int(chi2_pool)
@@ -233,7 +233,9 @@ class MultiClassSubspaceExplorer:
     
 
 
-    def precompute_analysis(self, X: Any, y: Sequence[int]) -> Dict[str, Any]:
+    def precompute_analysis(
+        self, X: Any, y: Sequence[int], *, skip_feature_stats: bool = False
+    ) -> Dict[str, Any]:
         """
         Precalcula todo lo necesario para generar candidatos de cualquier método.
         Ideal para ejecutarse 1 vez y reutilizarse entre métodos.
@@ -261,31 +263,37 @@ class MultiClassSubspaceExplorer:
         mi_partial = _mutual_info_scores(table, y_arr, columns_subset=mi_subset)
         mi_scores = {name: mi_partial.get(name, 0.0) for name in table.columns}
 
-        stump_scores = _stump_entropy_drop(table, y_arr)
+        if skip_feature_stats:
+            stump_scores = {name: 0.0 for name in table.columns}
+            chi2_cat: Dict[str, float] = {}
+            chi2_num: Dict[str, float] = {}
+            chi2_all_dict: Dict[str, float] = {name: 0.0 for name in table.columns}
+        else:
+            stump_scores = _stump_entropy_drop(table, y_arr)
 
-        chi2_cat = (
-            _chi2_scores(
-                {name: table.column_data(name) for name in categorical_cols},
-                y_codes,
-                classes,
+            chi2_cat = (
+                _chi2_scores(
+                    {name: table.column_data(name) for name in categorical_cols},
+                    y_codes,
+                    classes,
+                )
+                if categorical_cols
+                else {}
             )
-            if categorical_cols
-            else {}
-        )
-        chi2_num = (
-            _chi2_scores(
-                _quantile_binning(table, numeric_cols),
-                y_codes,
-                classes,
+            chi2_num = (
+                _chi2_scores(
+                    _quantile_binning(table, numeric_cols),
+                    y_codes,
+                    classes,
+                )
+                if numeric_cols
+                else {}
             )
-            if numeric_cols
-            else {}
-        )
 
-        chi2_all_dict = {
-            **chi2_cat,
-            **{name: chi2_num.get(name, 0.0) for name in numeric_cols},
-        }
+            chi2_all_dict = {
+                **chi2_cat,
+                **{name: chi2_num.get(name, 0.0) for name in numeric_cols},
+            }
 
         ranked_features = _rank_features(
             mi_scores,
@@ -466,20 +474,33 @@ class MultiClassSubspaceExplorer:
         method_key: Optional[str] = None,
         precomputed: Optional[Dict[str, Any]] = None,
         records_cache: Optional[dict] = None,
+        preset: str = "high_quality",
+        skip_feature_stats: bool = False,
+        skip_attach_planes: bool = False,
     ) -> "MultiClassSubspaceExplorer":
         """
         Ejecuta el flujo completo. Si method_key se especifica, ejecuta solo ese método.
 
         - precomputed permite reusar el análisis (MI/chi2/stumps/ranking) entre llamadas.
         - records_cache permite cachear planos derivados de records_ por subespacio.
+        - preset acepta "high_quality" (default), "fast" y "ultra_fast". En "ultra_fast"
+          se saltan métricas caras y el scoring usa un proxy basado en MI sin CV.
+        - skip_feature_stats fuerza un pre-análisis mínimo (omite stump/chi2) aunque el
+          preset no sea ultra-fast.
+        - skip_attach_planes evita derivar planos a partir de records_ (ahorra tiempo).
         """
         # reset / attach cache de records
         self._records_cache = records_cache  # dict-like externo
         self.records_cache_hits_ = 0
         self.records_cache_misses_ = 0
 
+        self._current_preset = preset
+        skip_stats = bool(skip_feature_stats or preset == "ultra_fast")
+
         if precomputed is None:
-            precomputed = self.precompute_analysis(X, y)
+            precomputed = self.precompute_analysis(
+                X, y, skip_feature_stats=skip_stats
+            )
 
         # unpack precomputed
         table: _Table = precomputed["table"]
@@ -516,7 +537,11 @@ class MultiClassSubspaceExplorer:
         )
 
         scored = self._score_candidates(table, y_arr, candidate_sets)
-        self.report_ = self._attach_planes(scored, records)
+
+        if skip_attach_planes or preset == "ultra_fast":
+            self.report_ = list(scored)
+        else:
+            self.report_ = self._attach_planes(scored, records)
         return self
 
 
@@ -594,6 +619,28 @@ class MultiClassSubspaceExplorer:
         active_method_keys = [
             k for k in active_method_keys if k in self.method_name_map_
         ]
+
+        preset = getattr(self, "_current_preset", None) or getattr(
+            self, "preset_", "high_quality"
+        )
+        ultra_fast_whitelist = (
+            "method_1_topk_random",
+            "method_1b_topk_guided",
+            "method_2_chi2",
+            "method_2b_chi2_guided",
+        )
+        if preset == "ultra_fast" and method_key is None:
+            active_method_keys = [
+                k for k in active_method_keys if k in ultra_fast_whitelist
+            ]
+            if not active_method_keys:
+                active_method_keys = [
+                    k
+                    for k in ultra_fast_whitelist
+                    if k in self.method_name_map_
+                ][:1]
+            if not active_method_keys:
+                active_method_keys = list(self.method_name_map_.keys())[:1]
 
         method_sets: Dict[str, Set[Tuple[str, ...]]] = {
             key: set() for key in active_method_keys
@@ -1245,6 +1292,7 @@ class MultiClassSubspaceExplorer:
         En preset 'fast'/'auto' aplica:
         1) Heuristic pruning por MI para limitar CV a un presupuesto fijo.
         2) (Opcional) omite métricas secundarias caras.
+        En preset 'ultra_fast' salta CV completo y usa un proxy de MI directo.
         """
 
         if not candidates:
@@ -1310,6 +1358,40 @@ class MultiClassSubspaceExplorer:
             candidates = top_candidates + random_candidates
 
         # ---------------------------------------------------------------------
+        # Ultra-fast preset: saltar CV y usar un proxy MI muy barato
+        # ---------------------------------------------------------------------
+        if preset == "ultra_fast":
+            baseline = max(self.baseline_f1_, 1e-12)
+            mi = getattr(self, "mi_scores_", {}) or {}
+            results: List[SubspaceReport] = []
+
+            for features in candidates:
+                if not features:
+                    continue
+                proxy = sum(mi.get(f, 0.0) for f in features) / max(
+                    len(features), 1
+                )
+                report = SubspaceReport(
+                    features=tuple(features),
+                    mean_macro_f1=float(proxy),
+                    std_macro_f1=0.0,
+                    lift_vs_majority=float(proxy) / baseline,
+                    coverage_ratio=1.0,
+                    per_class_f1={},
+                    support=int(len(y)),
+                    variance_ratio=float("nan"),
+                    l1_importance=float("nan"),
+                )
+                results.append(report)
+
+            results.sort(key=lambda r: r.mean_macro_f1, reverse=True)
+            self.evaluated_reports_ = list(results)
+            self.candidate_reports_ = {r.features: r for r in results}
+            if self.max_sets is None:
+                return results
+            return self._pick_diverse_by_size(results)
+
+        # ---------------------------------------------------------------------
         # Flujo exacto original (sobre candidatos ya podados si aplica)
         # ---------------------------------------------------------------------
         classes = self.classes_
@@ -1370,6 +1452,8 @@ class MultiClassSubspaceExplorer:
         self.evaluated_reports_ = list(results)
         self.candidate_reports_ = {r.features: r for r in results}
 
+        if self.max_sets is None:
+            return results
         return self._pick_diverse_by_size(results)
 
 
@@ -1383,18 +1467,28 @@ class MultiClassSubspaceExplorer:
         explorer: Optional[MultiClassSubspaceExplorer] = None,
         precomputed: Optional[Dict[str, Any]] = None,
         records_cache: Optional[dict] = None,
+        preset: str = "high_quality",
+        skip_feature_stats: bool = False,
+        skip_attach_planes: bool = False,
         **explorer_kwargs,
     ) -> Dict[str, Any]:
         """
         Hot-path: ejecuta SOLO un método y devuelve top subspaces.
         - precomputed: salida de explorer.precompute_analysis(X,y)
         - records_cache: dict externo para cachear planos por subespacio
+        - preset/skip_feature_stats/skip_attach_planes replican los flags de fit.
         """
         if explorer is None:
             explorer = MultiClassSubspaceExplorer(**explorer_kwargs)
 
         if precomputed is None:
-            precomputed = explorer.precompute_analysis(X, y)
+            precomputed = explorer.precompute_analysis(
+                X,
+                y,
+                skip_feature_stats=bool(
+                    skip_feature_stats or preset == "ultra_fast"
+                ),
+            )
 
         t0 = perf_counter()
         explorer.fit(
@@ -1402,6 +1496,9 @@ class MultiClassSubspaceExplorer:
             method_key=method_key,
             precomputed=precomputed,
             records_cache=records_cache,
+            preset=preset,
+            skip_feature_stats=skip_feature_stats,
+            skip_attach_planes=skip_attach_planes,
         )
         reports = explorer.get_report()
         t1 = perf_counter()
@@ -1431,10 +1528,17 @@ class MultiClassSubspaceExplorer:
     def _pick_diverse_by_size(
         self, ordered_reports: Sequence[SubspaceReport]
     ) -> List[SubspaceReport]:
-        """Selecciona los mejores subespacios privilegiando variedad en tamaño."""
+        """Selecciona los mejores subespacios privilegiando variedad en tamaño.
+
+        Cuando ``max_sets`` es ``None`` no realiza cortes y devuelve todos los
+        reportes en el orden recibido (asumido como ranking de mejor a peor).
+        """
 
         if not ordered_reports:
             return []
+
+        if self.max_sets is None:
+            return list(ordered_reports)
 
         grouped: Dict[int, List[SubspaceReport]] = {}
         for report in ordered_reports:
