@@ -225,7 +225,7 @@ def main() -> None:
         max_total_candidates=620,
     )
     t0 = perf_counter()
-    explorer.fit(table, y, deldel.records_)
+    explorer.fit(table, y, deldel.records_, method_key=None)
     fit_time = perf_counter() - t0
     reports = explorer.get_report()
     print(f"Reporte generado en {fit_time:.2f} s con {len(reports)} conjuntos seleccionados")

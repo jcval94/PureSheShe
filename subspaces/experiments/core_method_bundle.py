@@ -156,7 +156,7 @@ def run_core_method_bundle(
         cv_splits=cv_splits,
         enabled_methods=CORE_METHOD_KEYS,
     )
-    explorer.fit(sampled_X, sampled_y, sampled_records)
+    explorer.fit(sampled_X, sampled_y, sampled_records, method_key=None)
     reports = explorer.get_report()
     return CoreBundleResult(
         explorer=explorer,
@@ -266,6 +266,6 @@ def run_single_method(
         cv_splits=cv_splits,
         enabled_methods=(method_key,),
     )
-    explorer.fit(sampled_X, sampled_y, sampled_records)
+    explorer.fit(sampled_X, sampled_y, sampled_records, method_key=method_key)
     return explorer
 

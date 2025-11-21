@@ -122,6 +122,7 @@ def run_matrix() -> List[dict[str, object]]:
                 preset=preset,
                 skip_feature_stats=skip_stats,
                 skip_attach_planes=skip_attach,
+                method_key=None,
             )
             elapsed = time.perf_counter() - start
             reports = explorer.get_report()

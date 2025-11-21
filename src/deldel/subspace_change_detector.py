@@ -471,24 +471,34 @@ class MultiClassSubspaceExplorer:
         y: Sequence[int],
         records: Iterable["DeltaRecord"],
         *,
-        method_key: Optional[str] = None,
+        method_key: Optional[str] = "method_8_extratrees",
         precomputed: Optional[Dict[str, Any]] = None,
         records_cache: Optional[dict] = None,
-        preset: str = "high_quality",
+        preset: str = "proxy_microcv",
         skip_feature_stats: bool = False,
         skip_attach_planes: bool = False,
     ) -> "MultiClassSubspaceExplorer":
         """
         Ejecuta el flujo completo. Si method_key se especifica, ejecuta solo ese método.
 
+        - Por defecto usa ``method_8_extratrees``. Si se quiere evaluar todos los
+          métodos disponibles, pasar ``method_key=None`` o ``"all"``.
+
         - precomputed permite reusar el análisis (MI/chi2/stumps/ranking) entre llamadas.
         - records_cache permite cachear planos derivados de records_ por subespacio.
-        - preset acepta "high_quality" (default), "fast" y "ultra_fast". En "ultra_fast"
-          se saltan métricas caras y el scoring usa un proxy basado en MI sin CV.
+        - preset acepta "proxy_microcv" (default), "high_quality", "fast" y
+          "ultra_fast".  En "proxy_microcv" se rankean candidatos por proxy MI y
+          sólo el top (controlado por fast_eval_budget) pasa por una micro-CV.
+          En "ultra_fast" se saltan métricas caras y el scoring usa un proxy
+          basado en MI sin CV.
         - skip_feature_stats fuerza un pre-análisis mínimo (omite stump/chi2) aunque el
           preset no sea ultra-fast.
         - skip_attach_planes evita derivar planos a partir de records_ (ahorra tiempo).
         """
+        # normaliza la opción "all" para mantener el barrido completo cuando se pida
+        if method_key == "all":
+            method_key = None
+
         # reset / attach cache de records
         self._records_cache = records_cache  # dict-like externo
         self.records_cache_hits_ = 0
@@ -1311,10 +1321,13 @@ class MultiClassSubspaceExplorer:
             preset = "high_quality"
 
         # ---------------------------------------------------------------------
-        # FAST PATH: Heuristic Pruning
+        # FAST PATH: Heuristic Pruning o proxy + micro-CV
         # ---------------------------------------------------------------------
         budget = getattr(self, "fast_eval_budget", None)
         top_frac = float(getattr(self, "fast_eval_top_frac", 0.8))
+
+        # Modo recomendado por defecto: ranking ultra-rápido y micro-CV sobre el top
+        use_proxy_microcv = preset == "proxy_microcv"
 
         do_prune = (
             budget is not None
@@ -1322,7 +1335,7 @@ class MultiClassSubspaceExplorer:
             and preset in ("fast", "auto")
         )
 
-        if do_prune:
+        if do_prune or use_proxy_microcv:
             mi = getattr(self, "mi_scores_", {}) or {}
             proxy_scores: List[Tuple[float, Tuple[str, ...]]] = []
 
@@ -1338,24 +1351,29 @@ class MultiClassSubspaceExplorer:
 
             proxy_scores.sort(key=lambda x: x[0], reverse=True)
 
-            n_top = max(1, int(round(int(budget) * top_frac)))
-            n_top = min(n_top, len(proxy_scores))
-            top_candidates = [c for _, c in proxy_scores[:n_top]]
+            if use_proxy_microcv:
+                top_k = max(1, int(budget) if budget else 8)
+                candidates = [c for _, c in proxy_scores[:top_k]]
+                preset = "fast"  # activa CV ligera sobre el top
+            else:
+                n_top = max(1, int(round(int(budget) * top_frac)))
+                n_top = min(n_top, len(proxy_scores))
+                top_candidates = [c for _, c in proxy_scores[:n_top]]
 
-            remaining = [c for _, c in proxy_scores[n_top:]]
-            n_random = int(budget) - len(top_candidates)
+                remaining = [c for _, c in proxy_scores[n_top:]]
+                n_random = int(budget) - len(top_candidates)
 
-            random_candidates: List[Tuple[str, ...]] = []
-            if remaining and n_random > 0:
-                rng_local = np.random.RandomState(self.random_state or 42)
-                idx = rng_local.choice(
-                    len(remaining),
-                    size=min(n_random, len(remaining)),
-                    replace=False,
-                )
-                random_candidates = [remaining[i] for i in idx]
+                random_candidates: List[Tuple[str, ...]] = []
+                if remaining and n_random > 0:
+                    rng_local = np.random.RandomState(self.random_state or 42)
+                    idx = rng_local.choice(
+                        len(remaining),
+                        size=min(n_random, len(remaining)),
+                        replace=False,
+                    )
+                    random_candidates = [remaining[i] for i in idx]
 
-            candidates = top_candidates + random_candidates
+                candidates = top_candidates + random_candidates
 
         # ---------------------------------------------------------------------
         # Ultra-fast preset: saltar CV y usar un proxy MI muy barato

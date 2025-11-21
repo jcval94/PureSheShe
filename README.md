@@ -191,6 +191,35 @@ Los parámetros expuestos se reducen a los imprescindibles (`combo_sizes`, `rand
 con heurísticas robustas para el resto.  Por defecto `max_sets=None`, así que el explorador conserva todos los subespacios
 encontrados y los ordena de mayor a menor F1 sin recortes posteriores.
 
+### Preset intermedio recomendado (y ahora por defecto)
+
+Las pruebas con `subspaces/experiments/preset_middle_options.py` muestran que la
+combinación `proxy_plus_microcv` + `method_8_extratrees` ofrece el mejor
+compromiso velocidad/precisión entre las variantes intermedias: F1 promedio en
+el rango 0.39–0.46 (lift >0.28 sobre el baseline ≈0.10) con tiempos totales de
+≈0.18–0.20 s por dataset.【F:experiments_outputs/mid_preset_options.csv†L2-L5】
+Por ello no solo es la opción por defecto del script, sino también del
+explorador general: `MultiClassSubspaceExplorer.fit` ahora arranca en modo
+`preset="proxy_microcv"` y con `method_key="method_8_extratrees"`, que rankea
+candidatos por proxy MI y pasa un top reducido por micro-CV.  Para replicar el
+atajo favorito basta con invocarlo directamente (sin necesidad de fijar el
+método):
+
+```python
+explorer = MultiClassSubspaceExplorer(
+    random_state=0,
+    combo_sizes=(2, 3),
+    fast_eval_budget=8,          # top del proxy que pasa a micro-CV
+)
+explorer.fit(X, y, records)  # usa method_8_extratrees por defecto
+reports = explorer.get_report()
+```
+
+Si necesitas el barrido completo de opciones originales añade `--all-options`
+al invocar el script de presets, usa `method_key=None` (o `"all"`) al llamar a
+`fit` para evaluar todos los métodos, o cambia explícitamente
+`preset="high_quality"` para volver al flujo exhaustivo previo.
+
 ### Ejemplo rápido de uso
 
 El siguiente fragmento ajusta un modelo base con `DelDel`, recopila los registros de cambios (`DeltaRecord`) y lanza el bundle
