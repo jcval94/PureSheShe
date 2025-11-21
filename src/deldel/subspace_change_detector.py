@@ -139,6 +139,10 @@ class MultiClassSubspaceExplorer:
         max_candidates_per_method: Optional[int] = None,
         random_state: Optional[int] = None,
         enabled_methods: Optional[Sequence[str]] = None,
+        # ---- NUEVOS ----
+        fast_eval_budget: int = 60,              # max CVs en 'fast/auto'
+        fast_eval_top_frac: float = 0.80,        # % explotación vs exploración
+        fast_compute_secondary_metrics: bool = False,  # si calcular var_ratio/l1_imp
     ) -> None:
         self.max_sets = int(max_sets)
         self.combo_sizes = tuple(int(s) for s in combo_sizes if int(s) >= 1)
@@ -171,6 +175,11 @@ class MultiClassSubspaceExplorer:
         self.method_candidate_sets_: Dict[str, Set[Tuple[str, ...]]] = {}
         self.candidate_sources_: Dict[Tuple[str, ...], Set[str]] = {}
         self.all_candidate_sets_: List[Tuple[str, ...]] = []
+        
+        self.fast_eval_budget = int(fast_eval_budget)
+        self.fast_eval_top_frac = float(fast_eval_top_frac)
+        self.fast_compute_secondary_metrics = bool(fast_compute_secondary_metrics)
+
         base_method_map: Dict[str, str] = {
             "method_1_topk_random": "Top-k random combinations",
             "method_1b_topk_guided": "Top-k guided combinations (mejorado)",
@@ -221,40 +230,66 @@ class MultiClassSubspaceExplorer:
 
     def _method_enabled(self, method_key: str) -> bool:
         return method_key in self._enabled_method_keys
+    
+    def _stable_hash32(text: str) -> int:
+        """Hash estable 32-bit para derivar seeds por método."""
+        import hashlib  # asegúrate de tener este import disponible
+        h = hashlib.md5(text.encode("utf-8")).hexdigest()[:8]
+        return int(h, 16)
 
-    def fit(
-        self,
-        X: Any,
-        y: Sequence[int],
-        records: Iterable[DeltaRecord],
-    ) -> "MultiClassSubspaceExplorer":
-        """Ejecuta el flujo completo y guarda el reporte en ``self.report_``."""
-
+    def precompute_analysis(self, X: Any, y: Sequence[int]) -> Dict[str, Any]:
+        """
+        Precalcula todo lo necesario para generar candidatos de cualquier método.
+        Ideal para ejecutarse 1 vez y reutilizarse entre métodos.
+        """
+        t0 = perf_counter()
         table = _ensure_table(X)
         self.feature_names_ = list(table.columns)
+
         y_arr = np.asarray(y)
         classes, y_codes = np.unique(y_arr, return_inverse=True)
-        self.classes_ = classes
-        self.baseline_f1_ = _majority_macro_f1(y_arr, classes)
+        baseline_f1 = _majority_macro_f1(y_arr, classes)
 
         numeric_cols = table.numeric_columns()
         categorical_cols = table.categorical_columns()
 
+        # MI subset si aplica
         if self.mi_max_features is not None and len(table.columns) > self.mi_max_features:
-            subset_idx = np.sort(self._rng.choice(len(table.columns), size=self.mi_max_features, replace=False))
+            subset_idx = np.sort(
+                self._rng.choice(len(table.columns), size=self.mi_max_features, replace=False)
+            )
             mi_subset = [table.columns[i] for i in subset_idx]
         else:
             mi_subset = list(table.columns)
+
         mi_partial = _mutual_info_scores(table, y_arr, columns_subset=mi_subset)
         mi_scores = {name: mi_partial.get(name, 0.0) for name in table.columns}
-        stump_scores = _stump_entropy_drop(table, y_arr)
-        chi2_cat = _chi2_scores({name: table.column_data(name) for name in categorical_cols}, y_codes, classes) if categorical_cols else {}
-        chi2_num = _chi2_scores(_quantile_binning(table, numeric_cols), y_codes, classes) if numeric_cols else {}
 
-        self.mi_scores_ = dict(mi_scores)
-        self.stump_scores_ = dict(stump_scores)
-        chi2_all_dict = {**chi2_cat, **{name: chi2_num.get(name, 0.0) for name in numeric_cols}}
-        self.chi2_scores_ = dict(chi2_all_dict)
+        stump_scores = _stump_entropy_drop(table, y_arr)
+
+        chi2_cat = (
+            _chi2_scores(
+                {name: table.column_data(name) for name in categorical_cols},
+                y_codes,
+                classes,
+            )
+            if categorical_cols
+            else {}
+        )
+        chi2_num = (
+            _chi2_scores(
+                _quantile_binning(table, numeric_cols),
+                y_codes,
+                classes,
+            )
+            if numeric_cols
+            else {}
+        )
+
+        chi2_all_dict = {
+            **chi2_cat,
+            **{name: chi2_num.get(name, 0.0) for name in numeric_cols},
+        }
 
         ranked_features = _rank_features(
             mi_scores,
@@ -266,8 +301,213 @@ class MultiClassSubspaceExplorer:
             self.filter_top_k,
         )
 
+        t1 = perf_counter()
+
+        return {
+            "table": table,
+            "y_arr": y_arr,
+            "y_codes": y_codes,
+            "classes": classes,
+            "baseline_f1": baseline_f1,
+            "numeric_cols": numeric_cols,
+            "categorical_cols": categorical_cols,
+            "mi_scores": mi_scores,
+            "stump_scores": stump_scores,
+            "chi2_all": chi2_all_dict,
+            "ranked_features": ranked_features,
+            "analysis_time_s": (t1 - t0),
+        }
+
+
+    # def fit(
+    #     self,
+    #     X: Any,
+    #     y: Sequence[int],
+    #     records: Iterable[DeltaRecord],
+    # ) -> "MultiClassSubspaceExplorer":
+    #     """Ejecuta el flujo completo y guarda el reporte en ``self.report_``."""
+
+    #     table = _ensure_table(X)
+    #     self.feature_names_ = list(table.columns)
+    #     y_arr = np.asarray(y)
+    #     classes, y_codes = np.unique(y_arr, return_inverse=True)
+    #     self.classes_ = classes
+    #     self.baseline_f1_ = _majority_macro_f1(y_arr, classes)
+
+    #     numeric_cols = table.numeric_columns()
+    #     categorical_cols = table.categorical_columns()
+
+    #     if self.mi_max_features is not None and len(table.columns) > self.mi_max_features:
+    #         subset_idx = np.sort(self._rng.choice(len(table.columns), size=self.mi_max_features, replace=False))
+    #         mi_subset = [table.columns[i] for i in subset_idx]
+    #     else:
+    #         mi_subset = list(table.columns)
+    #     mi_partial = _mutual_info_scores(table, y_arr, columns_subset=mi_subset)
+    #     mi_scores = {name: mi_partial.get(name, 0.0) for name in table.columns}
+    #     stump_scores = _stump_entropy_drop(table, y_arr)
+    #     chi2_cat = _chi2_scores({name: table.column_data(name) for name in categorical_cols}, y_codes, classes) if categorical_cols else {}
+    #     chi2_num = _chi2_scores(_quantile_binning(table, numeric_cols), y_codes, classes) if numeric_cols else {}
+
+    #     self.mi_scores_ = dict(mi_scores)
+    #     self.stump_scores_ = dict(stump_scores)
+    #     chi2_all_dict = {**chi2_cat, **{name: chi2_num.get(name, 0.0) for name in numeric_cols}}
+    #     self.chi2_scores_ = dict(chi2_all_dict)
+
+    #     ranked_features = _rank_features(
+    #         mi_scores,
+    #         chi2_cat,
+    #         chi2_num,
+    #         stump_scores,
+    #         numeric_cols,
+    #         categorical_cols,
+    #         self.filter_top_k,
+    #     )
+
+    #     self.feature_ranking_ = list(ranked_features)
+
+    #     candidate_sets = self._build_candidate_sets(
+    #         table,
+    #         y_arr,
+    #         ranked_features,
+    #         mi_scores,
+    #         numeric_cols,
+    #         categorical_cols,
+    #         chi2_all_dict,
+    #     )
+
+    #     scored = self._score_candidates(table, y_arr, candidate_sets)
+    #     self.report_ = self._attach_planes(scored, records)
+    #     return self
+
+    # def fit(
+    #         self,
+    #         X: Any,
+    #         y: Sequence[int],
+    #         records: Iterable[DeltaRecord],
+    #         preset: str = "auto",  # 'auto', 'fast', 'high_quality'
+    #     ) -> "MultiClassSubspaceExplorer":
+            
+    #         # 1. Estandarización de datos (sin cambios)
+    #         table = _ensure_table(X)
+    #         y_arr = np.asarray(y)
+    #         n_rows = len(y_arr)
+            
+    #         # 2. DECISIÓN DE MUESTREO (ROW-WISE)
+    #         # Si tenemos >10k filas y estamos en modo auto/fast, bajamos a 5k.
+    #         # Esto reduce el costo de MI y Chi2 de O(N) a O(1) relativo.
+    #         limit_rows = 5000
+    #         if (preset == "fast" or (preset == "auto" and n_rows > 10000)) and n_rows > limit_rows:
+    #             rng = self._rng
+    #             # Muestreo rápido de índices
+    #             indices = rng.choice(n_rows, size=limit_rows, replace=False)
+    #             if hasattr(X, "iloc"):
+    #                 table = _ensure_table(X.iloc[indices])
+    #             else:
+    #                 # Reconstruimos tabla reducida (barato en numpy)
+    #                 # Nota: Para máxima eficiencia, idealmente filtraríamos antes de _ensure_table,
+    #                 # pero esto mantiene la robustez del código existente.
+    #                 subset_arrays = [arr[indices] for arr in table.arrays]
+    #                 table = _Table(table.columns, subset_arrays)
+    #             y_arr = y_arr[indices]
+
+    #         # 3. AJUSTE TEMPORAL DE HIPERPARÁMETROS (Generación)
+    #         # Guardamos estado original
+    #         original_params = {
+    #             "rf_estimators": self.rf_estimators,
+    #             "filter_top_k": self.filter_top_k,
+    #             "combo_sizes": self.combo_sizes
+    #         }
+
+    #         # Si es fast path, reducimos la "fuerza bruta" de los generadores
+    #         if preset == "fast":
+    #             self.rf_estimators = min(self.rf_estimators, 30) # Suficiente para ver importancia
+    #             self.filter_top_k = min(self.filter_top_k, 15)   # Solo las top 15 features importan
+    #             # Limitamos combinaciones a pares si hay prisa, tríos son muy caros
+    #             self.combo_sizes = tuple([s for s in self.combo_sizes if s <= 2])
+                
+    #         try:
+    #             # --- FLUJO ORIGINAL (pero ahora operará sobre datos reducidos y params ligeros) ---
+    #             self.feature_names_ = list(table.columns)
+    #             classes, y_codes = np.unique(y_arr, return_inverse=True)
+    #             self.classes_ = classes
+    #             self.baseline_f1_ = _majority_macro_f1(y_arr, classes)
+                
+    #             # ... (Cálculo de MI, Chi2, Ranking igual que antes) ...
+    #             # El código original aquí es eficiente si N está acotado por el muestreo arriba.
+                
+    #             numeric_cols = table.numeric_columns()
+    #             categorical_cols = table.categorical_columns()
+                
+    #             # Optimización Col-wise implícita:
+    #             # Al reducir self.filter_top_k arriba, _build_candidate_sets trabajará menos.
+                
+    #             # ... (Llamadas a _mutual_info_scores, etc.) ...
+    #             # SIMPLIFICADO PARA EL EJEMPLO, mantener lógica original de cálculo de scores
+    #             mi_scores = _mutual_info_scores(table, y_arr) # Ahora rápido por el muestreo
+    #             # ... resto de stats ...
+                
+    #             # Generación de candidatos (ahora más rápida por self.rf_estimators reducido)
+    #             candidate_sets = self._build_candidate_sets(...) 
+
+    #             # Scoring (Aquí está el cambio crítico, ver abajo)
+    #             scored = self._score_candidates(table, y_arr, candidate_sets)
+    #             self.report_ = self._attach_planes(scored, records)
+                
+    #         finally:
+    #             # RESTAURAR ESTADO (Para no afectar futuras ejecuciones de la misma instancia)
+    #             self.rf_estimators = original_params["rf_estimators"]
+    #             self.filter_top_k = original_params["filter_top_k"]
+    #             self.combo_sizes = original_params["combo_sizes"]
+
+    #         return self
+
+    def fit(
+        self,
+        X: Any,
+        y: Sequence[int],
+        records: Iterable["DeltaRecord"],
+        *,
+        method_key: Optional[str] = None,
+        precomputed: Optional[Dict[str, Any]] = None,
+        records_cache: Optional[dict] = None,
+    ) -> "MultiClassSubspaceExplorer":
+        """
+        Ejecuta el flujo completo. Si method_key se especifica, ejecuta solo ese método.
+
+        - precomputed permite reusar el análisis (MI/chi2/stumps/ranking) entre llamadas.
+        - records_cache permite cachear planos derivados de records_ por subespacio.
+        """
+        # reset / attach cache de records
+        self._records_cache = records_cache  # dict-like externo
+        self.records_cache_hits_ = 0
+        self.records_cache_misses_ = 0
+
+        if precomputed is None:
+            precomputed = self.precompute_analysis(X, y)
+
+        # unpack precomputed
+        table: _Table = precomputed["table"]
+        y_arr: np.ndarray = precomputed["y_arr"]
+        y_codes: np.ndarray = precomputed["y_codes"]
+        classes: np.ndarray = precomputed["classes"]
+        numeric_cols: List[str] = precomputed["numeric_cols"]
+        categorical_cols: List[str] = precomputed["categorical_cols"]
+        mi_scores: Dict[str, float] = precomputed["mi_scores"]
+        stump_scores: Dict[str, float] = precomputed["stump_scores"]
+        chi2_all_dict: Dict[str, float] = precomputed["chi2_all"]
+        ranked_features: List[str] = precomputed["ranked_features"]
+        baseline_f1: float = precomputed["baseline_f1"]
+
+        # set estado interno (compatibilidad con API previa)
+        self.feature_names_ = list(table.columns)
+        self.classes_ = classes
+        self.baseline_f1_ = baseline_f1
+        self.mi_scores_ = dict(mi_scores)
+        self.stump_scores_ = dict(stump_scores)
+        self.chi2_scores_ = dict(chi2_all_dict)
         self.feature_ranking_ = list(ranked_features)
 
+        # build candidates (single method o todos)
         candidate_sets = self._build_candidate_sets(
             table,
             y_arr,
@@ -276,11 +516,13 @@ class MultiClassSubspaceExplorer:
             numeric_cols,
             categorical_cols,
             chi2_all_dict,
+            method_key=method_key,
         )
 
         scored = self._score_candidates(table, y_arr, candidate_sets)
         self.report_ = self._attach_planes(scored, records)
         return self
+
 
     def get_report(self) -> List[SubspaceReport]:
         """Devuelve los mejores subespacios encontrados."""
@@ -327,38 +569,76 @@ class MultiClassSubspaceExplorer:
         numeric_cols: List[str],
         categorical_cols: List[str],
         chi2_scores: Dict[str, float],
+        *,
+        method_key: Optional[str] = None,
     ) -> List[Tuple[str, ...]]:
+        """
+        Genera candidatos. Si method_key se especifica, corre sólo ese método.
+
+        Fix crítico:
+        - RNG por método: random_state XOR hash(method_key)
+        => evita candidatos idénticos entre métodos.
+        """
         top_pool = ranked_features[: max(self.filter_top_k, len(self.combo_sizes))]
-        feature_to_idx = {name: idx for idx, name in enumerate(self.feature_names_ or [])}
-        pool_idx = np.array([feature_to_idx[f] for f in top_pool], int) if top_pool else np.empty(0, int)
+        feature_to_idx = {
+            name: idx for idx, name in enumerate(self.feature_names_ or [])
+        }
+        pool_idx = (
+            np.array([feature_to_idx[f] for f in top_pool], int)
+            if top_pool
+            else np.empty(0, int)
+        )
 
-        method_sets: Dict[str, Set[Tuple[str, ...]]] = {key: set() for key in self.method_name_map_}
+        # si method_key viene, reducimos el universo
+        active_method_keys = (
+            [method_key]
+            if method_key is not None
+            else list(self.method_name_map_.keys())
+        )
+        active_method_keys = [
+            k for k in active_method_keys if k in self.method_name_map_
+        ]
+
+        method_sets: Dict[str, Set[Tuple[str, ...]]] = {
+            key: set() for key in active_method_keys
+        }
         candidate_sources: Dict[Tuple[str, ...], Set[str]] = {}
-        timings: Dict[str, float] = {key: 0.0 for key in self.method_name_map_}
+        timings: Dict[str, float] = {key: 0.0 for key in active_method_keys}
 
-        def _method_rng(method_key: str) -> np.random.RandomState:
+        def _method_rng(mkey: str) -> np.random.RandomState:
             if self.random_state is None:
                 return self._rng
-            return np.random.RandomState(self.random_state)
+            seed = (
+                np.uint32(self.random_state)
+                ^ np.uint32(_stable_hash32(mkey))
+            )
+            return np.random.RandomState(int(seed))
 
-        def _add_candidate(combo: Tuple[str, ...], method_key: str) -> None:
-            if not self._method_enabled(method_key):
+        def _add_candidate(combo: Tuple[str, ...], mkey: str) -> None:
+            if mkey not in method_sets:
                 return
             combo_sorted = tuple(sorted(combo))
-            method_sets[method_key].add(combo_sorted)
-            candidate_sources.setdefault(combo_sorted, set()).add(method_key)
+            method_sets[mkey].add(combo_sorted)
+            candidate_sources.setdefault(combo_sorted, set()).add(mkey)
 
-        def _time_block(method_key: str, func: Callable[[], None]) -> None:
-            if not self._method_enabled(method_key):
+        def _time_block(mkey: str, func: Callable[[], None]) -> None:
+            if mkey not in method_sets:
                 return
             start = perf_counter()
             func()
-            timings[method_key] += perf_counter() - start
+            timings[mkey] += perf_counter() - start
+
+        # -----------------------
+        # Métodos (idénticos a tu versión)
+        # Solo se ejecutan si están activos por method_key
+        # -----------------------
 
         def _run_method_2_chi2() -> None:
             if not chi2_scores:
                 return
-            sorted_by_chi2 = sorted(chi2_scores.items(), key=lambda kv: kv[1], reverse=True)
+            sorted_by_chi2 = sorted(
+                chi2_scores.items(), key=lambda kv: kv[1], reverse=True
+            )
             chi2_top = [name for name, _ in sorted_by_chi2[: self.chi2_pool]]
             rng = _method_rng("method_2_chi2")
             for size in self.combo_sizes:
@@ -371,7 +651,13 @@ class MultiClassSubspaceExplorer:
                     seen_idx: Set[Tuple[int, ...]] = set()
                     iterator = []
                     while len(seen_idx) < self.random_samples:
-                        idx = tuple(sorted(rng.choice(len(chi2_top), size=size, replace=False)))
+                        idx = tuple(
+                            sorted(
+                                rng.choice(
+                                    len(chi2_top), size=size, replace=False
+                                )
+                            )
+                        )
                         if idx in seen_idx:
                             continue
                         seen_idx.add(idx)
@@ -403,15 +689,24 @@ class MultiClassSubspaceExplorer:
                 n_draws = min(self.random_samples, n_possible)
                 seen: Set[Tuple[int, ...]] = set()
                 while len(seen) < n_draws:
-                    idx = tuple(sorted(rng.choice(pool_idx, size=size, replace=False)))
+                    idx = tuple(
+                        sorted(
+                            rng.choice(pool_idx, size=size, replace=False)
+                        )
+                    )
                     if idx in seen:
                         continue
                     seen.add(idx)
                     combo = tuple(self.feature_names_[i] for i in idx)
                     _add_candidate(combo, "method_1_topk_random")
-                    if sum(len(s) for s in method_sets.values()) > self.random_samples * len(self.combo_sizes) * 2:
+                    if (
+                        sum(len(s) for s in method_sets.values())
+                        > self.random_samples * len(self.combo_sizes) * 2
+                    ):
                         break
-            mi_neighbor = _mi_neighbor_combos(ranked_features, mi_scores, self.combo_sizes)
+            mi_neighbor = _mi_neighbor_combos(
+                ranked_features, mi_scores, self.combo_sizes
+            )
             for combo in mi_neighbor:
                 _add_candidate(combo, "method_1_topk_random")
 
@@ -434,10 +729,21 @@ class MultiClassSubspaceExplorer:
         def _run_method_3() -> None:
             rng = _method_rng("method_3_corr_groups")
             corr_cols = list(numeric_cols)
-            if self.corr_max_features is not None and len(corr_cols) > self.corr_max_features:
-                idx = np.sort(rng.choice(len(corr_cols), size=self.corr_max_features, replace=False))
+            if (
+                self.corr_max_features is not None
+                and len(corr_cols) > self.corr_max_features
+            ):
+                idx = np.sort(
+                    rng.choice(
+                        len(corr_cols),
+                        size=self.corr_max_features,
+                        replace=False,
+                    )
+                )
                 corr_cols = [corr_cols[i] for i in idx]
-            corr_pairs = _high_corr_groups(table, corr_cols, threshold=self.corr_threshold)
+            corr_pairs = _high_corr_groups(
+                table, corr_cols, threshold=self.corr_threshold
+            )
             for combo in corr_pairs:
                 if len(combo) in self.combo_sizes:
                     _add_candidate(tuple(combo), "method_3_corr_groups")
@@ -445,7 +751,9 @@ class MultiClassSubspaceExplorer:
                     for size in self.combo_sizes:
                         if size < len(combo):
                             for sub in combinations(combo, size):
-                                _add_candidate(tuple(sub), "method_3_corr_groups")
+                                _add_candidate(
+                                    tuple(sub), "method_3_corr_groups"
+                                )
 
         _time_block("method_3_corr_groups", _run_method_3)
 
@@ -707,24 +1015,27 @@ class MultiClassSubspaceExplorer:
 
         _time_block("method_11b_minhash_refined", _run_method_11b)
 
+        # unión final de candidatos activos
         candidate_sets: Set[Tuple[str, ...]] = set()
         for combos in method_sets.values():
             candidate_sets.update(combos)
 
+        # límites opcionales (igual que tu versión)
         if self.max_candidates_per_method is not None:
             limit = int(self.max_candidates_per_method)
-            for method_key, combos in list(method_sets.items()):
+            for k in list(method_sets.keys()):
+                combos = method_sets[k]
                 if len(combos) <= limit:
                     continue
                 sorted_combos = sorted(combos)
                 keep = set(sorted_combos[:limit])
                 removed = set(sorted_combos[limit:])
-                method_sets[method_key] = keep
+                method_sets[k] = keep
                 for combo in removed:
                     methods = candidate_sources.get(combo)
                     if not methods:
                         continue
-                    methods.discard(method_key)
+                    methods.discard(k)
                     if not methods:
                         candidate_sources.pop(combo, None)
             candidate_sets = set()
@@ -732,48 +1043,314 @@ class MultiClassSubspaceExplorer:
                 candidate_sets.update(combos)
 
         candidate_list = sorted(candidate_sets)
-        if self.max_total_candidates is not None and len(candidate_list) > self.max_total_candidates:
+        if (
+            self.max_total_candidates is not None
+            and len(candidate_list) > self.max_total_candidates
+        ):
             candidate_list = candidate_list[: self.max_total_candidates]
+
         kept = set(candidate_list)
-        self.method_candidate_sets_ = {k: {combo for combo in v if combo in kept} for k, v in method_sets.items()}
-        self.candidate_sources_ = {combo: set(methods) for combo, methods in candidate_sources.items() if combo in kept}
-        self.method_timings_ = {self.method_name_map_[k]: timings[k] for k in self.method_name_map_}
+        self.method_candidate_sets_ = {
+            k: {c for c in v if c in kept} for k, v in method_sets.items()
+        }
+        self.candidate_sources_ = {
+            c: set(m) for c, m in candidate_sources.items() if c in kept
+        }
+
+        # timings friendly-name
+        self.method_timings_ = {
+            self.method_name_map_[k]: timings.get(k, 0.0)
+            for k in method_sets.keys()
+        }
         self.all_candidate_sets_ = list(candidate_list)
         return candidate_list
 
+    # def _score_candidates(
+    #     self,
+    #     table: _Table,
+    #     y: np.ndarray,
+    #     candidates: Sequence[Tuple[str, ...]],
+    # ) -> List[SubspaceReport]:
+    #     if not candidates:
+    #         self.evaluated_reports_ = []
+    #         self.candidate_reports_ = {}
+    #         return []
+
+    #     classes = self.classes_
+    #     assert classes is not None
+    #     baseline = max(self.baseline_f1_, 1e-9)
+    #     results: List[SubspaceReport] = []
+    #     counts = np.unique(y, return_counts=True)[1]
+    #     n_splits = int(min(self.cv_splits, counts.min())) if counts.size else 0
+    #     if n_splits < 2:
+    #         self.evaluated_reports_ = []
+    #         self.candidate_reports_ = {}
+    #         return []
+    #     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
+
+    #     for features in candidates:
+    #         X_sub = _encode_features(table, features)
+    #         if X_sub.size == 0:
+    #             continue
+    #         try:
+    #             metrics = _evaluate_subspace(X_sub, y, skf, classes)
+    #         except ValueError:
+    #             continue
+    #         var_ratio = _variance_ratio(X_sub, y)
+    #         l1_imp = _logistic_l1_importance(X_sub, y, self.random_state)
+    #         report = SubspaceReport(
+    #             features=tuple(features),
+    #             mean_macro_f1=metrics["macro_f1_mean"],
+    #             std_macro_f1=metrics["macro_f1_std"],
+    #             lift_vs_majority=metrics["macro_f1_mean"] / baseline,
+    #             coverage_ratio=metrics["coverage_mean"],
+    #             per_class_f1=metrics["per_class_f1"],
+    #             support=int(metrics["support"]),
+    #             variance_ratio=float(var_ratio),
+    #             l1_importance=float(l1_imp),
+    #         )
+    #         results.append(report)
+
+    #     results.sort(key=lambda r: r.mean_macro_f1, reverse=True)
+    #     self.evaluated_reports_ = list(results)
+    #     self.candidate_reports_ = {report.features: report for report in results}
+    #     return self._pick_diverse_by_size(results)
+    
+    # def _score_candidates(
+    #     self,
+    #     table: _Table,
+    #     y: np.ndarray,
+    #     candidates: Sequence[Tuple[str, ...]],
+    # ) -> List[SubspaceReport]:
+    #     """
+    #     Evalúa los candidatos usando CV y Regresión Logística.
+    #     Incluye una optimización de 'Heuristic Pruning' para evitar evaluar
+    #     cientos de candidatos si la lista es muy grande.
+    #     """
+    #     if not candidates:
+    #         self.evaluated_reports_ = []
+    #         self.candidate_reports_ = {}
+    #         return []
+
+    #     # =========================================================================
+    #     # ### FAST PATH OPTIMIZATION: Heuristic Pruning ###
+    #     # Si hay demasiados candidatos (>60), la validación cruzada es muy lenta.
+    #     # Filtramos usando una heurística rápida basada en los MI scores ya calculados.
+    #     # =========================================================================
+    #     MAX_EVAL_BUDGET = 60  # Límite duro de evaluaciones costosas
+        
+    #     # Solo optimizamos si superamos el presupuesto
+    #     if len(candidates) > MAX_EVAL_BUDGET:
+    #         # 1. Calcular score proxy para cada candidato
+    #         # Score = Suma de MI individual de las features en el candidato.
+    #         # Esto asume que subespacios fuertes suelen tener al menos componentes débiles.
+    #         proxy_scores: List[Tuple[float, Tuple[str, ...]]] = []
+            
+    #         # Usamos self.mi_scores_ que se calculó en fit()
+    #         # Si por alguna razón está vacío, el score será 0.0 (fallback seguro)
+    #         for combo in candidates:
+    #             score = sum(self.mi_scores_.get(f, 0.0) for f in combo)
+    #             # Pequeño bonus a la parsimonia: features^0.5
+    #             # (Evita favorecer solo conjuntos grandes por mera suma)
+    #             normalized_score = score / (len(combo) ** 0.5 if len(combo) > 0 else 1.0)
+    #             proxy_scores.append((normalized_score, combo))
+
+    #         # 2. Ordenar descendente
+    #         proxy_scores.sort(key=lambda x: x[0], reverse=True)
+
+    #         # 3. Selección Híbrida (Top + Random Exploration)
+    #         # Tomamos el 80% del presupuesto de los mejores (Explotación)
+    #         n_top = int(MAX_EVAL_BUDGET * 0.8)
+    #         top_candidates = [item[1] for item in proxy_scores[:n_top]]
+
+    #         # Tomamos el 20% restante aleatoriamente del resto (Exploración)
+    #         # Esto evita quedarnos atrapados en un mínimo local de features similares
+    #         remaining = [item[1] for item in proxy_scores[n_top:]]
+    #         n_random = MAX_EVAL_BUDGET - n_top
+            
+    #         random_candidates = []
+    #         if remaining:
+    #             # Selección determinista basada en random_state para reproducibilidad
+    #             rng_local = np.random.RandomState(self.random_state if self.random_state else 42)
+    #             idx_random = rng_local.choice(
+    #                 len(remaining), 
+    #                 size=min(len(remaining), n_random), 
+    #                 replace=False
+    #             )
+    #             random_candidates = [remaining[i] for i in idx_random]
+
+    #         # 4. Reemplazar la lista original
+    #         candidates = top_candidates + random_candidates
+
+    #     # =========================================================================
+    #     # FIN OPTIMIZACIÓN - El resto del flujo es idéntico al original
+    #     # =========================================================================
+
+    #     classes = self.classes_
+    #     assert classes is not None
+    #     baseline = max(self.baseline_f1_, 1e-9)
+    #     results: List[SubspaceReport] = []
+        
+    #     counts = np.unique(y, return_counts=True)[1]
+    #     n_splits = int(min(self.cv_splits, counts.min())) if counts.size else 0
+        
+    #     if n_splits < 2:
+    #         self.evaluated_reports_ = []
+    #         self.candidate_reports_ = {}
+    #         return []
+            
+    #     skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
+
+    #     for features in candidates:
+    #         X_sub = _encode_features(table, features)
+    #         if X_sub.size == 0:
+    #             continue
+            
+    #         try:
+    #             metrics = _evaluate_subspace(X_sub, y, skf, classes)
+    #         except ValueError:
+    #             continue
+            
+    #         var_ratio = _variance_ratio(X_sub, y)
+    #         l1_imp = _logistic_l1_importance(X_sub, y, self.random_state)
+            
+    #         report = SubspaceReport(
+    #             features=tuple(features),
+    #             mean_macro_f1=metrics["macro_f1_mean"],
+    #             std_macro_f1=metrics["macro_f1_std"],
+    #             lift_vs_majority=metrics["macro_f1_mean"] / baseline,
+    #             coverage_ratio=metrics["coverage_mean"],
+    #             per_class_f1=metrics["per_class_f1"],
+    #             support=int(metrics["support"]),
+    #             variance_ratio=float(var_ratio),
+    #             l1_importance=float(l1_imp),
+    #         )
+    #         results.append(report)
+
+    #     results.sort(key=lambda r: r.mean_macro_f1, reverse=True)
+    #     self.evaluated_reports_ = list(results)
+    #     self.candidate_reports_ = {report.features: report for report in results}
+        
+    #     return self._pick_diverse_by_size(results)
     def _score_candidates(
         self,
         table: _Table,
         y: np.ndarray,
         candidates: Sequence[Tuple[str, ...]],
     ) -> List[SubspaceReport]:
+        """
+        Evalúa candidatos con CV + Regresión Logística (exacto por defecto).
+        En preset 'fast'/'auto' aplica:
+        1) Heuristic pruning por MI para limitar CV a un presupuesto fijo.
+        2) (Opcional) omite métricas secundarias caras.
+        """
+
         if not candidates:
             self.evaluated_reports_ = []
             self.candidate_reports_ = {}
             return []
 
+        # ---------------------------------------------------------------------
+        # Preset actual (lo setea fit con: self._current_preset = preset)
+        # Backward compatible si no existe.
+        # ---------------------------------------------------------------------
+        preset = getattr(self, "_current_preset", None)
+        if preset is None:
+            preset = getattr(self, "preset_", None)
+        if preset is None:
+            preset = "high_quality"
+
+        # ---------------------------------------------------------------------
+        # FAST PATH: Heuristic Pruning
+        # ---------------------------------------------------------------------
+        budget = getattr(self, "fast_eval_budget", None)
+        top_frac = float(getattr(self, "fast_eval_top_frac", 0.8))
+
+        do_prune = (
+            budget is not None
+            and len(candidates) > int(budget)
+            and preset in ("fast", "auto")
+        )
+
+        if do_prune:
+            mi = getattr(self, "mi_scores_", {}) or {}
+            proxy_scores: List[Tuple[float, Tuple[str, ...]]] = []
+
+            for combo in candidates:
+                if not combo:
+                    continue
+                raw = 0.0
+                for f in combo:
+                    raw += float(mi.get(f, 0.0))
+                # parsimonia suave
+                proxy = raw / (len(combo) ** 0.5)
+                proxy_scores.append((proxy, tuple(combo)))
+
+            proxy_scores.sort(key=lambda x: x[0], reverse=True)
+
+            n_top = max(1, int(round(int(budget) * top_frac)))
+            n_top = min(n_top, len(proxy_scores))
+            top_candidates = [c for _, c in proxy_scores[:n_top]]
+
+            remaining = [c for _, c in proxy_scores[n_top:]]
+            n_random = int(budget) - len(top_candidates)
+
+            random_candidates: List[Tuple[str, ...]] = []
+            if remaining and n_random > 0:
+                rng_local = np.random.RandomState(self.random_state or 42)
+                idx = rng_local.choice(
+                    len(remaining),
+                    size=min(n_random, len(remaining)),
+                    replace=False,
+                )
+                random_candidates = [remaining[i] for i in idx]
+
+            candidates = top_candidates + random_candidates
+
+        # ---------------------------------------------------------------------
+        # Flujo exacto original (sobre candidatos ya podados si aplica)
+        # ---------------------------------------------------------------------
         classes = self.classes_
         assert classes is not None
         baseline = max(self.baseline_f1_, 1e-9)
         results: List[SubspaceReport] = []
+
         counts = np.unique(y, return_counts=True)[1]
         n_splits = int(min(self.cv_splits, counts.min())) if counts.size else 0
+
         if n_splits < 2:
             self.evaluated_reports_ = []
             self.candidate_reports_ = {}
             return []
-        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=self.random_state)
+
+        skf = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=self.random_state
+        )
+
+        # FAST PATH: omitir métricas secundarias caras en fast
+        compute_secondary = True
+        if preset == "fast" and not bool(
+            getattr(self, "fast_compute_secondary_metrics", False)
+        ):
+            compute_secondary = False
 
         for features in candidates:
             X_sub = _encode_features(table, features)
             if X_sub.size == 0:
                 continue
+
             try:
                 metrics = _evaluate_subspace(X_sub, y, skf, classes)
             except ValueError:
                 continue
-            var_ratio = _variance_ratio(X_sub, y)
-            l1_imp = _logistic_l1_importance(X_sub, y, self.random_state)
+
+            if compute_secondary:
+                var_ratio = float(_variance_ratio(X_sub, y))
+                l1_imp = float(_logistic_l1_importance(X_sub, y, self.random_state))
+            else:
+                var_ratio = float("nan")
+                l1_imp = float("nan")
+
             report = SubspaceReport(
                 features=tuple(features),
                 mean_macro_f1=metrics["macro_f1_mean"],
@@ -782,15 +1359,72 @@ class MultiClassSubspaceExplorer:
                 coverage_ratio=metrics["coverage_mean"],
                 per_class_f1=metrics["per_class_f1"],
                 support=int(metrics["support"]),
-                variance_ratio=float(var_ratio),
-                l1_importance=float(l1_imp),
+                variance_ratio=var_ratio,
+                l1_importance=l1_imp,
             )
             results.append(report)
 
         results.sort(key=lambda r: r.mean_macro_f1, reverse=True)
         self.evaluated_reports_ = list(results)
-        self.candidate_reports_ = {report.features: report for report in results}
+        self.candidate_reports_ = {r.features: r for r in results}
+
         return self._pick_diverse_by_size(results)
+
+
+    def top_subspaces_hot(
+        X: Any,
+        y: Sequence[int],
+        *,
+        method_key: str,
+        records: Iterable["DeltaRecord"],
+        top_k: int = 30,
+        explorer: Optional[MultiClassSubspaceExplorer] = None,
+        precomputed: Optional[Dict[str, Any]] = None,
+        records_cache: Optional[dict] = None,
+        **explorer_kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Hot-path: ejecuta SOLO un método y devuelve top subspaces.
+        - precomputed: salida de explorer.precompute_analysis(X,y)
+        - records_cache: dict externo para cachear planos por subespacio
+        """
+        if explorer is None:
+            explorer = MultiClassSubspaceExplorer(**explorer_kwargs)
+
+        if precomputed is None:
+            precomputed = explorer.precompute_analysis(X, y)
+
+        t0 = perf_counter()
+        explorer.fit(
+            X, y, records,
+            method_key=method_key,
+            precomputed=precomputed,
+            records_cache=records_cache,
+        )
+        reports = explorer.get_report()
+        t1 = perf_counter()
+
+        top_reports = reports[:top_k]
+        return {
+            "method_key": method_key,
+            "top_subspaces": [r.features for r in top_reports],
+            "reports": top_reports,
+            "records_cached": getattr(explorer, "records_cache_hits_", 0),
+            "records_cache_misses": getattr(explorer, "records_cache_misses_", 0),
+            "timing": {
+                "analysis_s": float(precomputed.get("analysis_time_s", 0.0)),
+                "candidates_s": float(
+                    list(explorer.method_timings_.values())[0]
+                    if explorer.method_timings_
+                    else 0.0
+                ),
+                "total_s": float(t1 - t0),
+            },
+            "precomputed": precomputed,
+            "explorer": explorer,
+        }
+
+
 
     def _pick_diverse_by_size(
         self, ordered_reports: Sequence[SubspaceReport]
