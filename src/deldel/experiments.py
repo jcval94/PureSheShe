@@ -229,7 +229,6 @@ def run_corner_pipeline_experiments(
     from sklearn.linear_model import LogisticRegression
 
     model = LogisticRegression(
-        multi_class="auto",
         max_iter=600,
         solver="lbfgs",
         random_state=dataset_kwargs.get("random_state", 0),
@@ -950,7 +949,6 @@ def run_corner_pipeline_with_low_dim(
     from sklearn.linear_model import LogisticRegression
 
     model = LogisticRegression(
-        multi_class="auto",
         max_iter=600,
         solver="lbfgs",
         random_state=dataset_kwargs.get("random_state", 0),
