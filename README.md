@@ -85,6 +85,8 @@ El siguiente ejemplo reproduce el flujo recomendado para explorar reglas en sube
 selección de planos frontera (`sel`).
 
 ```python
+from deldel.find_low_dim_spaces_fast import find_low_dim_spaces
+
 %%time
 # 9s
 valuable = find_low_dim_spaces(
@@ -144,6 +146,8 @@ print(describe_regions_report(valuable, top_per_class=5, dataset_size=X.shape[0]
 ## Visualización interactiva de fronteras y superficies
 
 ```python
+from deldel import compute_frontier_planes_weighted, plot_frontiers_implicit_interactive_v2
+
 planes   = compute_frontier_planes_weighted(records, prefer_cp=True, weight_map='softmax')
 
 fig = plot_frontiers_implicit_interactive_v2(
@@ -157,6 +161,8 @@ fig = plot_frontiers_implicit_interactive_v2(
 ```
 
 ```python
+from deldel import fit_quadrics_from_records_weighted, plot_frontiers_implicit_interactive_v2
+
 records = d.records_
 quadrics = fit_quadrics_from_records_weighted(
     records, mode="logistic", C=8.0, density_k=8
