@@ -79,6 +79,46 @@ print(f"Accuracy en el dataset sintético: {clf.score(X, y):.3f}")
 plot_corner_class_dataset(X, y, feature_names)
 ```
 
+## Ejemplo de uso de `find_low_dim_spaces`
+
+El siguiente ejemplo reproduce el flujo recomendado para explorar reglas en subespacios de baja dimensión a partir de una
+selección de planos frontera (`sel`).
+
+```python
+%%time
+# 9s
+valuable = find_low_dim_spaces(
+    X, y, sel,
+    feature_names=[f"x{i}" for i in range(X.shape[1])],
+    max_planes_in_rule=3,       # conjunciones hasta 3 planos
+    max_planes_per_pair=4,      # como tope por par
+    min_support=40,             # evita reglas con muy pocos puntos
+    min_rel_gain_f1=0.05,       # pide F1 al menos 30% sobre baseline
+    min_lift_prec=1.40,         # o bien precision con lift >= 1.4
+    consider_dims_up_to=X.shape[1],  # busca 1..d
+    rng_seed=0,
+)
+
+planos_ = []
+# Presentación: de 1 a d dimensiones
+for dim_k in sorted(valuable.keys()):
+    print('---------------------------------------------------------------------------------------------------------------')
+    if not valuable[dim_k]:
+        continue
+    print(f"\n=== Espacios valiosos en {dim_k}D ===")
+    for r in valuable[dim_k]:
+        print('-------------------------------------------------')
+        cls = r["target_class"]; dims = r["dims"]; pid = r["plane_ids"]
+        m = r["metrics"]
+        print(f"Clase {cls} | dims={dims} | rule: {r['rule_text']}")
+        print(f"  F1={m['f1']:.3f}  Prec={m['precision']:.3f}  Rec={m['recall']:.3f}  "
+              f"size={m['size']}  lift(P)={m['lift_precision']:.2f}  baseline={m['baseline']:.3f}")
+        print(r['plane_ids'])
+        planos_.append(r['plane_ids'])
+
+    print(f"Total: {len(valuable[dim_k])} reglas válidas")
+```
+
 ## Visualización interactiva de fronteras y superficies
 
 ```python
