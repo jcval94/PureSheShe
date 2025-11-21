@@ -429,14 +429,14 @@ def plot_selected_regions_interactive(
     # ---- miscelánea ----
     rng_seed: int | None = 1337            # reproducibilidad del muestreo
 ):
-    ""
+    """
     Cambios críticos integrados (3D fix):
       • **SIEMPRE** se pinta el lado n·x + b ≤ 0. Para ello, en 3D se
         reorienta cada semiespacio hacia la clase objetivo y se ABSORBE el signo
         en (n, b) antes de renderizar (evita pintar el lado opuesto).
       • Reglas AND 2D/3D: intersección con **max ≤ 0**.
       • Si una región trae `dims`, se respeta el bloque actual (se filtra por coincidencia).
-    ""
+    """
     import plotly.graph_objects as go
     import plotly.express as px
     import plotly.io as pio
