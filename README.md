@@ -119,6 +119,28 @@ for dim_k in sorted(valuable.keys()):
     print(f"Total: {len(valuable[dim_k])} reglas válidas")
 ```
 
+### Informe textual de regiones
+
+`describe_regions_report` genera un informe compacto en español a partir de las regiones descubiertas. Internamente:
+
+- Ordena por Pareto → F1 → LiftPrecision, dando prioridad a las reglas más fuertes.
+- Deduplica por firma estable (clase objetivo + dims + regla normalizada) y conserva la mejor variante según el ranking.
+- Ofrece dos modos: ficha detallada por `region_id` o Top-K por clase (`top_per_class`).
+- Calcula métricas de tamaño relativas (`dataset_size`) y normaliza las desigualdades de las reglas (`≤/≥` → `<=/>=`) para
+  mostrar textos consistentes.
+
+Ejemplo de uso rápido sobre el resultado de `find_low_dim_spaces`:
+
+```python
+from deldel import describe_regions_report
+
+# Ficha individual (si conoces el id de la región)
+print(describe_regions_report(valuable, region_id="rg_2d_c0_8ab309427e", dataset_size=X.shape[0]))
+
+# Top-5 por clase con deduplicación
+print(describe_regions_report(valuable, top_per_class=5, dataset_size=X.shape[0]))
+```
+
 ## Visualización interactiva de fronteras y superficies
 
 ```python
