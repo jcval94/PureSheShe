@@ -42,7 +42,16 @@ class AdaptiveSamplingInfo:
 
 
 def take_rows(data, indices: np.ndarray):
-    """Selecciona filas de ``data`` de acuerdo con ``indices``."""
+    """Selecciona filas de ``data`` de acuerdo con ``indices``.
+
+    Parámetros
+    ----------
+    data:
+        Conjunto de datos original, ya sea un array NumPy, DataFrame u objeto
+        indexable.
+    indices:
+        Arreglo con las posiciones que se desean conservar.
+    """
 
     if data is None:
         return None
@@ -61,7 +70,16 @@ def take_rows(data, indices: np.ndarray):
 
 
 def infer_sample_dimensions(X, n_samples: int) -> Tuple[int, int, int]:
-    """Obtiene tamaño total, número de características y filas×columnas."""
+    """Obtiene tamaño total, número de características y filas×columnas.
+
+    Parámetros
+    ----------
+    X:
+        Conjunto de características de entrada, en el formato disponible
+        (array, DataFrame, lista, etc.).
+    n_samples:
+        Número de filas que tiene ``X``.
+    """
 
     shape = getattr(X, "shape", None)
     if shape is not None:
@@ -109,7 +127,17 @@ def infer_sample_dimensions(X, n_samples: int) -> Tuple[int, int, int]:
 
 
 def adaptive_sample_size(n_samples: int, n_features: int, total_size: int) -> int:
-    """Calcula el tamaño de muestra siguiendo la heurística adaptativa."""
+    """Calcula el tamaño de muestra siguiendo la heurística adaptativa.
+
+    Parámetros
+    ----------
+    n_samples:
+        Número total de filas disponibles.
+    n_features:
+        Cantidad de columnas o atributos detectados en ``X``.
+    total_size:
+        Producto filas×columnas usado como referencia para acotar la muestra.
+    """
 
     adjusted_features = max(1, n_features)
     feature_factor = (adjusted_features / 8.0) ** 0.3
@@ -133,7 +161,22 @@ def maybe_adaptive_sample(
     adaptive_sampling: bool,
     random_state: Optional[int],
 ) -> Tuple[object, object, Sequence["DeltaRecord"], AdaptiveSamplingInfo]:
-    """Aplica la heurística de muestreo adaptativo según corresponda."""
+    """Aplica la heurística de muestreo adaptativo según corresponda.
+
+    Parámetros
+    ----------
+    X:
+        Conjunto de características original.
+    y:
+        Etiquetas de clase asociadas a ``X``.
+    records:
+        Secuencia de ``DeltaRecord``; si su longitud coincide con ``len(y)``,
+        también se reduce al muestrear.
+    adaptive_sampling:
+        Activa (``True``) o desactiva (``False``) el muestreo adaptativo.
+    random_state:
+        Semilla utilizada para seleccionar filas cuando se necesita muestrear.
+    """
 
     n_samples = len(y)
     total_size, n_features, row_col_product = infer_sample_dimensions(X, n_samples)
