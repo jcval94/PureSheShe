@@ -1,9 +1,9 @@
-"""Pipeline ligero para detectar subespacios discriminativos a partir de ``d.records_``.
+"""Pipeline ligero para detectar subespacios discriminativos.
 
-El módulo implementa un flujo de 4 etapas (Filtro ➜ Candidatos ➜ Ranking ➜ records)
+El módulo implementa un flujo de 3 etapas (Filtro ➜ Candidatos ➜ Ranking)
 para problemas multiclase con variables mixtas.  La idea es reducir el espacio de
-búsqueda, generar combinaciones prometedoras y finalmente ajustar planos/half-spaces
-por subespacio usando los ``DeltaRecord`` disponibles.
+búsqueda y generar combinaciones prometedoras que luego se evalúan con métricas
+compactas.
 
 Catálogo de ideas utilizadas y en qué etapa aportan más valor:
 
@@ -17,8 +17,6 @@ Catálogo de ideas utilizadas y en qué etapa aportan más valor:
 * Importancias por regresión logística con L1 suave — Ranking.
 * Selección estable por bootstrap ligero — Ranking.
 * Binning adaptativo para continuas antes de χ² — Filtro.
-* Warm-start de planos usando centroides de records — records.
-
 Mantiene dependencias sólo en NumPy y scikit-learn; las entradas tipo DataFrame se
 manejan sin depender de pandas para permitir uso en entornos ligeros.
 """
@@ -42,9 +40,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.extmath import randomized_svd
-
-from .engine import DeltaRecord
-
 
 @dataclass
 class SubspacePlane:
@@ -119,7 +114,7 @@ class _Table:
 
 
 class MultiClassSubspaceExplorer:
-    """Explora subespacios de baja dimensión y ajusta planos usando ``d.records_``."""
+    """Explora subespacios de baja dimensión sin depender de ``records``."""
 
     def __init__(
         self,
@@ -469,14 +464,11 @@ class MultiClassSubspaceExplorer:
         self,
         X: Any,
         y: Sequence[int],
-        records: Iterable["DeltaRecord"],
         *,
         method_key: Optional[str] = "method_8_extratrees",
         precomputed: Optional[Dict[str, Any]] = None,
-        records_cache: Optional[dict] = None,
         preset: str = "proxy_microcv",
         skip_feature_stats: bool = False,
-        skip_attach_planes: bool = False,
     ) -> "MultiClassSubspaceExplorer":
         """
         Ejecuta el flujo completo. Si method_key se especifica, ejecuta solo ese método.
@@ -485,7 +477,6 @@ class MultiClassSubspaceExplorer:
           métodos disponibles, pasar ``method_key=None`` o ``"all"``.
 
         - precomputed permite reusar el análisis (MI/chi2/stumps/ranking) entre llamadas.
-        - records_cache permite cachear planos derivados de records_ por subespacio.
         - preset acepta "proxy_microcv" (default), "high_quality", "fast" y
           "ultra_fast".  En "proxy_microcv" se rankean candidatos por proxy MI y
           sólo el top (controlado por fast_eval_budget) pasa por una micro-CV.
@@ -493,16 +484,10 @@ class MultiClassSubspaceExplorer:
           basado en MI sin CV.
         - skip_feature_stats fuerza un pre-análisis mínimo (omite stump/chi2) aunque el
           preset no sea ultra-fast.
-        - skip_attach_planes evita derivar planos a partir de records_ (ahorra tiempo).
         """
         # normaliza la opción "all" para mantener el barrido completo cuando se pida
         if method_key == "all":
             method_key = None
-
-        # reset / attach cache de records
-        self._records_cache = records_cache  # dict-like externo
-        self.records_cache_hits_ = 0
-        self.records_cache_misses_ = 0
 
         self._current_preset = preset
         skip_stats = bool(skip_feature_stats or preset == "ultra_fast")
@@ -547,11 +532,7 @@ class MultiClassSubspaceExplorer:
         )
 
         scored = self._score_candidates(table, y_arr, candidate_sets)
-
-        if skip_attach_planes or preset == "ultra_fast":
-            self.report_ = list(scored)
-        else:
-            self.report_ = self._attach_planes(scored, records)
+        self.report_ = list(scored)
         return self
 
 
@@ -1480,21 +1461,17 @@ class MultiClassSubspaceExplorer:
         y: Sequence[int],
         *,
         method_key: str,
-        records: Iterable["DeltaRecord"],
         top_k: int = 30,
         explorer: Optional[MultiClassSubspaceExplorer] = None,
         precomputed: Optional[Dict[str, Any]] = None,
-        records_cache: Optional[dict] = None,
         preset: str = "high_quality",
         skip_feature_stats: bool = False,
-        skip_attach_planes: bool = False,
         **explorer_kwargs,
     ) -> Dict[str, Any]:
         """
         Hot-path: ejecuta SOLO un método y devuelve top subspaces.
         - precomputed: salida de explorer.precompute_analysis(X,y)
-        - records_cache: dict externo para cachear planos por subespacio
-        - preset/skip_feature_stats/skip_attach_planes replican los flags de fit.
+        - preset/skip_feature_stats replican los flags de fit.
         """
         if explorer is None:
             explorer = MultiClassSubspaceExplorer(**explorer_kwargs)
@@ -1510,13 +1487,11 @@ class MultiClassSubspaceExplorer:
 
         t0 = perf_counter()
         explorer.fit(
-            X, y, records,
+            X, y,
             method_key=method_key,
             precomputed=precomputed,
-            records_cache=records_cache,
             preset=preset,
             skip_feature_stats=skip_feature_stats,
-            skip_attach_planes=skip_attach_planes,
         )
         reports = explorer.get_report()
         t1 = perf_counter()
@@ -1526,8 +1501,6 @@ class MultiClassSubspaceExplorer:
             "method_key": method_key,
             "top_subspaces": [r.features for r in top_reports],
             "reports": top_reports,
-            "records_cached": getattr(explorer, "records_cache_hits_", 0),
-            "records_cache_misses": getattr(explorer, "records_cache_misses_", 0),
             "timing": {
                 "analysis_s": float(precomputed.get("analysis_time_s", 0.0)),
                 "candidates_s": float(
@@ -1584,23 +1557,6 @@ class MultiClassSubspaceExplorer:
             if not added:
                 break
         return selection
-
-    def _attach_planes(
-        self,
-        reports: List[SubspaceReport],
-        records: Iterable[DeltaRecord],
-    ) -> List[SubspaceReport]:
-        records_list = list(records)
-        if not records_list:
-            return reports
-
-        for report in reports:
-            assert self.feature_names_ is not None
-            indices = [self.feature_names_.index(f) for f in report.features]
-            planes = _planes_from_records(records_list, indices)
-            report.planes.extend(planes)
-        return reports
-
 
 # =============================================================
 # Funciones auxiliares de datos
@@ -3110,61 +3066,6 @@ def _logistic_l1_importance(X: np.ndarray, y: np.ndarray, random_state: Optional
         return 0.0
     coef = np.asarray(clf.coef_, float)
     return float(np.mean(np.abs(coef)))
-
-
-def _planes_from_records(records: Sequence[DeltaRecord], indices: Sequence[int]) -> List[SubspacePlane]:
-    idx = list(indices)
-    points_by_pair: Dict[Tuple[int, int], List[np.ndarray]] = {}
-    weights_by_pair: Dict[Tuple[int, int], List[float]] = {}
-
-    for rec in records:
-        if not getattr(rec, "success", True):
-            continue
-        a, b = int(rec.y0), int(rec.y1)
-        if a == b:
-            continue
-        key = tuple(sorted((a, b)))
-        w = float(getattr(rec, "final_score", 1.0))
-        x0 = np.asarray(rec.x0, float)[idx]
-        x1 = np.asarray(rec.x1, float)[idx]
-        pts = [x0, x1]
-        if getattr(rec, "cp_count", 0) and np.asarray(getattr(rec, "cp_x", np.empty((0, 0)))).size:
-            cp = np.asarray(rec.cp_x, float)
-            if cp.ndim == 1:
-                cp = cp.reshape(1, -1)
-            pts.extend(cp[:, idx])
-        else:
-            pts.append(0.5 * (x0 + x1))
-        arr = np.vstack(pts)
-        points_by_pair.setdefault(key, []).append(arr)
-        weights_by_pair.setdefault(key, []).append(np.full(arr.shape[0], w, float))
-
-    planes: List[SubspacePlane] = []
-    for key, chunks in points_by_pair.items():
-        P = np.vstack(chunks)
-        W = np.concatenate(weights_by_pair[key]) if key in weights_by_pair else np.ones(P.shape[0])
-        if P.shape[0] <= len(indices):
-            continue
-        normal, bias, rmse = _fit_plane(P, W)
-        planes.append(SubspacePlane(classes=key, normal=normal, bias=bias, rmse=rmse, support=int(P.shape[0]), weight=float(W.sum())))
-    return planes
-
-
-def _fit_plane(P: np.ndarray, weights: np.ndarray) -> Tuple[np.ndarray, float, float]:
-    P = np.asarray(P, float)
-    weights = np.asarray(weights, float).reshape(-1)
-    weights = np.clip(weights, 1e-6, None)
-    sw = float(weights.sum())
-    mu = (weights[:, None] * P).sum(axis=0) / sw
-    Z = P - mu[None, :]
-    Z_w = Z * np.sqrt(weights[:, None])
-    _, _, Vt = np.linalg.svd(Z_w, full_matrices=False)
-    normal = Vt[-1]
-    normal = normal / (np.linalg.norm(normal) + 1e-12)
-    bias = -float(normal @ mu)
-    residuals = P @ normal + bias
-    rmse = float(np.sqrt(np.mean(residuals**2)))
-    return normal, bias, rmse
 
 
 def _fill_numeric(arr: np.ndarray) -> np.ndarray:

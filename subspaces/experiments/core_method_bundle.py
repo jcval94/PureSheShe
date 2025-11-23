@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Tuple
 
-from deldel.engine import DeltaRecord
 from deldel.subspace_change_detector import MultiClassSubspaceExplorer, SubspaceReport
 
 from .adaptive_sampling import AdaptiveSamplingInfo, maybe_adaptive_sample
@@ -96,7 +95,7 @@ def _create_bundle_explorer(
 def run_core_method_bundle(
     X,
     y,
-    records: Iterable[DeltaRecord],
+    records: Iterable = (),
     *,
     max_sets: Optional[int] = None,
     combo_sizes: Sequence[int] = (2, 3),
@@ -117,7 +116,8 @@ def run_core_method_bundle(
     y:
         Etiquetas de clase asociadas a cada fila de ``X``.
     records:
-        Secuencia de ``DeltaRecord`` generados previamente por DelDel.
+        Parámetro opcional conservado por compatibilidad. No se utiliza para el
+        ranking de subespacios.
     max_sets:
         Límite opcional de conjuntos de columnas que se conservarán al final;
         usa ``None`` (por defecto) para conservar todos los subespacios
@@ -156,7 +156,7 @@ def run_core_method_bundle(
         cv_splits=cv_splits,
         enabled_methods=CORE_METHOD_KEYS,
     )
-    explorer.fit(sampled_X, sampled_y, sampled_records, method_key=None)
+    explorer.fit(sampled_X, sampled_y, method_key=None)
     reports = explorer.get_report()
     return CoreBundleResult(
         explorer=explorer,
@@ -209,9 +209,9 @@ def summarize_core_bundle(result: CoreBundleResult) -> List[CoreMethodSummary]:
 def run_single_method(
     X,
     y,
-    records: Iterable[DeltaRecord],
     method_key: str,
     *,
+    records: Iterable = (),
     max_sets: Optional[int] = None,
     combo_sizes: Sequence[int] = (2, 3),
     random_state: Optional[int] = None,
@@ -227,8 +227,8 @@ def run_single_method(
     y:
         Etiquetas de clase correspondientes a ``X``.
     records:
-        Lista de ``DeltaRecord`` generados por DelDel que contienen la
-        información de planos.
+        Parámetro opcional conservado por compatibilidad. No se utiliza para el
+        ranking de subespacios.
     method_key:
         Clave interna del método que se desea probar en solitario.
     max_sets:
@@ -266,6 +266,6 @@ def run_single_method(
         cv_splits=cv_splits,
         enabled_methods=(method_key,),
     )
-    explorer.fit(sampled_X, sampled_y, sampled_records, method_key=method_key)
+    explorer.fit(sampled_X, sampled_y, method_key=method_key)
     return explorer
 
