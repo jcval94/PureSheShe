@@ -182,6 +182,31 @@ fig = plot_frontiers_implicit_interactive_v2(
 )
 ```
 
+### Exploración interactiva de regiones y planos específicos
+
+El helper `plot_selected_regions_interactive` permite abrir una figura de Plotly
+con las regiones y planos devueltos por `find_low_dim_spaces` (o las regiones
+globales contenidas en `sel`).  El snippet siguiente usa la versión integrada en
+`deldel.reporting_plotting`, que pinta siempre el semiespacio \(n·x + b \le 0\)
+orientado hacia la clase objetivo y puede consumir ids de reglas calculadas en
+`valuable`.
+
+```python
+from deldel import describe_regions_report, plot_selected_regions_interactive
+
+#   • Si es una región/regla devuelta por find_low_dim_spaces (p.ej. 'rg_2d_c0_8ab309427e'):
+region_id_ = 'rg_3d_c0_648451c033'
+print(describe_regions_report(
+    valuable,
+    region_id=region_id_,
+    dataset_size=X.shape[0])
+)
+
+plot_selected_regions_interactive(sel, X, y,
+    selected_region_ids=[region_id_],
+    valuable=valuable)   # <— necesario para resolver ese ID
+```
+
 ## Bundle de métodos núcleo
 
 El módulo `subspaces.experiments.core_method_bundle` encapsula los cinco métodos ganadores y los expone a través de la función
