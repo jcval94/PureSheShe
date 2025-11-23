@@ -311,6 +311,18 @@ res_c = compute_frontier_planes_all_modes(
     seed=0,
 )
 
+# Ajustar también en los subespacios top del explorer_fast
+res_c_topdims = compute_frontier_planes_all_modes(
+    records,
+    mode="C",
+    min_cluster_size=12,
+    max_models_per_round=6,
+    seed=0,
+    explorer_reports=explorer_fast.get_report(),
+    explorer_feature_names=[f"f{i}" for i in range(X.shape[1])],
+    explorer_top_k=5,
+)
+
 # Selección global orientada
 sel = prune_and_orient_planes_unified_globalmaj(
     res_c,
@@ -352,7 +364,7 @@ explorer_ultra.fit(
 )
 
 for report in bundle.reports:
-    print(report.method_key, report.global_yes, report.top50_yes)
+   print(report.method_key, report.global_yes, report.top50_yes)
 
 # Resumen ejecutivo por método
 for method_summary in summarize_core_bundle(bundle):
@@ -363,6 +375,25 @@ for method_summary in summarize_core_bundle(bundle):
     )
 
 print(f"Selección final con {len(sel['winning_planes'])} planos ganadores")
+```
+
+### Comparación rápida: planos base vs. subespacios de `explorer_fast`
+
+El script `experiments_outputs/frontier_planes_explorer_comparison.py` repite el ajuste de
+`compute_frontier_planes_all_modes` con y sin `explorer_reports`, registrando tiempos y
+conteos de planos.
+
+| Variante        | Tiempo frontera (s) | Planos full | Planos subespacios | Fit explorer (s) |
+| --------------- | ------------------- | ----------- | ------------------ | ---------------- |
+| `baseline`      | 0.253500            | 0           | 0                  | 0.667953         |
+| `explorer_fast` | 0.126577            | 0           | 0                  | 0.667953         |
+
+En este dataset sintético pequeño no se generaron planos válidos, pero la ejecución con
+subespacios logró la mitad del tiempo de la versión base y conserva los metadatos de las
+dimensiones usadas. Para replicar el experimento basta ejecutar:
+
+```bash
+PYTHONPATH=src python experiments_outputs/frontier_planes_explorer_comparison.py
 ```
 
 ### Obtener los subespacios top por método

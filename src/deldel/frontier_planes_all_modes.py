@@ -315,13 +315,21 @@ def _score_plane_full(P: np.ndarray, n: np.ndarray, b: float, tau: float) -> Dic
     )
 
 
-def _plane_report(P: np.ndarray, plane: Dict[str, Any], label_id: int) -> Dict[str, Any]:
+def _plane_report(
+    P: np.ndarray,
+    plane: Dict[str, Any],
+    label_id: int,
+    dims: Optional[Tuple[int, ...]] = None,
+    dim_names: Optional[Tuple[str, ...]] = None,
+) -> Dict[str, Any]:
     n, b = plane["n"], plane["b"]
     inl = plane["inliers"]
     tau = float(plane.get("tau", 0.0))
     mu_inl = P[inl].mean(axis=0) if len(inl) > 0 else P.mean(axis=0)
     stat_g = _stats(P, n, b)
     stat_i = _stats(P[inl], n, b) if len(inl) > 0 else stat_g
+    dims = tuple(range(P.shape[1])) if dims is None else tuple(int(i) for i in dims)
+    dim_names = tuple(dim_names) if dim_names is not None else None
     rep = dict(
         n=n,
         b=float(b),
@@ -329,6 +337,8 @@ def _plane_report(P: np.ndarray, plane: Dict[str, Any], label_id: int) -> Dict[s
         count=int(len(inl)),
         label=int(label_id),
         tau=tau,
+        dims=dims,
+        dim_names=dim_names,
         fit_error=dict(
             global_mean=stat_g["mean"],
             global_rmse=stat_g["rmse"],
@@ -579,6 +589,8 @@ def _process_cluster(
     max_models_per_round: int = 4,
     angle_merge_deg: float = 6.0,
     offset_merge_tau: float = 0.02,
+    dims: Optional[Tuple[int, ...]] = None,
+    dim_names: Optional[Tuple[str, ...]] = None,
 ) -> Tuple[List[Dict[str, Any]], np.ndarray, np.ndarray]:
     planes, asg, res = _refine_divide_reassign_cluster(
         P,
@@ -591,7 +603,7 @@ def _process_cluster(
     if not planes:
         return [], asg, res
 
-    reports = [_plane_report(P, pl, label_id) for pl in planes]
+    reports = [_plane_report(P, pl, label_id, dims=dims, dim_names=dim_names) for pl in planes]
     mask_assigned = np.zeros(P.shape[0], bool)
     for pl in planes:
         mask_assigned[pl["inliers"]] = True
@@ -631,7 +643,15 @@ def _process_cluster(
                 continue
             for pl in pl2:
                 pl["inliers"] = disc_idx[pl["inliers"]]
-                reports.append(_plane_report(P, pl, label_id))
+                reports.append(
+                    _plane_report(
+                        P,
+                        pl,
+                        label_id,
+                        dims=dims,
+                        dim_names=dim_names,
+                    )
+                )
                 mask_assigned[pl["inliers"]] = True
                 planes.append(pl)
 
@@ -646,6 +666,59 @@ def _process_cluster(
         res_final = res
 
     return reports, asg_final, res_final
+
+
+def _extract_dims_from_explorer(
+    explorer_reports: Optional[Sequence[Any]],
+    *,
+    feature_names: Optional[Sequence[str]],
+    default_dim: int,
+    top_k: int,
+) -> List[Tuple[int, ...]]:
+    """Convierte reportes/iterables de explorer en tuplas de índices de columna."""
+
+    if not explorer_reports:
+        return []
+
+    name_to_idx: Dict[Any, int] = {}
+    if feature_names is None:
+        feature_names = [f"x{i}" for i in range(default_dim)]
+    for idx, name in enumerate(feature_names):
+        name_to_idx[name] = idx
+
+    dims_set: List[Tuple[int, ...]] = []
+    for rep in list(explorer_reports)[:top_k]:
+        if hasattr(rep, "features"):
+            feats = getattr(rep, "features")
+        else:
+            feats = rep
+
+        dims: List[int] = []
+        for f in feats:
+            if isinstance(f, (int, np.integer)):
+                dims.append(int(f))
+                continue
+            if f in name_to_idx:
+                dims.append(int(name_to_idx[f]))
+                continue
+            if isinstance(f, str) and f.startswith("x"):
+                try:
+                    dims.append(int(f[1:]))
+                except ValueError:
+                    continue
+        dims = sorted(set(dims))
+        if len(dims) >= 2:
+            dims_set.append(tuple(dims))
+
+    # de-dup preservando orden
+    seen: set = set()
+    uniq: List[Tuple[int, ...]] = []
+    for dims in dims_set:
+        if dims in seen:
+            continue
+        seen.add(dims)
+        uniq.append(dims)
+    return uniq
 
 
 # -----------------------------------------------------------------------------------------------
@@ -663,6 +736,8 @@ def _fit_for_pair_all(
     max_depth: int = 2,
     angle_merge_deg: float = 6.0,
     offset_merge_tau: float = 0.02,
+    dims: Optional[Sequence[int]] = None,
+    feature_names: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     A, B, U, M, L, W, rec_idx = _segment_arrays(
         records,
@@ -671,9 +746,27 @@ def _fit_for_pair_all(
         canonicalize=False,
     )
     _ = L, W  # suprime "unused" en modo C
+    if dims is not None:
+        dims = tuple(int(i) for i in dims)
+        A = A[:, dims]
+        B = B[:, dims]
+        U = U[:, dims]
+        M = M[:, dims]
     d = A.shape[1]
     eps = 1e-3
     F = B + eps * U
+
+    if feature_names is None:
+        feature_names = [f"x{i}" for i in range(d)]
+    fnames = list(feature_names)
+    dim_names = None
+    if dims is not None:
+        try:
+            dim_names = tuple(fnames[i] for i in dims)
+        except Exception:
+            dim_names = None
+    elif fnames:
+        dim_names = tuple(fnames[:d])
 
     mode = str(mode).upper()
     if mode not in ("C", "VMF", "OFFSETS"):
@@ -707,6 +800,8 @@ def _fit_for_pair_all(
             max_models_per_round=max_models_per_round,
             angle_merge_deg=angle_merge_deg,
             offset_merge_tau=offset_merge_tau,
+            dims=dims,
+            dim_names=dim_names,
         )
         planes_by_label[int(lab)] = reports
 
@@ -723,6 +818,9 @@ def _fit_for_pair_all(
         n_segments=int(F.shape[0]),
         n_labels_init=int(np.unique(labels).size),
         n_planes_total=int(sum(len(v) for v in planes_by_label.values())),
+        dimension=int(d),
+        dims=None if dims is None else tuple(int(i) for i in dims),
+        dim_names=dim_names,
         mode=mode_key,
     )
     assignment = dict(
@@ -755,8 +853,13 @@ def compute_frontier_planes_all_modes(
     max_depth: int = 2,
     angle_merge_deg: float = 6.0,
     offset_merge_tau: float = 0.02,
+    explorer_reports: Optional[Sequence[Any]] = None,
+    explorer_feature_names: Optional[Sequence[str]] = None,
+    explorer_top_k: int = 5,
 ) -> Dict[Tuple[int, int], Dict[str, Any]]:
     """Encuentra planos frontera por par de clases usando exclusivamente el modo C mejorado."""
+
+    explorer_top_k = int(explorer_top_k)
 
     if pairs is None:
         seen = set()
@@ -772,7 +875,7 @@ def compute_frontier_planes_all_modes(
     out: Dict[Tuple[int, int], Dict[str, Any]] = {}
     for pair in pairs:
         try:
-            out[pair] = _fit_for_pair_all(
+            base_block = _fit_for_pair_all(
                 records,
                 pair,
                 mode=mode,
@@ -783,8 +886,20 @@ def compute_frontier_planes_all_modes(
                 max_depth=max_depth,
                 angle_merge_deg=angle_merge_deg,
                 offset_merge_tau=offset_merge_tau,
+                feature_names=explorer_feature_names,
             )
         except Exception as exc:  # pragma: no cover - mantiene robustez de API
+            dim_guess = None
+            dim_names_guess: Optional[Tuple[str, ...]] = None
+            try:
+                first = next(iter(records))
+                dim_guess = int(np.asarray(getattr(first, "x0", [])).reshape(-1).size)
+                if explorer_feature_names:
+                    dim_names_guess = tuple(explorer_feature_names[:dim_guess])
+            except Exception:
+                dim_guess = None
+                dim_names_guess = None
+
             out[pair] = dict(
                 error=str(exc),
                 planes_by_label={},
@@ -795,8 +910,55 @@ def compute_frontier_planes_all_modes(
                     assigned_plane=np.array([], int),
                     residual=np.array([], float),
                 ),
-                meta=dict(mode=mode),
+                meta=dict(
+                    mode=mode,
+                    dimension=dim_guess,
+                    dims=None if dim_guess is None else tuple(range(dim_guess)),
+                    dim_names=dim_names_guess,
+                    subspace_error=str(exc),
+                ),
             )
+            continue
+
+        try:
+            base_dim = int(base_block.get("meta", {}).get("dimension") or 0)
+            dims_list = _extract_dims_from_explorer(
+                explorer_reports,
+                feature_names=explorer_feature_names,
+                default_dim=base_dim,
+                top_k=explorer_top_k,
+            )
+
+            subspace_blocks: Dict[Tuple[int, ...], Dict[str, Any]] = {}
+            for dims in dims_list:
+                subspace_blocks[dims] = _fit_for_pair_all(
+                    records,
+                    pair,
+                    mode=mode,
+                    prefer_cp=prefer_cp,
+                    min_cluster_size=min_cluster_size,
+                    seed=seed,
+                    max_models_per_round=max_models_per_round,
+                    max_depth=max_depth,
+                    angle_merge_deg=angle_merge_deg,
+                    offset_merge_tau=offset_merge_tau,
+                    dims=dims,
+                    feature_names=explorer_feature_names,
+                )
+
+            if subspace_blocks:
+                base_block["subspace_variants"] = subspace_blocks
+                base_block.setdefault("meta", {})["subspace_dims"] = list(subspace_blocks.keys())
+                base_block["meta"]["n_planes_subspaces"] = int(
+                    sum(
+                        sum(len(v) for v in blk.get("planes_by_label", {}).values())
+                        for blk in subspace_blocks.values()
+                    )
+                )
+        except Exception as exc:  # pragma: no cover - robustez opcional
+            base_block.setdefault("meta", {})["subspace_error"] = str(exc)
+
+        out[pair] = base_block
     return out
 
 
