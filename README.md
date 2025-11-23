@@ -242,7 +242,7 @@ explorer = MultiClassSubspaceExplorer(
     combo_sizes=(2, 3),
     fast_eval_budget=8,          # top del proxy que pasa a micro-CV
 )
-explorer.fit(X, y, records)  # usa method_8_extratrees por defecto
+explorer.fit(X, y)  # usa method_8_extratrees por defecto
 reports = explorer.get_report()
 ```
 
@@ -251,12 +251,24 @@ al invocar el script de presets, usa `method_key=None` (o `"all"`) al llamar a
 `fit` para evaluar todos los métodos, o cambia explícitamente
 `preset="high_quality"` para volver al flujo exhaustivo previo.
 
+### Regresión: `fit` sin depender de records
+
+`MultiClassSubspaceExplorer.fit` ya no necesita (ni acepta) `records` para
+rankear subespacios. El top-10 producido con la configuración por defecto de
+los tests se mantiene estable tras la eliminación de esa dependencia: los
+promedios de F1 coinciden en los diez primeros subespacios y quedan recogidos
+en `experiments_outputs/multiclass_explorer_regression.csv` para trazabilidad.【F:experiments_outputs/multiclass_explorer_regression.csv†L1-L11】
+
+> **Planes en reportes**<br>
+> La lista `SubspaceReport.planes` se conserva por compatibilidad, pero ahora
+> permanece vacía porque los planos no se derivan a partir de registros.
+
 ### Ejemplo rápido de uso
 
 El siguiente fragmento ajusta un modelo base con `DelDel`, recopila los registros de cambios (`DeltaRecord`) y lanza el bundle
 conservando todas las combinaciones evaluadas, ordenadas de mejor a peor. Si se quiere priorizar velocidad, el mismo flujo
-admite presets rápidos (`preset="fast"`) o ultra rápidos (`preset="ultra_fast"` con `skip_feature_stats=True` y
-`skip_attach_planes=True`) desde el explorador subyacente.
+ admite presets rápidos (`preset="fast"`) o ultra rápidos (`preset="ultra_fast"` con `skip_feature_stats=True`) desde el
+ explorador subyacente.
 
 > **ImportError/ModuleNotFoundError**<br>
 > Si al ejecutar el ejemplo aparece `ModuleNotFoundError: No module named 'subspaces'`, significa que el paquete no ha sido
@@ -328,7 +340,6 @@ explorer_fast = MultiClassSubspaceExplorer()
 explorer_fast.fit(
     X,
     y,
-    records,
     preset="fast",               # CV ligero y poda agresiva
 )
 
@@ -336,10 +347,8 @@ explorer_ultra = MultiClassSubspaceExplorer()
 explorer_ultra.fit(
     X,
     y,
-    records,
     preset="ultra_fast",         # usa proxy MI sin CV
     skip_feature_stats=True,      # evita stumps/chi2
-    skip_attach_planes=True,      # omite planos derivados de records
 )
 
 for report in bundle.reports:
@@ -402,7 +411,7 @@ corre por separado.
 from subspaces.experiments.core_method_bundle import run_single_method, CORE_METHOD_KEYS
 
 for key in CORE_METHOD_KEYS:
-    explorer = run_single_method(X, y, records, key, max_sets=5, combo_sizes=(2, 3), random_state=0)
+    explorer = run_single_method(X, y, key, max_sets=5, combo_sizes=(2, 3), random_state=0)
     report = explorer.get_report()[0]
     print(f"{key}: Sí globales={report.global_yes}, Top50={report.top50_yes}")
 ```
@@ -453,9 +462,9 @@ Los resultados se guardan en `subspaces/outputs/core_bundle/core_bundle_summary.
 El barrido `experiments_outputs/core_bundle_preset_matrix.csv` ya no recorta los reportes: en `high_quality` y
 `ultra_fast` se devuelven todos los conjuntos generados (37–46 y 20 respectivamente), preservando el ranking completo.
 `fast` mantiene el mejor F1 de `high_quality` (≈0.52–0.57) con un presupuesto de 10 evaluaciones por dataset y tiempos de
-~0.43–0.51 s; al activar `skip_feature_stats`+`skip_attach_planes` se ahorran ~0.01–0.18 s sin perder el mejor F1 ni variar
-el número de candidatos. `ultra_fast` sigue respondiendo en ~0.07–0.11 s con los 20 candidatos generados, pero el F1 se
-queda cerca del baseline, útil solo para inspecciones relámpago.
+~0.43–0.51 s; al activar `skip_feature_stats` se ahorran ~0.01–0.18 s sin perder el mejor F1 ni variar el número de candidatos.
+`ultra_fast` sigue respondiendo en ~0.07–0.11 s con los 20 candidatos generados, pero el F1 se queda cerca del baseline, útil
+solo para inspecciones relámpago.
 
 ## Recursos adicionales
 

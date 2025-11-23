@@ -386,7 +386,7 @@ def _run_on_dataset(spec: DatasetSpec) -> Tuple[List[Dict[str, object]], Dict[st
 
     t0 = perf_counter()
     with _suppress_stdout():
-        explorer.fit(spec.table, spec.y, deldel.records_, method_key=None)
+        explorer.fit(spec.table, spec.y, method_key=None)
     explorer_time = perf_counter() - t0
     reports = explorer.get_report()
 

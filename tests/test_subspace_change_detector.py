@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 import numpy as np
+import pytest
 
 from deldel.subspace_change_detector import MultiClassSubspaceExplorer, SubspaceReport
 
@@ -45,7 +49,7 @@ def test_explorer_tracks_candidate_metadata() -> None:
         random_state=0,
     )
 
-    explorer.fit(table, y, records=[], method_key=None)
+    explorer.fit(table, y, method_key=None)
     reports = explorer.get_report()
 
     expected_methods = {
@@ -141,3 +145,51 @@ def test_pick_diverse_without_limit_keeps_order() -> None:
     selected = explorer._pick_diverse_by_size(ordered)
 
     assert [r.features for r in selected] == [r.features for r in ordered]
+
+
+def _load_regression_csv():
+    path = Path(__file__).resolve().parent.parent / "experiments_outputs/multiclass_explorer_regression.csv"
+    with path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        rows = []
+        for row in reader:
+            rows.append(
+                {
+                    "rank": int(row["rank"]),
+                    "features": tuple(row["features"].split("|")),
+                    "baseline_mean_macro_f1": float(row["baseline_mean_macro_f1"]),
+                    "post_removal_mean_macro_f1": float(row["post_removal_mean_macro_f1"]),
+                }
+            )
+        return rows
+
+
+def test_fit_matches_regression_without_records() -> None:
+    table, y = _make_table()
+    explorer = MultiClassSubspaceExplorer(
+        max_sets=10,
+        combo_sizes=(2,),
+        filter_top_k=6,
+        chi2_pool=6,
+        random_samples=20,
+        corr_threshold=0.2,
+        rf_estimators=5,
+        rf_max_depth=3,
+        cv_splits=2,
+        random_state=0,
+    )
+
+    explorer.fit(table, y, method_key="method_8_extratrees", preset="proxy_microcv")
+    reports = explorer.get_report()
+
+    baseline_rows = _load_regression_csv()
+    assert len(reports) >= len(baseline_rows)
+
+    for report, expected in zip(reports, baseline_rows):
+        assert report.features == expected["features"]
+        assert report.mean_macro_f1 == pytest.approx(
+            expected["baseline_mean_macro_f1"], rel=0.05, abs=1e-4
+        )
+        assert report.mean_macro_f1 == pytest.approx(
+            expected["post_removal_mean_macro_f1"], rel=0.05, abs=1e-4
+        )
