@@ -31,6 +31,7 @@ from deldel import (
     make_corner_class_dataset,
     run_corner_pipeline_experiments,
     run_low_dim_spaces_demo,
+    SubspaceReport,
 )
 
 
@@ -263,6 +264,42 @@ def test_compute_frontier_planes_all_modes(sample_records):
     for payload in res.values():
         assert "planes_by_label" in payload
         assert "meta" in payload
+
+
+def test_compute_frontier_with_explorer(sample_records):
+    feature_names = [f"x{i}" for i in range(sample_records[0].x0.size)]
+    report = SubspaceReport(
+        features=("x0", "x1"),
+        mean_macro_f1=0.5,
+        std_macro_f1=0.0,
+        lift_vs_majority=0.1,
+        coverage_ratio=1.0,
+        per_class_f1={0: 0.5},
+        support=10,
+        variance_ratio=0.0,
+        l1_importance=0.0,
+    )
+
+    res = run_and_time(
+        "compute_frontier_planes_all_modes (explorer)",
+        compute_frontier_planes_all_modes,
+        sample_records,
+        min_cluster_size=1,
+        explorer_reports=[report],
+        explorer_feature_names=feature_names,
+        explorer_top_k=1,
+    )
+
+    payload = next(iter(res.values()))
+    assert payload.get("meta", {}).get("dimension") == sample_records[0].x0.size
+    assert payload.get("meta", {}).get("dim_names")
+
+    sub_variants = payload.get("subspace_variants") or {}
+    if sub_variants:
+        first_variant = next(iter(sub_variants.values()))
+        assert first_variant.get("meta", {}).get("dims") is not None
+    else:
+        assert payload.get("meta", {}).get("subspace_error")
 
 
 def test_plot_helpers(sample_records):
