@@ -143,6 +143,28 @@ print(describe_regions_report(valuable, region_id="rg_2d_c0_8ab309427e", dataset
 print(describe_regions_report(valuable, top_per_class=5, dataset_size=X.shape[0]))
 ```
 
+## Resumen de los CSV de benchmarks 30k×25
+
+Los tres experimentos `high_dim_run_*` incluyen cronómetros agresivos por etapa y los mejores resultados de las búsquedas
+1D/2D. Cada carpeta expone `stage_timings.csv` (tiempos detallados del pipeline) y `finder_runs.csv` (regiones y métricas por
+dimensión):
+
+- **Semilla 11 (`high_dim_run_11`)**
+  - Tiempos: generación del dataset 0.18 s, ajuste del RandomForest 8.97 s, `DelDel.fit` 1.90 s, cómputo de fronteras 2.96 s y búsqueda `find_low_dim_spaces` 8.32 s【F:experiments_outputs/high_dim_run_11/stage_timings.csv†L1-L8】
+  - Calidad de reglas: F1/Precisión máx. en 1D = 0.631/0.863 y en 2D = 0.681/0.913 (100 regiones totales, 50 por dimensión)【F:experiments_outputs/high_dim_run_11/finder_runs.csv†L1-L2】
+
+- **Semilla 17 (`high_dim_run_17`)**
+  - Tiempos: dataset 0.04 s, RandomForest 8.56 s, `DelDel.fit` 1.81 s, fronteras 3.46 s, búsqueda 6.97 s【F:experiments_outputs/high_dim_run_17/stage_timings.csv†L1-L8】
+  - Calidad de reglas: F1/Precisión máx. en 1D = 0.554/0.619 y en 2D = 0.619/0.802 (100 regiones totales, 50 por dimensión)【F:experiments_outputs/high_dim_run_17/finder_runs.csv†L1-L2】
+
+- **Semilla 23 (`high_dim_run_23`)**
+  - Tiempos: dataset 0.06 s, RandomForest 9.29 s, `DelDel.fit` 1.56 s, fronteras 3.05 s, búsqueda 7.66 s【F:experiments_outputs/high_dim_run_23/stage_timings.csv†L1-L8】
+  - Calidad de reglas: F1/Precisión máx. en 1D = 0.636/0.872 y en 2D = 0.684/0.967 (100 regiones totales, 50 por dimensión)【F:experiments_outputs/high_dim_run_23/finder_runs.csv†L1-L2】
+
+En todos los casos se usó el mismo RandomForest (30 árboles) con datasets sintéticos de 30k muestras y 25 variables
+informativas (18 útiles, clase balanceada 3-way). Los CSV quedan listos para analizar variabilidad temporal y de calidad al
+ajustar semillas y fronteras.【F:experiments_outputs/high_dim_run_11/stage_timings.csv†L1-L8】【F:experiments_outputs/high_dim_run_17/stage_timings.csv†L1-L8】【F:experiments_outputs/high_dim_run_23/stage_timings.csv†L1-L8】
+
 ## Visualización interactiva de fronteras y superficies
 
 ```python

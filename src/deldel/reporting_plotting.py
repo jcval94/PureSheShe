@@ -18,11 +18,22 @@ bugs or extend features.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from time import perf_counter
+
 import numpy as np
+
+
+def _verbosity_to_level(verbosity: int) -> int:
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +291,7 @@ def _group_by_class(valuable: Dict[int, List[Dict[str, Any]]]) -> Dict[int, List
     return by_class
 
 
+
 def describe_regions_report(
     valuable: Dict[int, List[Dict[str, Any]]],
     *,
@@ -290,8 +302,14 @@ def describe_regions_report(
     show_per_class_in_top: bool = False,
     fix_rule_text: bool = True,
     show_original_if_changed: bool = True,
+    verbosity: int = 0,
 ) -> str:
     """Generate a textual report describing the discovered regions."""
+
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    t0 = perf_counter()
+    logger.log(level, "describe_regions_report: inicio | region_id=%s", region_id)
 
     if region_id:
         region = _find_by_region_id(valuable, region_id)
@@ -322,6 +340,7 @@ def describe_regions_report(
             f"Fuentes: {_fmt_sources(region)}",
             f"Relaciones/Familia: {_fmt_family(region)}",
         ]
+        logger.log(level, "describe_regions_report: ficha generada en %.6fs", perf_counter() - t0)
         return "\n".join(lines)
 
     grouped = _group_by_class(valuable)
@@ -378,15 +397,23 @@ def describe_regions_report(
                 rule_text = rule_text[: max_rule_text_chars - 3] + "..."
             lines.append(f"      Regla: {rule_text}")
             if show_per_class_in_top:
-                block = _fmt_metrics_per_class(region)
-                indented = "\n".join(("      " + row) for row in block.splitlines())
-                lines.append(indented)
+                metrics_pc = _normalize_metrics_per_class(region)
+                if metrics_pc:
+                    lines.append(
+                        "      Métricas por clase: "
+                        + ", ".join(
+                            [
+                                f"c{cls}:prec={_fmt_float(vals.get('precision'))} rec={_fmt_float(vals.get('recall'))} f1={_fmt_float(vals.get('f1'))}"
+                                for cls, vals in metrics_pc.items()
+                            ]
+                        )
+                    )
 
+    if show_per_class_in_top:
+        lines.append("\nNota: se muestran métricas por clase en el top.")
+
+    logger.log(level, "describe_regions_report: fin en %.6fs | clases=%d", perf_counter() - t0, len(grouped))
     return "\n".join(lines)
-
-# ---------------------------------------------------------------------------
-# Interactive plotting helper
-# ---------------------------------------------------------------------------
 
 
 def plot_selected_regions_interactive(
@@ -429,6 +456,9 @@ def plot_selected_regions_interactive(
     # ---- miscelánea ----
     rng_seed: int | None = 1337            # reproducibilidad del muestreo
 ):
+    logger = logging.getLogger(__name__)
+    logger.log(_verbosity_to_level(sel_aug.get("verbosity", 0) if isinstance(sel_aug, dict) else 0),
+               "plot_selected_regions_interactive: inicio | X=%s y=%s selected_planes=%s", getattr(X, 'shape', None), getattr(y, 'shape', None), selected_plane_ids)
     """
     Cambios críticos integrados (3D fix):
       • **SIEMPRE** se pinta el lado n·x + b ≤ 0. Para ello, en 3D se

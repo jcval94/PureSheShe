@@ -23,8 +23,18 @@ Notas:
 """
 
 from typing import Dict, Tuple, Any, List, Optional, Iterable
+import logging
+from time import perf_counter
 import math
 import numpy as np
+
+
+def _verbosity_to_level(verbosity: int) -> int:
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
 
 
 # ============================================================
@@ -565,6 +575,7 @@ def prune_and_orient_planes_unified_globalmaj(
     assign_plane_ids: bool = True,
     plane_id_prefix: str = "pl",
     region_id_prefix: str = "rg",
+    verbosity: int = 0,
 ) -> Dict[str, Any]:
     """
     Salida:
@@ -577,15 +588,29 @@ def prune_and_orient_planes_unified_globalmaj(
       }
     """
     # ------------------ Preparación ------------------
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.setLevel(level)
+    start_global = perf_counter()
+
     X = np.asarray(X, float)
     y = np.asarray(y, int).reshape(-1)
     N, d = X.shape
     baseline = _baseline_props(y)
     labels_all = sorted(baseline.keys())
 
+    logger.log(
+        level,
+        "Inicio prune_and_orient_planes_unified_globalmaj | muestras=%d dims=%d planos=%d",
+        N,
+        d,
+        sum(len(v.get("planes_by_label", {})) for v in res.values()),
+    )
+
     # Enumerar TODOS los planos
     all_planes_raw = _collect_all_planes(res)
     if not all_planes_raw:
+        logger.log(level, "Sin planos de entrada, terminando")
         return dict(by_pair_augmented={}, winning_planes=[], regions_global=dict(per_plane=[], per_class={c: [] for c in labels_all}),
                     candidates_global=[], meta=dict(msg="no_planes", baseline=baseline))
 
@@ -606,6 +631,7 @@ def prune_and_orient_planes_unified_globalmaj(
         u, bn = _normalize_plane(n, b0)
         r["n_norm"] = u
         r["b_norm"] = bn
+    logger.log(level, "Planos normalizados | total=%d", len(all_planes_raw))
 
     # Construir medio-espacios orientados (dos lados por plano)
     oriented_pool = []
@@ -615,6 +641,7 @@ def prune_and_orient_planes_unified_globalmaj(
             rr["side"] = int(side)
             rr["oriented_plane_id"] = (f"{rr['plane_id']}:{'≤' if side >= 0 else '≥'}") if rr.get("plane_id") else None
             oriented_pool.append(rr)
+    logger.log(level, "Pool orientado construido | elementos=%d", len(oriented_pool))
 
     # Two-stage: submuestreo
     if 0.0 < sketch_frac < 1.0:
@@ -623,6 +650,7 @@ def prune_and_orient_planes_unified_globalmaj(
         idx = rng.choice(N, size=M, replace=False)
         X_eval = X[idx]
         y_eval = y[idx]
+        logger.log(level, "Sketch activado | sketch_frac=%.3f muestras=%d", sketch_frac, M)
     else:
         X_eval = X
         y_eval = y
@@ -983,6 +1011,13 @@ def prune_and_orient_planes_unified_globalmaj(
                 ids=dict(plane_id_prefix=plane_id_prefix, region_id_prefix=region_id_prefix)
             )
         )
+    )
+    logger.log(
+        level,
+        "Poda/orientación completada en %.6f s | regiones=%d candidatos=%d",
+        perf_counter() - start_global,
+        len(regions_per_plane),
+        len(candidates_global),
     )
     return out
 

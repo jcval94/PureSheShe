@@ -2,9 +2,20 @@ from __future__ import annotations
 
 from typing import Iterable, Tuple, List, Dict, Optional, Any, Sequence
 
+import logging
+from time import perf_counter
+
 import numpy as np
 
 from .engine import DeltaRecord
+
+
+def _verbosity_to_level(verbosity: int) -> int:
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
 
 
 # ===================== compute_frontier_planes_all_modes — Modo C (mejorado) =====================
@@ -856,9 +867,13 @@ def compute_frontier_planes_all_modes(
     explorer_reports: Optional[Sequence[Any]] = None,
     explorer_feature_names: Optional[Sequence[str]] = None,
     explorer_top_k: int = 5,
+    verbosity: int = 0,
 ) -> Dict[Tuple[int, int], Dict[str, Any]]:
     """Encuentra planos frontera por par de clases usando exclusivamente el modo C mejorado."""
 
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.setLevel(level)
     explorer_top_k = int(explorer_top_k)
 
     if pairs is None:
@@ -873,7 +888,17 @@ def compute_frontier_planes_all_modes(
         pairs = sorted(seen)
 
     out: Dict[Tuple[int, int], Dict[str, Any]] = {}
+    logger.log(
+        level,
+        "Inicio compute_frontier_planes_all_modes | mode=%s prefer_cp=%s min_cluster_size=%d total_pairs=%d",
+        mode,
+        prefer_cp,
+        min_cluster_size,
+        len(pairs),
+    )
     for pair in pairs:
+        pair_start = perf_counter()
+        logger.log(level, "Procesando par %s", pair)
         try:
             base_block = _fit_for_pair_all(
                 records,
@@ -918,6 +943,7 @@ def compute_frontier_planes_all_modes(
                     subspace_error=str(exc),
                 ),
             )
+            logger.exception("Error al ajustar base para par %s", pair)
             continue
 
         try:
@@ -931,6 +957,8 @@ def compute_frontier_planes_all_modes(
 
             subspace_blocks: Dict[Tuple[int, ...], Dict[str, Any]] = {}
             for dims in dims_list:
+                dims_start = perf_counter()
+                logger.log(level, "Ajustando subespacio %s para par %s", dims, pair)
                 subspace_blocks[dims] = _fit_for_pair_all(
                     records,
                     pair,
@@ -945,6 +973,12 @@ def compute_frontier_planes_all_modes(
                     dims=dims,
                     feature_names=explorer_feature_names,
                 )
+                logger.log(
+                    level,
+                    "Subespacio %s completado en %.6f s",
+                    dims,
+                    perf_counter() - dims_start,
+                )
 
             if subspace_blocks:
                 base_block["subspace_variants"] = subspace_blocks
@@ -957,8 +991,18 @@ def compute_frontier_planes_all_modes(
                 )
         except Exception as exc:  # pragma: no cover - robustez opcional
             base_block.setdefault("meta", {})["subspace_error"] = str(exc)
+            base_block.setdefault("meta", {})["subspace_error_type"] = exc.__class__.__name__
+            logger.exception("Error en subespacios para par %s", pair)
 
         out[pair] = base_block
+        logger.log(
+            level,
+            "Par %s finalizado en %.6f s (bloques=%d)",
+            pair,
+            perf_counter() - pair_start,
+            1 + len(base_block.get("subspace_variants", {})),
+        )
+    logger.log(level, "compute_frontier_planes_all_modes completado | pares=%d", len(out))
     return out
 
 

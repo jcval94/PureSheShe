@@ -24,7 +24,17 @@ Fecha: 2025-11-07
 """
 
 from typing import Dict, Tuple, Any, List, Optional, Union, Iterable
+import logging
+from time import perf_counter
 import numpy as np, itertools, hashlib, time, math, random
+
+
+def _verbosity_to_level(verbosity: int) -> int:
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
 
 # ========================= Aceleradores bitset / popcount =========================
 
@@ -480,6 +490,7 @@ def find_low_dim_spaces(
     enable_logs: bool = True,
     max_log_records: int = 10000,
     return_logs: bool = False,
+    verbosity: int = 0,
     # ---- extras ----
     include_masks: bool = False,        # si True, devuelve _mask por regla
     compute_relations: bool = True,     # generaliza/especializa + Pareto (usa bitsets internos)
@@ -517,6 +528,19 @@ def find_low_dim_spaces(
     N, D = X.shape
     if consider_dims_up_to is None: consider_dims_up_to = D
     consider_dims_up_to = int(min(max(1, consider_dims_up_to), D))
+
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.setLevel(level)
+    start_total = perf_counter()
+    logger.log(
+        level,
+        "find_low_dim_spaces inicio | N=%d D=%d max_planes_in_rule=%d min_support=%d", 
+        N,
+        D,
+        max_planes_in_rule,
+        min_support,
+    )
 
     # Medias para proyección
     mu_by_class = {int(c): X[y==int(c)].mean(axis=0) if (y==int(c)).any() else X.mean(axis=0)
@@ -948,6 +972,13 @@ def find_low_dim_spaces(
                 if "_mask_bits" in r:
                     del r["_mask_bits"]
 
+    total_runtime = perf_counter() - start_total
+    logger.log(
+        level,
+        "find_low_dim_spaces completado | dimensiones=%s tiempo=%.6f s", 
+        {k: len(v) for k, v in valuable.items()},
+        total_runtime,
+    )
     _log("done", total_time=round(time.time()-t0, 6),
          totals_by_dim={k: len(v) for k,v in valuable.items()})
 

@@ -16,14 +16,27 @@ from contextlib import contextmanager
 import inspect
 from time import perf_counter
 from typing import Callable, Dict, Iterable, Iterator, List, Sequence
+import logging
+
+
+def _verbosity_to_level(verbosity: int) -> int:
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
 
 from . import engine
 
 ScenarioCallable = Callable[[Callable[[], str]], str]
 
 
-def infer_stage_legacy() -> str:
+def infer_stage_legacy(*, verbosity: int = 0) -> str:
     """Snapshot of the pre-optimised stage inference helper."""
+
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.log(level, "infer_stage_legacy: inicio")
 
     try:
         for frame_info in inspect.stack():
@@ -35,20 +48,29 @@ def infer_stage_legacy() -> str:
             if "self" in loc:
                 try:
                     clsname = loc["self"].__class__.__name__
-                except Exception:
+                except Exception as exc:
+                    logger.log(level, "infer_stage_legacy: error obteniendo clase %s", exc)
                     clsname = None
                 if clsname == "DelDel":
+                    logger.log(level, "infer_stage_legacy: detectado DelDel.%s", func)
                     return f"{clsname}.{func}"
 
         top = inspect.stack()[1]
         module = top.frame.f_globals.get("__name__", "__main__")
-        return f"{module}.{top.function}"
-    except Exception:
+        stage_val = f"{module}.{top.function}"
+        logger.log(level, "infer_stage_legacy: retorno %s", stage_val)
+        return stage_val
+    except Exception as exc:
+        logger.log(level, "infer_stage_legacy: excepción %s", exc)
         return "unknown"
 
 
-def _call_in_fake_deldel(fn: Callable[[], str]) -> str:
+def _call_in_fake_deldel(fn: Callable[[], str], *, verbosity: int = 0) -> str:
     """Invoke *fn* as if it was running inside ``DelDel.stage``."""
+
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.log(level, "_call_in_fake_deldel: envolviendo llamada")
 
     FakeDelDel = type("DelDel", (), {})
 
@@ -56,11 +78,15 @@ def _call_in_fake_deldel(fn: Callable[[], str]) -> str:
         return fn()
 
     FakeDelDel.stage = stage  # type: ignore[attr-defined]
+    logger.log(level, "_call_in_fake_deldel: invocando stage")
     return FakeDelDel().stage()
 
 
-def _call_plain(fn: Callable[[], str]) -> str:
+def _call_plain(fn: Callable[[], str], *, verbosity: int = 0) -> str:
     """Invoke *fn* from a plain helper without any DelDel context."""
+
+    logger = logging.getLogger(__name__)
+    logger.log(_verbosity_to_level(verbosity), "_call_plain: ejecución directa")
 
     def helper():
         return fn()
@@ -76,20 +102,31 @@ class Scenario:
     executor: ScenarioCallable
     metadata: Dict[str, object] = field(default_factory=dict)
 
-    def run(self, fn: Callable[[], str]) -> str:
-        return self.executor(fn)
+    def run(self, fn: Callable[[], str], *, verbosity: int = 0) -> str:
+        logger = logging.getLogger(__name__)
+        level = _verbosity_to_level(verbosity)
+        logger.log(level, "Scenario.run: %s inicio", self.name)
+        t0 = perf_counter()
+        try:
+            return self.executor(fn)
+        finally:
+            logger.log(level, "Scenario.run: %s fin en %.6fs", self.name, perf_counter() - t0)
 
 
 @contextmanager
-def _override_infer_stage(fn: Callable[[], str]) -> Iterator[None]:
+def _override_infer_stage(fn: Callable[[], str], *, verbosity: int = 0) -> Iterator[None]:
     """Temporarily redirect :func:`engine._infer_stage` to *fn*."""
 
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.log(level, "_override_infer_stage: instalando override")
     original = engine._infer_stage
     engine._infer_stage = fn  # type: ignore[assignment]
     try:
         yield
     finally:
         engine._infer_stage = original  # type: ignore[assignment]
+        logger.log(level, "_override_infer_stage: restaurado")
 
 
 def _score_adaptor_dataframe_executor(
@@ -97,8 +134,13 @@ def _score_adaptor_dataframe_executor(
     values,
     feature_names: Sequence[str],
     label: str,
+    verbosity: int = 0,
 ) -> ScenarioCallable:
     """Build an executor that exercises ``ScoreAdaptor.scores`` via pandas."""
+
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.log(level, "_score_adaptor_dataframe_executor: label=%s rows=%d cols=%d", label, len(values), len(feature_names))
 
     import numpy as np
     try:
@@ -139,22 +181,28 @@ def _score_adaptor_dataframe_executor(
 
     def executor(fn: Callable[[], str]) -> str:
         log_entries: List[Dict[str, object]] = []
-        with _override_infer_stage(fn):
+        with _override_infer_stage(fn, verbosity=max(verbosity - 1, 0)):
             stage_value = _call_in_fake_deldel(
-                lambda: _run_scores_with_logging(adaptor, values_arr, log_entries)
+                lambda: _run_scores_with_logging(adaptor, values_arr, log_entries, verbosity=max(verbosity - 1, 0)),
+                verbosity=max(verbosity - 1, 0),
             )
         if not adaptor._cache:
             raise AssertionError(f"Scenario '{label}' expected ScoreAdaptor cache usage")
         if not log_entries:
             raise AssertionError("ScoreAdaptor scenario did not emit log entries")
+        logger.log(level, "_score_adaptor_dataframe_executor: %s completado con %d logs", label, len(log_entries))
         return stage_value
 
     return executor
 
 
-def _run_scores_with_logging(adaptor, values_arr, log_entries):
+def _run_scores_with_logging(adaptor, values_arr, log_entries, *, verbosity: int = 0):
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.log(level, "_run_scores_with_logging: valores=%s", values_arr.shape)
     with engine._collect_calls(log_entries):
         adaptor.scores(values_arr.copy())
+    logger.log(level, "_run_scores_with_logging: registros capturados=%d", len(log_entries))
     return str(log_entries[-1]["stage"]) if log_entries else "unknown"
 
 
