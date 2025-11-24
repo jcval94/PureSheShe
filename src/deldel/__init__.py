@@ -16,7 +16,7 @@ from .engine import (
     fit_cubic_from_records_weighted,
 )
 from .graphing import plot_frontiers_implicit_interactive_v2
-from .datasets import make_corner_class_dataset
+from .datasets import make_corner_class_dataset, make_high_dim_classification_dataset
 from .experiments import (
     run_corner_pipeline_experiments,
     run_corner_pipeline_with_low_dim,
@@ -62,6 +62,7 @@ __all__ = [
     "plot_frontiers_implicit_interactive_v2",
     "plot_planes_with_point_lines",
     "make_corner_class_dataset",
+    "make_high_dim_classification_dataset",
     "prune_and_orient_planes_unified_globalmaj",
     "run_corner_pipeline_experiments",
     "run_corner_pipeline_with_low_dim",

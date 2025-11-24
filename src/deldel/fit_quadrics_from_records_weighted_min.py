@@ -5,8 +5,18 @@
 
 from typing import Iterable, Optional, Tuple, Dict
 from collections import defaultdict
+import logging
+from time import perf_counter
 
 import numpy as np
+
+
+logger = logging.getLogger(__name__)
+
+
+def _vlog(verbosity: int, threshold: int, message: str, **kwargs) -> None:
+    if verbosity >= threshold:
+        logger.info(message + (" | " + ", ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""))
 
 
 # --- 1) Construcción de puntos frontera + pesos desde records ---
@@ -19,6 +29,7 @@ def build_weighted_frontier(
     temp: float = 0.15,           # para softmax (por par) o sigmoide
     sigmoid_center: Optional[float] = None,  # si None -> mediana por par
     density_k: Optional[int] = 8, # None para desactivar corrección densidad
+    verbosity: int = 0,
 ) -> Tuple[Dict[Tuple[int, int], np.ndarray],
            Dict[Tuple[int, int], np.ndarray],
            Dict[Tuple[int, int], np.ndarray]]:
@@ -36,25 +47,40 @@ def build_weighted_frontier(
     - cp_count, cp_x (opcional) para puntos de cambio precomputados.
     """
 
+    t0 = perf_counter()
+    _vlog(
+        verbosity,
+        1,
+        "build_weighted_frontier:start",
+        prefer_cp=prefer_cp,
+        success_only=success_only,
+        weight_map=weight_map,
+    )
+
     Ftmp, Btmp, Stmp = defaultdict(list), defaultdict(list), defaultdict(list)
 
-    for r in records:
+    for idx, r in enumerate(records):
         # Filtrar por éxito si se solicita
         if success_only and not bool(getattr(r, "success", True)):
+            _vlog(verbosity, 3, "build_weighted_frontier:skip_failure", index=idx)
             continue
 
         a, b = int(r.y0), int(r.y1)
         if a == b:
+            _vlog(verbosity, 3, "build_weighted_frontier:skip_same_class", index=idx, cls=a)
             continue
 
         score = float(getattr(r, "final_score", 1.0))
         x0 = np.asarray(r.x0, float).reshape(1, -1)
 
-        # Usar puntos de cambio (cp_x) si existen y se prefiere
-        if prefer_cp and getattr(r, "cp_count", 0) and np.asarray(getattr(r, "cp_x")).size > 0:
-            F = np.asarray(r.cp_x, float)             # (m, d)
-        else:
-            F = np.asarray(r.x1, float).reshape(1, -1)  # (1, d)
+        try:
+            if prefer_cp and getattr(r, "cp_count", 0) and np.asarray(getattr(r, "cp_x")).size > 0:
+                F = np.asarray(r.cp_x, float)             # (m, d)
+            else:
+                F = np.asarray(r.x1, float).reshape(1, -1)  # (1, d)
+        except Exception as exc:  # pragma: no cover - logging path
+            _vlog(verbosity, 1, "build_weighted_frontier:error_extract", index=idx, err=exc)
+            continue
 
         m = F.shape[0]
         Ftmp[(a, b)].append(F)
@@ -98,6 +124,14 @@ def build_weighted_frontier(
 
         W_by[k] = w / (w.sum() + 1e-12)
 
+    _vlog(
+        verbosity,
+        1,
+        "build_weighted_frontier:done",
+        n_pairs=len(F_by),
+        total_points=sum(v.shape[0] for v in F_by.values()) if F_by else 0,
+        elapsed_s=round(perf_counter() - t0, 4),
+    )
     return F_by, B_by, W_by
 
 
@@ -113,6 +147,7 @@ def fit_quadrics_from_records_weighted(
     density_k: Optional[int] = 8,
     eps: float = 1e-3,
     C: float = 10.0,
+    verbosity: int = 0,
 ) -> Dict[Tuple[int, int], Dict[str, np.ndarray]]:
     """
     Ajusta superficies cuadráticas ponderadas por cada par de clases (y0, y1).
@@ -176,6 +211,9 @@ def fit_quadrics_from_records_weighted(
         }
         return Phi, idx
 
+    t0_global = perf_counter()
+    _vlog(verbosity, 1, "fit_quadrics_from_records_weighted:start", mode=mode, weight_map=weight_map)
+
     # Construir frontera y pesos
     F_by, B_by, W_by = build_weighted_frontier(
         records,
@@ -186,15 +224,20 @@ def fit_quadrics_from_records_weighted(
         temp=temp,
         sigmoid_center=None,
         density_k=density_k,
+        verbosity=verbosity,
     )
 
     models: Dict[Tuple[int, int], Dict[str, np.ndarray]] = {}
 
     for key, F in F_by.items():
+        pair_start = perf_counter()
         w = W_by[key]
         if F.shape[0] < 3:
             # No hay suficientes puntos para una cuádrica estable
+            _vlog(verbosity, 2, "fit_quadrics:skip_small", pair=key, points=F.shape[0])
             continue
+
+        cond_val = float("nan")
 
         if mode == "svd":
             # Ajuste algebraico mínimo (TLS) ponderado vía SVD
@@ -209,13 +252,14 @@ def fit_quadrics_from_records_weighted(
             d = F.shape[1]
             Qz, rz, cz = _unpack(theta, idx, d)
             Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
+            cond_val = float(S[-1] / (S[0] + 1e-12))
 
             models[key] = {
                 "Q": Qx,
                 "r": rx,
                 "c": cx,
                 "mode": "svd_w",
-                "cond": float(S[-1] / (S[0] + 1e-12)),
+                "cond": cond_val,
                 "weights": w,
             }
 
@@ -257,9 +301,28 @@ def fit_quadrics_from_records_weighted(
                 "r": rx,
                 "c": cx,
                 "mode": "logistic_w",
+                "cond": cond_val,
                 "weights": w,
             }
         else:
+            _vlog(verbosity, 0, "fit_quadrics:error_mode", mode=mode)
             raise ValueError("mode debe ser 'svd' o 'logistic'")
 
+        _vlog(
+            verbosity,
+            1,
+            "fit_quadrics:pair_done",
+            pair=key,
+            mode=mode,
+            cond=cond_val,
+            elapsed_s=round(perf_counter() - pair_start, 6),
+        )
+
+    _vlog(
+        verbosity,
+        1,
+        "fit_quadrics_from_records_weighted:done",
+        total_pairs=len(models),
+        elapsed_s=round(perf_counter() - t0_global, 4),
+    )
     return models

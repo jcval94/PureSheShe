@@ -4,8 +4,19 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
+import logging
+from time import perf_counter
+
 import numpy as np
-from sklearn.datasets import make_blobs
+from sklearn.datasets import make_blobs, make_classification
+
+
+def _verbosity_to_level(verbosity: int) -> int:
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
 
 
 def make_corner_class_dataset(
@@ -15,6 +26,7 @@ def make_corner_class_dataset(
     std_other: float = 0.7,
     a: float = 3.0,
     random_state: int | None = 42,
+    verbosity: int = 0,
 ) -> Tuple[np.ndarray, np.ndarray, List[str]]:
     """Generate the canonical 4D DelDel dataset with three labelled regions.
 
@@ -48,6 +60,20 @@ def make_corner_class_dataset(
         remapped labels ``y`` in ``{0, 1, 2}``, and the canonical feature names.
     """
 
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.setLevel(level)
+    start = perf_counter()
+    logger.log(
+        level,
+        "Generando corner dataset | n_per_cluster=%d std_class1=%.3f std_other=%.3f a=%.3f rs=%s",
+        n_per_cluster,
+        std_class1,
+        std_other,
+        a,
+        random_state,
+    )
+
     corners = np.array(
         [
             [a, a, a, a],
@@ -66,14 +92,18 @@ def make_corner_class_dataset(
     centres = np.vstack([centres_class0, corners, centres_class2])
     stds = [std_other] + [std_class1] * len(corners) + [std_other]
 
-    X, y_raw = make_blobs(
-        n_samples=[n_per_cluster] * len(centres),
-        centers=centres,
-        cluster_std=stds,
-        n_features=4,
-        random_state=random_state,
-        shuffle=True,
-    )
+    try:
+        X, y_raw = make_blobs(
+            n_samples=[n_per_cluster] * len(centres),
+            centers=centres,
+            cluster_std=stds,
+            n_features=4,
+            random_state=random_state,
+            shuffle=True,
+        )
+    except Exception:
+        logger.exception("Fallo make_blobs para corner dataset")
+        raise
 
     y = np.zeros_like(y_raw)
     y[y_raw == 0] = 0
@@ -81,7 +111,117 @@ def make_corner_class_dataset(
     y[y_raw == len(centres) - 1] = 2
 
     feature_names = ["x1", "x2", "x3", "x4"]
+    end = perf_counter()
+    class_counts = {int(cls): int((y == cls).sum()) for cls in np.unique(y)}
+    logger.log(
+        level,
+        "Corner dataset generado en %.4f s | muestras=%d dims=%d clases=%s",
+        end - start,
+        X.shape[0],
+        X.shape[1],
+        class_counts,
+    )
     return X, y, feature_names
+
+
+def make_high_dim_classification_dataset(
+    *,
+    n_samples: int = 30_000,
+    n_features: int = 25,
+    n_informative: int = 18,
+    n_redundant: int = 2,
+    n_repeated: int = 0,
+    n_classes: int = 3,
+    class_sep: float = 1.8,
+    weights: Tuple[float, float, float] | None = None,
+    random_state: int | None = 0,
+    verbosity: int = 0,
+) -> Tuple[np.ndarray, np.ndarray, List[str]]:
+    """Generate a wide synthetic dataset suitable for DelDel stress tests.
+
+    The generator wraps :func:`sklearn.datasets.make_classification` with
+    defaults aligned to the requirements of the high-cardinality experiments in
+    the repository.  The default configuration produces 30,000 observations with
+    25 numerical features and three balanced classes.
+
+    Parameters
+    ----------
+    n_samples:
+        Total number of rows to generate. Must be at least ``30_000`` for the
+        requested stress tests.
+    n_features:
+        Number of features (columns) to synthesize.
+    n_informative:
+        Number of informative features driving class separation.
+    n_redundant:
+        Number of redundant features generated as linear combinations of the
+        informative ones.
+    n_repeated:
+        Number of duplicated features.
+    n_classes:
+        Number of target classes to simulate.
+    class_sep:
+        Multiplicative factor controlling class separability.
+    weights:
+        Optional tuple of class weights. If omitted the classes are balanced.
+    random_state:
+        Seed for reproducibility.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray, List[str]]
+        Feature matrix ``X``, labels ``y`` in ``range(n_classes)``, and
+        generated feature names ``["f1", "f2", ...]``.
+    """
+
+    logger = logging.getLogger(__name__)
+    level = _verbosity_to_level(verbosity)
+    logger.setLevel(level)
+    logger.log(
+        level,
+        "make_high_dim_classification_dataset | n=%d features=%d inf=%d red=%d rep=%d classes=%d sep=%.2f weights=%s rs=%s",
+        n_samples,
+        n_features,
+        n_informative,
+        n_redundant,
+        n_repeated,
+        n_classes,
+        class_sep,
+        weights,
+        random_state,
+    )
+
+    start = perf_counter()
+    try:
+        X, y = make_classification(
+            n_samples=n_samples,
+            n_features=n_features,
+            n_informative=n_informative,
+            n_redundant=n_redundant,
+            n_repeated=n_repeated,
+            n_classes=n_classes,
+            n_clusters_per_class=2,
+            class_sep=class_sep,
+            weights=weights,
+            shuffle=True,
+            random_state=random_state,
+        )
+    except Exception:
+        logger.exception("Error en make_classification de dataset alto dimensional")
+        raise
+    end = perf_counter()
+    class_counts = {int(cls): int((y == cls).sum()) for cls in np.unique(y)}
+    logger.log(
+        level,
+        "Dataset alto dimensional generado en %.4f s | muestras=%d dims=%d clases=%s",
+        end - start,
+        X.shape[0],
+        X.shape[1],
+        class_counts,
+    )
+
+    feature_names = [f"f{i+1}" for i in range(n_features)]
+    return X.astype(float), y.astype(int), feature_names
 
 
 def plot_corner_class_dataset(
@@ -161,4 +301,8 @@ def plot_corner_class_dataset(
     return {"pca": fig_pca, "scatter": fig_scatter}
 
 
-__all__ = ["make_corner_class_dataset", "plot_corner_class_dataset"]
+__all__ = [
+    "make_corner_class_dataset",
+    "make_high_dim_classification_dataset",
+    "plot_corner_class_dataset",
+]

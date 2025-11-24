@@ -13,11 +13,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 import csv
 import json
 import itertools
+import logging
 from collections import Counter, defaultdict
 from pathlib import Path
 import warnings
@@ -181,6 +182,47 @@ def _write_stage_timings_csv(
         writer.writerow(row)
 
 
+def _verbosity_to_level(verbosity: int) -> int:
+    if verbosity >= 2:
+        return logging.DEBUG
+    if verbosity == 1:
+        return logging.INFO
+    return logging.WARNING
+
+
+def _setup_logger(name: str, verbosity: int) -> logging.Logger:
+    level = _verbosity_to_level(verbosity)
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    root = logging.getLogger()
+    if not root.handlers:
+        logging.basicConfig(
+            level=level,
+            format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        )
+    return logger
+
+
+def _stage_entry(
+    *,
+    stage: str,
+    callable: str,
+    start_s: float,
+    end_s: float,
+    extra: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    entry: Dict[str, Any] = dict(
+        stage=stage,
+        callable=callable,
+        start_s=start_s,
+        end_s=end_s,
+        duration_s=end_s - start_s,
+    )
+    if extra:
+        entry.update(extra)
+    return entry
+
+
 def _default_param_grid() -> List[Dict[str, Any]]:
     return [
         dict(min_cluster_size=2, max_models_per_round=3, max_depth=1),
@@ -198,6 +240,7 @@ def run_corner_pipeline_experiments(
     dataset_kwargs: Optional[Mapping[str, Any]] = None,
     deldel_config: Optional[DelDelConfig] = None,
     csv_dir: Optional[Union[str, Path]] = None,
+    verbosity: int = 0,
 ) -> Dict[str, Any]:
     """Execute the DelDel pipeline for several parameter combinations.
 
@@ -220,10 +263,24 @@ def run_corner_pipeline_experiments(
         list of experiment runs, and the aggregated ``valuable_`` structure.
     """
 
+    logger = _setup_logger(__name__, verbosity)
+    level = _verbosity_to_level(verbosity)
+
     dataset_kwargs = dict(dataset_kwargs or {})
-    X, y, feature_names = make_corner_class_dataset(**dataset_kwargs)
+    logger.log(level, "Preparando dataset corner con parámetros: %s", dataset_kwargs)
+    try:
+        X, y, feature_names = make_corner_class_dataset(
+            **dataset_kwargs, verbosity=max(verbosity - 1, 0)
+        )
+    except TypeError:
+        logger.log(level, "make_corner_class_dataset no acepta verbosity, reintentando")
+        X, y, feature_names = make_corner_class_dataset(**dataset_kwargs)
+    except Exception:
+        logger.exception("Fallo al generar el dataset corner")
+        raise
     n_samples, n_dims = X.shape
     class_counts = Counter(map(int, y))
+    logger.log(level, "Dataset generado: n=%d dims=%d clases=%s", n_samples, n_dims, class_counts)
 
     # Train a simple multinomial logistic regression model once for all runs.
     from sklearn.linear_model import LogisticRegression
@@ -234,8 +291,13 @@ def run_corner_pipeline_experiments(
         random_state=dataset_kwargs.get("random_state", 0),
     )
     t0 = perf_counter()
-    model.fit(X, y)
+    try:
+        model.fit(X, y)
+    except Exception:
+        logger.exception("Fallo entrenando LogisticRegression")
+        raise
     model_time = perf_counter() - t0
+    logger.log(level, "LogisticRegression entrenado en %.4f s", model_time)
 
     cfg = deldel_config or DelDelConfig(
         segments_target=6,
@@ -256,17 +318,33 @@ def run_corner_pipeline_experiments(
 
     engine = DelDel(cfg)
     t0 = perf_counter()
-    engine.fit(X, model)
+    try:
+        engine.fit(X, model)
+    except Exception:
+        logger.exception("Error en DelDel.fit")
+        raise
     fit_time = perf_counter() - t0
     records = list(engine.records_)
+    logger.log(
+        level,
+        "DelDel completado en %.4f s | registros=%d",
+        fit_time,
+        len(records),
+    )
 
     grid = list(param_grid) if param_grid is not None else _default_param_grid()
     runs: List[ExperimentRun] = []
 
     for params in grid:
         call_kwargs = dict(params)
+        call_kwargs["verbosity"] = max(verbosity - 1, 0)
+        logger.log(level, "Ejecutando frontier con parámetros: %s", call_kwargs)
         start = perf_counter()
-        res = compute_frontier_planes_all_modes(records, **call_kwargs)
+        try:
+            res = compute_frontier_planes_all_modes(records, **call_kwargs)
+        except Exception:
+            logger.exception("compute_frontier_planes_all_modes falló")
+            raise
         runtime = perf_counter() - start
 
         entries, errors = _collect_plane_entries(res, records, n_dims=n_dims)
@@ -280,6 +358,13 @@ def run_corner_pipeline_experiments(
             plane_entries=entries,
         )
         runs.append(run)
+        logger.log(
+            level,
+            "Frontier terminada en %.4f s | pares=%d planos=%d",
+            runtime,
+            len(res),
+            total_planes,
+        )
 
     valuable_by_dim: Dict[int, List[Dict[str, Any]]] = {i: [] for i in range(1, n_dims + 1)}
     plane_rows: List[Dict[str, Any]] = []
@@ -624,6 +709,8 @@ def run_corner_random_forest_pipeline(
     frontier_kwargs: Optional[Mapping[str, Any]] = None,
     finder_param_grid: Optional[Sequence[Mapping[str, Any]]] = None,
     csv_dir: Optional[Union[str, Path]] = None,
+    dataset_builder: Optional[Callable[..., Tuple[np.ndarray, np.ndarray, Sequence[str]]]] = None,
+    verbosity: int = 0,
 ) -> Dict[str, Any]:
     """Execute the primary DelDel pipeline on the corner dataset.
 
@@ -638,41 +725,85 @@ def run_corner_random_forest_pipeline(
 
     from sklearn.ensemble import RandomForestClassifier
 
+    logger = _setup_logger(__name__, verbosity)
+    level = _verbosity_to_level(verbosity)
     stage_timings: List[Dict[str, Any]] = []
 
     dataset_kwargs = dict(dataset_kwargs or {})
-    dataset_kwargs.setdefault("n_per_cluster", 180)
-    dataset_kwargs.setdefault("std_class1", 0.5)
-    dataset_kwargs.setdefault("std_other", 0.85)
-    dataset_kwargs.setdefault("a", 2.8)
-    dataset_kwargs.setdefault("random_state", random_state)
+    builder = dataset_builder or make_corner_class_dataset
+    dataset_name = getattr(builder, "__name__", str(builder))
+    if builder is make_corner_class_dataset:
+        dataset_kwargs.setdefault("n_per_cluster", 180)
+        dataset_kwargs.setdefault("std_class1", 0.5)
+        dataset_kwargs.setdefault("std_other", 0.85)
+        dataset_kwargs.setdefault("a", 2.8)
+        dataset_kwargs.setdefault("random_state", random_state)
 
-    t0 = perf_counter()
-    X, y, feature_names = make_corner_class_dataset(**dataset_kwargs)
-    stage_timings.append(
-        dict(
-            stage="dataset_generation",
-            callable="deldel.datasets.make_corner_class_dataset",
-            duration_s=perf_counter() - t0,
-            params=json.dumps(dataset_kwargs, sort_keys=True),
+    ds_start = perf_counter()
+    try:
+        X, y, feature_names = builder(
+            **dataset_kwargs, verbosity=max(verbosity - 1, 0)
         )
+    except TypeError:
+        logger.log(level, "%s no acepta verbosity, reintentando sin el parámetro", dataset_name)
+        X, y, feature_names = builder(**dataset_kwargs)
+    except Exception:
+        logger.exception("Error generando dataset con %s", dataset_name)
+        raise
+    ds_end = perf_counter()
+    class_counts = {int(cls): int((y == int(cls)).sum()) for cls in np.unique(y)}
+    stage_timings.append(
+        _stage_entry(
+            stage="dataset_generation",
+            callable=dataset_name,
+            start_s=ds_start,
+            end_s=ds_end,
+            extra=dict(
+                params=json.dumps(dataset_kwargs, sort_keys=True),
+                n_samples=int(X.shape[0]),
+                n_features=int(X.shape[1]),
+                classes=len(class_counts),
+                class_distribution=json.dumps(class_counts, sort_keys=True),
+            ),
+        )
+    )
+    logger.log(
+        level,
+        "Dataset listo: %d muestras, %d variables, clases=%s",
+        X.shape[0],
+        X.shape[1],
+        class_counts,
     )
 
     model = RandomForestClassifier(n_estimators=30, random_state=random_state)
 
-    t0 = perf_counter()
-    model.fit(X, y)
+    model_start = perf_counter()
+    try:
+        model.fit(X, y)
+    except Exception:
+        logger.exception("Fallo al entrenar el RandomForest base")
+        raise
+    model_end = perf_counter()
     stage_timings.append(
-        dict(
+        _stage_entry(
             stage="model_fit",
             callable="sklearn.ensemble.RandomForestClassifier.fit",
-            duration_s=perf_counter() - t0,
+            start_s=model_start,
+            end_s=model_end,
+            extra=dict(
+                n_estimators=30,
+                depth=model.max_depth,
+                samples_used=int(X.shape[0]),
+                features_used=int(X.shape[1]),
+            ),
         )
     )
+    logger.log(level, "Modelo base entrenado en %.3f s", model_end - model_start)
 
     cfg = deldel_config or DelDelConfig(
         segments_target=750,
         random_state=random_state,
+        log_level=level,
     )
     cp_cfg = cp_config or ChangePointConfig(
         enabled=True,
@@ -683,17 +814,37 @@ def run_corner_random_forest_pipeline(
     )
 
     engine = DelDel(cfg, cp_cfg)
-    t0 = perf_counter()
-    engine.fit(X, model)
+    deldel_start = perf_counter()
+    try:
+        engine.fit(X, model, verbose=verbosity > 1)
+    except Exception:
+        logger.exception("Error durante DelDel.fit")
+        raise
+    deldel_end = perf_counter()
     stage_timings.append(
-        dict(
+        _stage_entry(
             stage="deldel_fit",
             callable="deldel.engine.DelDel.fit",
-            duration_s=perf_counter() - t0,
+            start_s=deldel_start,
+            end_s=deldel_end,
+            extra=dict(
+                records_generated=len(getattr(engine, "records_", [])),
+                cp_enabled=cp_cfg.enabled,
+                segments_target=cfg.segments_target,
+            ),
         )
     )
     records = list(engine.records_)
+    success_records = sum(1 for r in records if getattr(r, "success", True))
+    logger.log(
+        level,
+        "DelDel.fit completado en %.3f s | registros=%d (éxito=%d)",
+        deldel_end - deldel_start,
+        len(records),
+        success_records,
+    )
 
+    pair_start = perf_counter()
     pairs = sorted(
         {
             (
@@ -707,44 +858,100 @@ def run_corner_random_forest_pipeline(
             and int(rec.y0) != int(rec.y1)
         }
     )
+    pair_end = perf_counter()
+    stage_timings.append(
+        _stage_entry(
+            stage="pair_identification",
+            callable="deldel.experiments.run_corner_random_forest_pipeline/pairs",
+            start_s=pair_start,
+            end_s=pair_end,
+            extra=dict(
+                pairs_total=len(pairs),
+                records_total=len(records),
+                successful_records=success_records,
+            ),
+        )
+    )
+    logger.log(level, "Pares de clase detectados: %d", len(pairs))
 
     frontier_kwargs = dict(frontier_kwargs or {})
     frontier_kwargs.setdefault("mode", "C")
     frontier_kwargs.setdefault("seed", random_state)
+    frontier_kwargs.setdefault("verbosity", max(verbosity - 1, 0))
 
-    t0 = perf_counter()
-    frontier = compute_frontier_planes_all_modes(
-        records,
-        pairs=pairs,
-        **frontier_kwargs,
+    frontier_start = perf_counter()
+    try:
+        frontier = compute_frontier_planes_all_modes(
+            records,
+            pairs=pairs,
+            **frontier_kwargs,
+        )
+    except Exception:
+        logger.exception("Fallo en compute_frontier_planes_all_modes")
+        raise
+    frontier_end = perf_counter()
+    frontier_plane_count = sum(
+        len(lst)
+        for block in frontier.values()
+        for lst in (block.get("planes_by_label", {}) or {}).values()
     )
     stage_timings.append(
-        dict(
+        _stage_entry(
             stage="frontier_computation",
             callable="deldel.frontier_planes_all_modes.compute_frontier_planes_all_modes",
-            duration_s=perf_counter() - t0,
+            start_s=frontier_start,
+            end_s=frontier_end,
+            extra=dict(
+                pairs_total=len(pairs),
+                planes_total=int(frontier_plane_count),
+                frontier_params=json.dumps(frontier_kwargs, sort_keys=True),
+            ),
         )
+    )
+    logger.log(
+        level,
+        "Fronteras calculadas en %.3f s | pares=%d, planos=%d",
+        frontier_end - frontier_start,
+        len(pairs),
+        frontier_plane_count,
     )
 
-    t0 = perf_counter()
-    selection = prune_and_orient_planes_unified_globalmaj(
-        frontier,
-        X,
-        y,
-        max_k=10,
-        min_improve=1e-3,
-        feature_names=feature_names,
-        dims_for_text=(0, 1),
-        min_region_size=10,
-        min_abs_diff=0.02,
-        min_rel_lift=0.05,
-    )
-    stage_timings.append(
-        dict(
-            stage="selection_prune",
-            callable="deldel.experiments.prune_and_orient_planes_unified_globalmaj",
-            duration_s=perf_counter() - t0,
+    prune_start = perf_counter()
+    try:
+        selection = prune_and_orient_planes_unified_globalmaj(
+            frontier,
+            X,
+            y,
+            max_k=10,
+            min_improve=1e-3,
+            feature_names=feature_names,
+            dims_for_text=(0, 1),
+            min_region_size=10,
+            min_abs_diff=0.02,
+            min_rel_lift=0.05,
+            verbosity=max(verbosity - 1, 0),
         )
+    except Exception:
+        logger.exception("Fallo en prune_and_orient_planes_unified_globalmaj")
+        raise
+    prune_end = perf_counter()
+    stage_timings.append(
+        _stage_entry(
+            stage="selection_prune",
+            callable="deldel.globalmaj.prune_and_orient_planes_unified_globalmaj",
+            start_s=prune_start,
+            end_s=prune_end,
+            extra=dict(
+                winning_planes=len(selection.get("winning_planes", [])),
+                regions_total=len(selection.get("regions_global", {}).get("per_plane", [])),
+            ),
+        )
+    )
+    logger.log(
+        level,
+        "Poda y orientación completadas en %.3f s | planos ganadores=%d",
+        prune_end - prune_start,
+        len(selection.get("winning_planes", [])),
     )
 
     finder_param_grid = list(finder_param_grid) if finder_param_grid is not None else [
@@ -760,7 +967,6 @@ def run_corner_random_forest_pipeline(
     ]
 
     finder_runs: List[Dict[str, Any]] = []
-    valuable_outputs: List[Dict[int, List[Dict[str, Any]]]] = []
     n_dims = X.shape[1]
 
     for idx, params in enumerate(finder_param_grid):
@@ -777,25 +983,19 @@ def run_corner_random_forest_pipeline(
         feature_names_param = params.pop("feature_names")
 
         t_run = perf_counter()
-        valuable = find_low_dim_spaces(
-            X,
-            y,
-            selection,
-            feature_names=feature_names_param,
-            **params,
-        )
-        runtime = perf_counter() - t_run
-
-        stage_timings.append(
-            dict(
-                stage=f"find_low_dim_spaces_run_{idx}",
-                callable="deldel.find_low_dim_spaces_fast.find_low_dim_spaces",
-                duration_s=runtime,
-                run_index=idx,
+        try:
+            valuable = find_low_dim_spaces(
+                X,
+                y,
+                selection,
+                feature_names=feature_names_param,
+                verbosity=max(verbosity - 1, 0),
+                **params,
             )
-        )
-
-        valuable_outputs.append(valuable)
+        except Exception:
+            logger.exception("find_low_dim_spaces falló para iter %d", idx)
+            raise
+        runtime = perf_counter() - t_run
 
         counts_by_dim = {dim: len(valuable.get(dim, [])) for dim in range(1, n_dims + 1)}
         best_f1 = {}
@@ -810,6 +1010,22 @@ def run_corner_random_forest_pipeline(
                 float(r.get("metrics", {}).get("precision", 0.0)) for r in regions
             )
 
+        stage_timings.append(
+            _stage_entry(
+                stage=f"find_low_dim_spaces_run_{idx}",
+                callable="deldel.find_low_dim_spaces_fast.find_low_dim_spaces",
+                start_s=t_run,
+                end_s=t_run + runtime,
+                extra=dict(
+                    run_index=idx,
+                    params=json.dumps(params, sort_keys=True),
+                    regions_total=sum(len(valuable.get(dim, [])) for dim in valuable),
+                    best_f1=json.dumps(best_f1, sort_keys=True),
+                    best_precision=json.dumps(best_precision, sort_keys=True),
+                ),
+            )
+        )
+
         finder_runs.append(
             dict(
                 run_index=idx,
@@ -820,6 +1036,16 @@ def run_corner_random_forest_pipeline(
                 best_f1_by_dim=best_f1,
                 best_precision_by_dim=best_precision,
             )
+        )
+
+        logger.log(
+            level,
+            "Finder iter %d completado en %.3f s | regiones=%d | best_f1=%s | best_prec=%s",
+            idx,
+            runtime,
+            sum(counts_by_dim.values()),
+            best_f1,
+            best_precision,
         )
 
     csv_outputs: Dict[str, str] = {}
@@ -867,7 +1093,7 @@ def run_corner_random_forest_pipeline(
 
     summary = dict(
         dataset=dict(
-            name="corner",
+            name=dataset_name,
             n_samples=int(X.shape[0]),
             n_dims=int(X.shape[1]),
             feature_names=feature_names,
@@ -885,7 +1111,6 @@ def run_corner_random_forest_pipeline(
         frontier_pairs=len(pairs),
         finder_runs=finder_runs,
         csv_outputs=csv_outputs,
-        valuable_outputs=valuable_outputs,
     )
     return summary
 
@@ -1098,6 +1323,22 @@ def run_corner_pipeline_with_low_dim(
                 continue
             best_f1[dim] = max(float(r.get("metrics", {}).get("f1", 0.0)) for r in regions)
             best_precision[dim] = max(float(r.get("metrics", {}).get("precision", 0.0)) for r in regions)
+
+        stage_timings.append(
+            _stage_entry(
+                stage=f"find_low_dim_spaces_run_{idx}",
+                callable="deldel.find_low_dim_spaces_fast.find_low_dim_spaces",
+                start_s=t_run,
+                end_s=t_run + runtime,
+                extra=dict(
+                    run_index=idx,
+                    params=json.dumps(params, sort_keys=True),
+                    regions_total=sum(len(valuable.get(dim, [])) for dim in valuable),
+                    best_f1=json.dumps(best_f1, sort_keys=True),
+                    best_precision=json.dumps(best_precision, sort_keys=True),
+                ),
+            )
+        )
 
         finder_runs.append(
             dict(
