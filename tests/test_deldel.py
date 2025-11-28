@@ -319,6 +319,8 @@ def test_plot_helpers(sample_records):
             pair=None,
             show_planes=False,
             show_points=False,
+            show=False,
+            return_fig=True,
         )
     except ValueError as exc:
         if "planes_by_label vacío" in str(exc):
