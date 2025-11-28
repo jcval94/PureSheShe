@@ -1026,6 +1026,8 @@ def plot_planes_with_point_lines(
     prefer_cp: bool = True,
     renderer: Optional[str] = None,
     title: str = "Planos + líneas por punto",
+    show: bool = True,
+    return_fig: bool = False,
 ):
     """
     Versión robusta:
@@ -1341,5 +1343,9 @@ def plot_planes_with_point_lines(
         except Exception:
             pass
 
-    fig.show(config={"scrollZoom": True, "responsive": True})
+    if show:
+        fig.show(config={"scrollZoom": True, "responsive": True})
+        if not return_fig:
+            return None
+
     return fig
