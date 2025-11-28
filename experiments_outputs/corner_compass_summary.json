@@ -1,0 +1,58 @@
+{
+  "compass": {
+    "best_by_class_csv": "/workspace/PureSheShe/experiments_outputs/corner_compass_best_by_class.csv",
+    "description": "compass_score = media geom\u00e9trica de F1, lift_precision y min_lift_precision entre clases para la regi\u00f3n; se maximiza por clase y de forma macro",
+    "macro_geo_mean": 0.9810772179071136
+  },
+  "dataset": {
+    "name": "make_corner_class_dataset",
+    "params": {
+      "a": 2.8,
+      "n_per_cluster": 1500,
+      "random_state": 0,
+      "std_class1": 0.45,
+      "std_other": 0.85
+    }
+  },
+  "finder": {
+    "consider_dims_up_to": 4,
+    "feature_names": [
+      "x0",
+      "x1",
+      "x2",
+      "x3"
+    ],
+    "max_planes_in_rule": 3,
+    "max_planes_per_pair": 4,
+    "min_lift_prec": 1.4,
+    "min_rel_gain_f1": 0.05,
+    "min_support": 40,
+    "rng_seed": 0
+  },
+  "outputs": {
+    "best_by_class_csv": "/workspace/PureSheShe/experiments_outputs/corner_compass_best_by_class.csv",
+    "metrics_csv": "/workspace/PureSheShe/experiments_outputs/corner_compass_by_region.csv",
+    "timings_csv": "/workspace/PureSheShe/experiments_outputs/corner_compass_stage_timings.csv"
+  },
+  "selection": {
+    "feature_names": [
+      "f0",
+      "f1",
+      "f2",
+      "f3"
+    ],
+    "max_k": 8,
+    "min_abs_diff": 0.02,
+    "min_improve": 0.001,
+    "min_region_size": 25,
+    "min_rel_lift": 0.05
+  },
+  "stages": {
+    "dataset_s": 0.004488800001126947,
+    "deldel_fit_s": 1.1560674800020934,
+    "finder_s": 3.6720676829972945,
+    "frontier_s": 1.9425517599993327,
+    "model_fit_s": 0.6874274229994626,
+    "selection_s": 0.26170387199817924
+  }
+}

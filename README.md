@@ -57,6 +57,13 @@ las pruebas y ejemplos de la librería. Devuelve una tupla `(X, y, feature_names
 clasificador de scikit-learn. La función `plot_corner_class_dataset` (opcional) genera un PCA 3D y una matriz de dispersión
 para explorar la estructura del dataset; solo requiere tener instalados `matplotlib` y `pandas`.
 
+### Métrica "brújula" para comparar experimentos
+
+La función experimental `experiments_outputs/run_corner_min_prediction_experiment.py` ahora calcula un
+``compass_score`` por región: media geométrica entre F1, `lift_precision` y el *min_lift_precision* observado entre
+todas las clases cubiertas por la región. Se selecciona la mejor región para cada clase usando este criterio y su macro
+promedio sirve como **métrica a maximizar** en futuros experimentos (nuestro indicador de mejora o regresión).
+
 ```python
 from sklearn.ensemble import RandomForestClassifier
 
