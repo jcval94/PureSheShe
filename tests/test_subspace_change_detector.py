@@ -193,3 +193,25 @@ def test_fit_matches_regression_without_records() -> None:
         assert report.mean_macro_f1 == pytest.approx(
             expected["post_removal_mean_macro_f1"], rel=0.05, abs=1e-4
         )
+
+
+def test_fast_preset_handles_single_split_cv() -> None:
+    table, y = _make_table()
+    explorer = MultiClassSubspaceExplorer(
+        max_sets=5,
+        combo_sizes=(2,),
+        filter_top_k=5,
+        chi2_pool=5,
+        random_samples=5,
+        rf_estimators=3,
+        rf_max_depth=3,
+        cv_splits=1,
+        random_state=0,
+        fast_eval_budget=12,
+    )
+
+    explorer.fit(table, y, method_key="method_8_extratrees", preset="fast")
+    reports = explorer.get_report()
+
+    assert reports, "fast preset should not return an empty report when cv_splits=1"
+    assert len(explorer.evaluated_reports_) == len(explorer.candidate_reports_)
