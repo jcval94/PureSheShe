@@ -7,6 +7,13 @@ from time import perf_counter
 
 import numpy as np
 
+from .engine import (
+    build_weighted_frontier as _core_build_weighted_frontier,
+    compute_frontier_planes_weighted as _core_compute_frontier_planes_weighted,
+    fit_quadrics_from_records_weighted as _core_fit_quadrics_from_records_weighted,
+    fit_tls_plane_weighted as _core_fit_tls_plane_weighted,
+)
+
 
 def _verbosity_to_level(verbosity: int) -> int:
     if verbosity >= 2:
@@ -16,7 +23,7 @@ def _verbosity_to_level(verbosity: int) -> int:
     return logging.WARNING
 
 
-# --- 1) Construcción de puntos frontera + pesos desde records ---
+# --- 1) Construcción de puntos frontera + pesos desde records (wrapper) ---
 def build_weighted_frontier(
     records: Iterable,
     prefer_cp: bool = True,
@@ -29,65 +36,35 @@ def build_weighted_frontier(
     *,
     verbosity: int = 0,
 ) -> Tuple[Dict[Tuple[int,int], np.ndarray], Dict[Tuple[int,int], np.ndarray], Dict[Tuple[int,int], np.ndarray]]:
-    from collections import defaultdict
-
     logger = logging.getLogger(__name__)
     level = _verbosity_to_level(verbosity)
     start = perf_counter()
-    logger.log(level, "build_weighted_frontier: inicio | prefer_cp=%s success_only=%s map=%s density_k=%s", prefer_cp, success_only, weight_map, density_k)
+    logger.log(
+        level,
+        "build_weighted_frontier: inicio | prefer_cp=%s success_only=%s map=%s density_k=%s",
+        prefer_cp,
+        success_only,
+        weight_map,
+        density_k,
+    )
 
-    Ftmp, Btmp, Stmp = defaultdict(list), defaultdict(list), defaultdict(list)
-    for r in records:
-        if success_only and not bool(getattr(r, "success", True)):
-            continue
-        a, b = int(r.y0), int(r.y1)
-        if a == b:
-            continue
-        score = float(getattr(r, "final_score", 1.0))
-        x0 = np.asarray(r.x0, float).reshape(1,-1)
-        if prefer_cp and getattr(r, "cp_count", 0) and np.asarray(getattr(r, "cp_x")).size>0:
-            F = np.asarray(r.cp_x, float)            # (m,d)
-        else:
-            F = np.asarray(r.x1, float).reshape(1,-1)# (1,d)
-        m = F.shape[0]
-        Ftmp[(a,b)].append(F)
-        Btmp[(a,b)].append(np.repeat(x0, m, axis=0))
-        Stmp[(a,b)].append(np.full(m, score, float))
+    F_by, B_by, W_by = _core_build_weighted_frontier(
+        records,
+        prefer_cp=prefer_cp,
+        success_only=success_only,
+        weight_map=weight_map,
+        gamma=gamma,
+        temp=temp,
+        sigmoid_center=sigmoid_center,
+        density_k=density_k,
+    )
 
-    logger.log(level, "build_weighted_frontier: pares construidos=%d", len(Ftmp))
-
-    F_by = {k: np.vstack(v) for k,v in Ftmp.items()}
-    B_by = {k: np.vstack(v) for k,v in Btmp.items()}
-    S_by = {k: np.concatenate(v) for k,v in Stmp.items()}
-
-    W_by = {}
-    for k in F_by.keys():
-        s = S_by[k].copy()
-        if s.size == 0:
-            W_by[k] = s; continue
-
-        if weight_map == "power":
-            w = np.clip(s, 0.0, 1.0)**float(gamma)
-        elif weight_map == "sigmoid":
-            cen = float(np.median(s)) if sigmoid_center is None else float(sigmoid_center)
-            w = 1.0 / (1.0 + np.exp(-(s - cen)/(temp if temp>1e-9 else 1e-9)))
-        elif weight_map == "softmax":
-            t = max(temp, 1e-9)
-            z = (s - s.max())/t
-            w = np.exp(z)
-        else:
-            w = s  # identidad
-
-        if density_k is not None and density_k > 0 and F_by[k].shape[0] > density_k:
-            P = F_by[k]
-            D = np.linalg.norm(P[:,None,:] - P[None,:,:], axis=2)
-            idx = np.argpartition(D, kth=density_k, axis=1)[:, :density_k+1]
-            dens = D[np.arange(D.shape[0])[:,None], idx].mean(axis=1) + 1e-9
-            w = w / dens
-
-        W_by[k] = w / (w.sum() + 1e-12)
-
-    logger.log(level, "build_weighted_frontier: fin en %.4fs | pares=%s", perf_counter() - start, list(F_by.keys()))
+    logger.log(
+        level,
+        "build_weighted_frontier: fin en %.4fs | pares=%s",
+        perf_counter() - start,
+        list(F_by.keys()),
+    )
 
     return F_by, B_by, W_by
 
@@ -96,16 +73,12 @@ def fit_tls_plane_weighted(F: np.ndarray, w: np.ndarray, *, verbosity: int = 0):
     logger = logging.getLogger(__name__)
     level = _verbosity_to_level(verbosity)
     start = perf_counter()
-    F = np.asarray(F, float); w = np.asarray(w, float).reshape(-1)
+    F = np.asarray(F, float)
+    w = np.asarray(w, float).reshape(-1)
     logger.log(level, "fit_tls_plane_weighted: F_shape=%s w_size=%d", F.shape, w.size)
-    assert F.shape[0] >= 3 and F.shape[0] == w.size
-    w = w / (w.sum() + 1e-12)
-    mu = (w[:,None] * F).sum(axis=0)
-    Z  = F - mu
-    Sw = Z.T @ (w[:,None] * Z)
-    evals, evecs = np.linalg.eigh(Sw)
-    n = evecs[:, np.argmin(evals)]
-    b = -float(n @ mu)
+
+    n, b, mu = _core_fit_tls_plane_weighted(F, w)
+
     logger.log(level, "fit_tls_plane_weighted: fin en %.6fs", perf_counter() - start)
     return n.astype(float), float(b), mu.astype(float)
 
@@ -155,33 +128,24 @@ def compute_frontier_planes_weighted(
     eps_orient: float = 1e-3,
     *,
     verbosity: int = 0,
-):
+):    
     logger = logging.getLogger(__name__)
     level = _verbosity_to_level(verbosity)
     t0 = perf_counter()
     logger.log(level, "compute_frontier_planes_weighted: inicio | orient=%s", orient_with_bases)
 
-    F_by, B_by, W_by = build_weighted_frontier(records, prefer_cp, success_only,
-                                               weight_map, gamma, temp, None, density_k,
-                                               verbosity=max(verbosity - 1, 0))
-    planes = {}
-    for key, F in F_by.items():
-        w = W_by[key]
-        if F.shape[0] < 3:
-            logger.log(level, "compute_frontier_planes_weighted: skip %s por falta de puntos (%d)", key, F.shape[0])
-            continue
-        n, b, mu = fit_tls_plane_weighted(F, w, verbosity=max(verbosity - 1, 0))
-        if orient_with_bases and key in B_by:
-            B = B_by[key]
-            U = F - B
-            U = U / (np.linalg.norm(U, axis=1, keepdims=True) + 1e-12)
-            side_plus  = (F + eps_orient*U) @ n + b
-            side_minus = (F - eps_orient*U) @ n + b
-            if np.average(side_plus, weights=w) < np.average(side_minus, weights=w):
-                n, b = -n, -b
-            b = -float(n @ mu)
-        planes[key] = {"n": n, "b": b, "mu": mu, "count": int(F.shape[0]), "points": F, "weights": w}
-        logger.log(level, "compute_frontier_planes_weighted: plano %s count=%d b=%.4f", key, F.shape[0], float(b))
+    planes = _core_compute_frontier_planes_weighted(
+        records,
+        prefer_cp=prefer_cp,
+        success_only=success_only,
+        weight_map=weight_map,
+        gamma=gamma,
+        temp=temp,
+        density_k=density_k,
+        orient_with_bases=orient_with_bases,
+        eps_orient=eps_orient,
+    )
+
     logger.log(level, "compute_frontier_planes_weighted: fin en %.4fs | planos=%d", perf_counter() - t0, len(planes))
     return planes
 
@@ -204,93 +168,20 @@ def fit_quadrics_from_records_weighted(
     level = _verbosity_to_level(verbosity)
     t0 = perf_counter()
     logger.log(level, "fit_quadrics_from_records_weighted: inicio | mode=%s", mode)
-    def _standardize(X):
-        mu = X.mean(axis=0); sd = X.std(axis=0); sd[sd<1e-12]=1.0
-        return (X-mu)/sd, mu, sd
-    def _destandardize(Qz, rz, cz, mu, sd):
-        D = np.diag(1.0/sd); Qx = D @ Qz @ D; r0 = D @ rz
-        rx = r0 - 2.0*(Qx @ mu); cx = float(mu.T@Qx@mu - r0.T@mu + cz)
-        return Qx, rx, cx
-    def _unpack(theta, idx, d):
-        Qz = np.zeros((d,d))
-        for i in range(d): Qz[i,i] = theta[idx["diag"][i]]
-        for k,(i,j) in enumerate(idx["pairs"]): Qz[i,j]=Qz[j,i]=0.5*theta[idx["off"][k]]
-        rz = theta[idx["lin"][0]: idx["lin"][0]+d]; cz = theta[idx["c"]]
-        return Qz, rz, float(cz)
-    def _poly2(Z):
-        n,d = Z.shape
-        diag=[Z[:,i]**2 for i in range(d)]
-        off=[]; pairs=[]
-        for i in range(d):
-            for j in range(i+1,d):
-                off.append(2.0*Z[:,i]*Z[:,j]); pairs.append((i,j))
-        lin=[Z[:,i] for i in range(d)]
-        Phi = np.column_stack(diag+off+lin+[np.ones(n)])
-        idx={"diag":list(range(d)),
-             "off":list(range(d, d+len(off))),
-             "lin":list(range(d+len(off), d+len(off)+d)),
-             "c":d+len(off)+d, "pairs":pairs}
-        return Phi, idx
+    models = _core_fit_quadrics_from_records_weighted(
+        records,
+        mode=mode,
+        prefer_cp=prefer_cp,
+        success_only=success_only,
+        weight_map=weight_map,
+        gamma=gamma,
+        temp=temp,
+        density_k=density_k,
+        eps=eps,
+        C=C,
+        n_jobs=n_jobs,
+    )
 
-    F_by, B_by, W_by = build_weighted_frontier(records, prefer_cp, success_only,
-                                               weight_map, gamma, temp, None, density_k,
-                                               verbosity=max(verbosity - 1, 0))
-    def _fit_single(key_and_F):
-        key, F = key_and_F
-        w = W_by[key];
-        if F.shape[0] < 3:
-            logger.log(level, "fit_quadrics_from_records_weighted: skip %s por falta de puntos (%d)", key, F.shape[0])
-            return key, None
-
-        if mode == "svd":
-            Z, mu, sd = _standardize(F)
-            Phi, idx = _poly2(Z)
-            sw = np.sqrt(w + 1e-12)
-            Phi_w = Phi * sw[:,None]
-            U,S,Vt = np.linalg.svd(Phi_w, full_matrices=False)
-            theta = Vt[-1,:] / (np.linalg.norm(Vt[-1,:]) + 1e-12)
-            d = F.shape[1]
-            Qz, rz, cz = _unpack(theta, idx, d)
-            Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
-            model = {"Q":Qx, "r":rx, "c":cx, "mode":"svd_w", "cond": S[-1]/(S[0]+1e-12), "weights": w}
-            logger.log(level, "fit_quadrics_from_records_weighted: modelo svd %s cond=%.6f", key, S[-1]/(S[0]+1e-12))
-            return key, model
-
-        if mode == "logistic":
-            B = B_by[key]
-            Udir = F - B
-            Uu = Udir / (np.linalg.norm(Udir, axis=1, keepdims=True) + 1e-12)
-            eps_r = eps * (0.5 + 0.5*(1.0 - (w / (w.max()+1e-12))))  # en [0.5*eps, eps]
-            Xa = F + (eps_r[:,None]*Uu); Xb = F - (eps_r[:,None]*Uu)
-            X = np.vstack([Xa, Xb])
-            ybin = np.hstack([np.ones(Xa.shape[0], int), -np.ones(Xb.shape[0], int)])
-            w_lr = np.hstack([w, w])
-            Z, mu, sd = _standardize(X)
-            Phi, idx = _poly2(Z)
-            from sklearn.linear_model import LogisticRegression
-            clf = LogisticRegression(C=C, penalty="l2", max_iter=800)
-            clf.fit(Phi, ybin, sample_weight=w_lr)
-            wcoef = clf.coef_.reshape(-1); b0 = clf.intercept_[0]
-            theta = np.r_[wcoef, b0]
-            d = X.shape[1]
-            Qz, rz, cz = _unpack(theta, idx, d)
-            Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
-            model = {"Q":Qx, "r":rx, "c":cx, "mode":"logistic_w", "weights": w}
-            logger.log(level, "fit_quadrics_from_records_weighted: modelo logit %s w_mean=%.6f", key, float(np.mean(w)))
-            return key, model
-
-        raise ValueError("mode debe ser 'svd' o 'logistic'")
-
-    items = list(F_by.items())
-    if n_jobs is not None and len(items) > 1:
-        from joblib import Parallel, delayed
-        results = Parallel(n_jobs=n_jobs, prefer="threads")(
-            delayed(_fit_single)(item) for item in items
-        )
-    else:
-        results = [_fit_single(item) for item in items]
-
-    models = {k: v for k, v in results if v is not None}
     logger.log(level, "fit_quadrics_from_records_weighted: fin en %.4fs | modelos=%d", perf_counter() - t0, len(models))
     return models
 
