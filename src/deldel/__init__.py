@@ -35,7 +35,11 @@ from .find_low_dim_spaces_fast import (
     find_low_dim_spaces_precision_boost,
     find_low_dim_spaces_support_first,
 )
-from .reporting_plotting import describe_regions_report, plot_selected_regions_interactive
+from .reporting_plotting import (
+    describe_regions_metrics,
+    describe_regions_report,
+    plot_selected_regions_interactive,
+)
 from . import stage_infer_ab
 from .subspace_change_detector import (
     MultiClassSubspaceExplorer,
@@ -73,6 +77,7 @@ __all__ = [
     "find_low_dim_spaces_deterministic",
     "find_low_dim_spaces_precision_boost",
     "find_low_dim_spaces_support_first",
+    "describe_regions_metrics",
     "describe_regions_report",
     "plot_selected_regions_interactive",
     "MultiClassSubspaceExplorer",
