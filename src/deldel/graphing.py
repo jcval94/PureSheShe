@@ -7,20 +7,18 @@ from time import perf_counter
 
 import numpy as np
 
+from ._logging_utils import verbosity_to_level
+from ._numeric_utils import (
+    destandardize_quadratic,
+    standardize_matrix,
+    unpack_quadratic_parameters,
+)
 from .engine import (
     build_weighted_frontier as _core_build_weighted_frontier,
     compute_frontier_planes_weighted as _core_compute_frontier_planes_weighted,
     fit_quadrics_from_records_weighted as _core_fit_quadrics_from_records_weighted,
     fit_tls_plane_weighted as _core_fit_tls_plane_weighted,
 )
-
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
 
 
 # --- 1) Construcción de puntos frontera + pesos desde records (wrapper) ---
@@ -37,7 +35,7 @@ def build_weighted_frontier(
     verbosity: int = 0,
 ) -> Tuple[Dict[Tuple[int,int], np.ndarray], Dict[Tuple[int,int], np.ndarray], Dict[Tuple[int,int], np.ndarray]]:
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     start = perf_counter()
     logger.log(
         level,
@@ -71,7 +69,7 @@ def build_weighted_frontier(
 # --- 2) TLS (plano) ponderado: PCA ponderado ---
 def fit_tls_plane_weighted(F: np.ndarray, w: np.ndarray, *, verbosity: int = 0):
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     start = perf_counter()
     F = np.asarray(F, float)
     w = np.asarray(w, float).reshape(-1)
@@ -84,27 +82,7 @@ def fit_tls_plane_weighted(F: np.ndarray, w: np.ndarray, *, verbosity: int = 0):
 
 # --- 3) Cuádrica (SVD algebraico) ponderada ---
 def fit_quadric_svd_weighted(F: np.ndarray, poly2_features_fn):
-    def _standardize(X):
-        mu = X.mean(axis=0); sd = X.std(axis=0); sd[sd<1e-12]=1.0
-        Z = (X-mu)/sd
-        return Z, mu, sd
-    def _destandardize(Qz, rz, cz, mu, sd):
-        D = np.diag(1.0/sd)
-        Qx = D @ Qz @ D
-        r0 = D @ rz
-        rx = r0 - 2.0*(Qx @ mu)
-        cx = float(mu.T @ Qx @ mu - r0.T @ mu + cz)
-        return Qx, rx, cx
-    def _unpack(theta, idx, d):
-        Qz = np.zeros((d,d));
-        for i in range(d): Qz[i,i] = theta[idx["diag"][i]]
-        for k,(i,j) in enumerate(idx["pairs"]):
-            Qz[i,j]=Qz[j,i]=0.5*theta[idx["off"][k]]
-        rz = theta[idx["lin"][0]: idx["lin"][0]+d]
-        cz = theta[idx["c"]]
-        return Qz, rz, float(cz)
-
-    Z, mu, sd = _standardize(F)
+    Z, mu, sd = standardize_matrix(F)
     Phi, idx = poly2_features_fn(Z)
     raise RuntimeError("Usa fit_quadrics_from_records_weighted(...) que provee 'w'.")
 
@@ -130,7 +108,7 @@ def compute_frontier_planes_weighted(
     verbosity: int = 0,
 ):    
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     t0 = perf_counter()
     logger.log(level, "compute_frontier_planes_weighted: inicio | orient=%s", orient_with_bases)
 
@@ -165,7 +143,7 @@ def fit_quadrics_from_records_weighted(
     verbosity: int = 0,
 ):
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     t0 = perf_counter()
     logger.log(level, "fit_quadrics_from_records_weighted: inicio | mode=%s", mode)
     models = _core_fit_quadrics_from_records_weighted(

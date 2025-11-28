@@ -25,6 +25,7 @@ import warnings
 
 import numpy as np
 
+from ._logging_utils import verbosity_to_level
 from .datasets import make_corner_class_dataset
 from .engine import ChangePointConfig, DelDel, DelDelConfig, DeltaRecord
 from .frontier_planes_all_modes import compute_frontier_planes_all_modes
@@ -182,16 +183,8 @@ def _write_stage_timings_csv(
         writer.writerow(row)
 
 
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
-
-
 def _setup_logger(name: str, verbosity: int) -> logging.Logger:
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger = logging.getLogger(name)
     logger.setLevel(level)
     root = logging.getLogger()
@@ -264,7 +257,7 @@ def run_corner_pipeline_experiments(
     """
 
     logger = _setup_logger(__name__, verbosity)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
 
     dataset_kwargs = dict(dataset_kwargs or {})
     logger.log(level, "Preparando dataset corner con parámetros: %s", dataset_kwargs)
@@ -726,7 +719,7 @@ def run_corner_random_forest_pipeline(
     from sklearn.ensemble import RandomForestClassifier
 
     logger = _setup_logger(__name__, verbosity)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     stage_timings: List[Dict[str, Any]] = []
 
     dataset_kwargs = dict(dataset_kwargs or {})

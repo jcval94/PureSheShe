@@ -28,13 +28,7 @@ from time import perf_counter
 import math
 import numpy as np
 
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
+from ._logging_utils import verbosity_to_level
 
 
 # ============================================================
@@ -589,7 +583,7 @@ def prune_and_orient_planes_unified_globalmaj(
     """
     # ------------------ Preparación ------------------
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.setLevel(level)
     start_global = perf_counter()
 

@@ -28,13 +28,7 @@ import logging
 from time import perf_counter
 import numpy as np, itertools, hashlib, time, math, random
 
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
+from ._logging_utils import verbosity_to_level
 
 # ========================= Aceleradores bitset / popcount =========================
 
@@ -530,7 +524,7 @@ def find_low_dim_spaces(
     consider_dims_up_to = int(min(max(1, consider_dims_up_to), D))
 
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.setLevel(level)
     start_total = perf_counter()
     logger.log(

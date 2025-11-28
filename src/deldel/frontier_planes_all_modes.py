@@ -7,17 +7,8 @@ from time import perf_counter
 
 import numpy as np
 
+from ._logging_utils import verbosity_to_level
 from .engine import DeltaRecord
-
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    if verbosity == 0:
-        return logging.WARNING
-    return logging.ERROR
 
 
 # ===================== compute_frontier_planes_all_modes — Modo C (mejorado) =====================
@@ -919,7 +910,7 @@ def compute_frontier_planes_all_modes(
 
     logger = logging.getLogger(__name__)
     verbosity = 1 if (verbosity is None and verbose) else (-1 if verbosity is None else int(verbosity))
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.setLevel(level)
     explorer_top_k = int(explorer_top_k)
 
