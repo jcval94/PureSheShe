@@ -27,13 +27,7 @@ from time import perf_counter
 
 import numpy as np
 
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
+from ._logging_utils import verbosity_to_level
 
 
 # ---------------------------------------------------------------------------
@@ -307,7 +301,7 @@ def describe_regions_report(
     """Generate a textual report describing the discovered regions."""
 
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     t0 = perf_counter()
     logger.log(level, "describe_regions_report: inicio | region_id=%s", region_id)
 
@@ -457,7 +451,7 @@ def plot_selected_regions_interactive(
     rng_seed: int | None = 1337            # reproducibilidad del muestreo
 ):
     logger = logging.getLogger(__name__)
-    logger.log(_verbosity_to_level(sel_aug.get("verbosity", 0) if isinstance(sel_aug, dict) else 0),
+    logger.log(verbosity_to_level(sel_aug.get("verbosity", 0) if isinstance(sel_aug, dict) else 0),
                "plot_selected_regions_interactive: inicio | X=%s y=%s selected_planes=%s", getattr(X, 'shape', None), getattr(y, 'shape', None), selected_plane_ids)
     """
     Cambios críticos integrados (3D fix):

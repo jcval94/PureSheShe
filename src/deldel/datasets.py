@@ -10,13 +10,7 @@ from time import perf_counter
 import numpy as np
 from sklearn.datasets import make_blobs, make_classification
 
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
+from ._logging_utils import verbosity_to_level
 
 
 def make_corner_class_dataset(
@@ -61,7 +55,7 @@ def make_corner_class_dataset(
     """
 
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.setLevel(level)
     start = perf_counter()
     logger.log(
@@ -175,7 +169,7 @@ def make_high_dim_classification_dataset(
     """
 
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.setLevel(level)
     logger.log(
         level,

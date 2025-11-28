@@ -101,6 +101,12 @@ from typing import Any, Dict, List, Optional, Tuple, Iterable, NamedTuple
 import numpy as np
 from collections import defaultdict
 
+from ._numeric_utils import (
+    destandardize_quadratic,
+    standardize_matrix,
+    unpack_quadratic_parameters,
+)
+
 # -------------------------
 # Logging
 # -------------------------
@@ -1953,19 +1959,9 @@ def fit_quadrics_from_records_weighted(
     C: float = 10.0,
     n_jobs: Optional[int] = None,
 ):
-    def _standardize(X):
-        mu = X.mean(axis=0); sd = X.std(axis=0); sd[sd<1e-12]=1.0
-        return (X-mu)/sd, mu, sd
-    def _destandardize(Qz, rz, cz, mu, sd):
-        D = np.diag(1.0/sd); Qx = D @ Qz @ D; r0 = D @ rz
-        rx = r0 - 2.0*(Qx @ mu); cx = float(mu.T@Qx@mu - r0.T@mu + cz)
-        return Qx, rx, cx
-    def _unpack(theta, idx, d):
-        Qz = np.zeros((d,d))
-        for i in range(d): Qz[i,i] = theta[idx["diag"][i]]
-        for k,(i,j) in enumerate(idx["pairs"]): Qz[i,j]=Qz[j,i]=0.5*theta[idx["off"][k]]
-        rz = theta[idx["lin"][0]: idx["lin"][0]+d]; cz = theta[idx["c"]]
-        return Qz, rz, float(cz)
+    _standardize = standardize_matrix
+    _destandardize = destandardize_quadratic
+    _unpack = unpack_quadratic_parameters
     def _poly2(Z):
         n,d = Z.shape
         diag=[Z[:,i]**2 for i in range(d)]
@@ -2240,27 +2236,7 @@ def fit_tls_plane_weighted(F: np.ndarray, w: np.ndarray):
 
 # --- 3) Cuádrica (SVD algebraico) ponderada ---
 def fit_quadric_svd_weighted(F: np.ndarray, poly2_features_fn):
-    def _standardize(X):
-        mu = X.mean(axis=0); sd = X.std(axis=0); sd[sd<1e-12]=1.0
-        Z = (X-mu)/sd
-        return Z, mu, sd
-    def _destandardize(Qz, rz, cz, mu, sd):
-        D = np.diag(1.0/sd)
-        Qx = D @ Qz @ D
-        r0 = D @ rz
-        rx = r0 - 2.0*(Qx @ mu)
-        cx = float(mu.T @ Qx @ mu - r0.T @ mu + cz)
-        return Qx, rx, cx
-    def _unpack(theta, idx, d):
-        Qz = np.zeros((d,d));
-        for i in range(d): Qz[i,i] = theta[idx["diag"][i]]
-        for k,(i,j) in enumerate(idx["pairs"]):
-            Qz[i,j]=Qz[j,i]=0.5*theta[idx["off"][k]]
-        rz = theta[idx["lin"][0]: idx["lin"][0]+d]
-        cz = theta[idx["c"]]
-        return Qz, rz, float(cz)
-
-    Z, mu, sd = _standardize(F)
+    Z, mu, sd = standardize_matrix(F)
     Phi, idx = poly2_features_fn(Z)
     raise RuntimeError("Usa fit_quadrics_from_records_weighted(...) que provee 'w'.")
 
@@ -2370,11 +2346,7 @@ def fit_cubic_from_records_weighted(
             w = w / dens
         return w / (w.sum() + 1e-12)
 
-    def _standardize(X: np.ndarray):
-        mu = X.mean(axis=0)
-        sd = X.std(axis=0); sd[sd<1e-12] = 1.0
-        Z = (X - mu) / sd
-        return Z, mu, sd
+    _standardize = standardize_matrix
 
     def _poly3_features(Z: np.ndarray):
         Z = np.asarray(Z, float)

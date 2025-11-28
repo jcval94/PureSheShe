@@ -18,13 +18,7 @@ from time import perf_counter
 from typing import Callable, Dict, Iterable, Iterator, List, Sequence
 import logging
 
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
+from ._logging_utils import verbosity_to_level
 
 from . import engine
 
@@ -35,7 +29,7 @@ def infer_stage_legacy(*, verbosity: int = 0) -> str:
     """Snapshot of the pre-optimised stage inference helper."""
 
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.log(level, "infer_stage_legacy: inicio")
 
     try:
@@ -69,7 +63,7 @@ def _call_in_fake_deldel(fn: Callable[[], str], *, verbosity: int = 0) -> str:
     """Invoke *fn* as if it was running inside ``DelDel.stage``."""
 
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.log(level, "_call_in_fake_deldel: envolviendo llamada")
 
     FakeDelDel = type("DelDel", (), {})
@@ -86,7 +80,7 @@ def _call_plain(fn: Callable[[], str], *, verbosity: int = 0) -> str:
     """Invoke *fn* from a plain helper without any DelDel context."""
 
     logger = logging.getLogger(__name__)
-    logger.log(_verbosity_to_level(verbosity), "_call_plain: ejecución directa")
+    logger.log(verbosity_to_level(verbosity), "_call_plain: ejecución directa")
 
     def helper():
         return fn()
@@ -104,7 +98,7 @@ class Scenario:
 
     def run(self, fn: Callable[[], str], *, verbosity: int = 0) -> str:
         logger = logging.getLogger(__name__)
-        level = _verbosity_to_level(verbosity)
+        level = verbosity_to_level(verbosity)
         logger.log(level, "Scenario.run: %s inicio", self.name)
         t0 = perf_counter()
         try:
@@ -118,7 +112,7 @@ def _override_infer_stage(fn: Callable[[], str], *, verbosity: int = 0) -> Itera
     """Temporarily redirect :func:`engine._infer_stage` to *fn*."""
 
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.log(level, "_override_infer_stage: instalando override")
     original = engine._infer_stage
     engine._infer_stage = fn  # type: ignore[assignment]
@@ -139,7 +133,7 @@ def _score_adaptor_dataframe_executor(
     """Build an executor that exercises ``ScoreAdaptor.scores`` via pandas."""
 
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.log(level, "_score_adaptor_dataframe_executor: label=%s rows=%d cols=%d", label, len(values), len(feature_names))
 
     import numpy as np
@@ -198,7 +192,7 @@ def _score_adaptor_dataframe_executor(
 
 def _run_scores_with_logging(adaptor, values_arr, log_entries, *, verbosity: int = 0):
     logger = logging.getLogger(__name__)
-    level = _verbosity_to_level(verbosity)
+    level = verbosity_to_level(verbosity)
     logger.log(level, "_run_scores_with_logging: valores=%s", values_arr.shape)
     with engine._collect_calls(log_entries):
         adaptor.scores(values_arr.copy())
