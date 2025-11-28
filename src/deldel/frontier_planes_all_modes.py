@@ -403,7 +403,7 @@ def _cluster_vmf_offsets_perp(
     M: np.ndarray,
     F: np.ndarray,
     *,
-    Kmax: int = 8,
+    Kmax: int = 12,
     random_state: int = 0,
     s_min: float = 0.80,
     t_min: float = 1e-6,
@@ -424,10 +424,51 @@ def _cluster_vmf_offsets_perp(
         km = KMeans(n_clusters=K, n_init=10, random_state=random_state).fit(U)
         lab = km.labels_
         s = silhouette_score(U[sub], lab[sub], metric="cosine") if K > 1 else -0.1
-        score = s - 0.08 * K
+        score = s - 0.05 * K
         if score > best:
             best, bestK, bestlab, bestcent = score, K, lab, km.cluster_centers_
     labels_or, centers = bestlab, bestcent
+
+    # Revisión angular para dividir clusters muy dispersos antes de pasar a offsets
+    labels_refined = labels_or.copy()
+    centers_map: Dict[int, np.ndarray] = {
+        int(k): centers[int(k)] / (np.linalg.norm(centers[int(k)]) + 1e-12)
+        for k in np.unique(labels_or)
+    }
+    next_label = int(labels_refined.max()) + 1
+    to_check = list(np.unique(labels_refined))
+    min_cos_threshold = 0.55
+    spread_threshold = 0.25
+    min_split_size = max(8, 2 * d)
+
+    while to_check:
+        k = int(to_check.pop(0))
+        idx = np.flatnonzero(labels_refined == k)
+        if idx.size < min_split_size:
+            continue
+
+        dmean = centers_map[k] / (np.linalg.norm(centers_map[k]) + 1e-12)
+        cos_vals = U[idx] @ dmean
+        min_cos = float(cos_vals.min())
+        spread = float(cos_vals.max() - cos_vals.min())
+        if min_cos <= min_cos_threshold and spread >= spread_threshold:
+            km_loc = KMeans(n_clusters=2, n_init=10, random_state=random_state).fit(U[idx])
+            lab_loc = km_loc.labels_
+            labels_refined[idx[lab_loc == 0]] = k
+            labels_refined[idx[lab_loc == 1]] = next_label
+            centers_map[k] = km_loc.cluster_centers_[0] / (
+                np.linalg.norm(km_loc.cluster_centers_[0]) + 1e-12
+            )
+            centers_map[next_label] = km_loc.cluster_centers_[1] / (
+                np.linalg.norm(km_loc.cluster_centers_[1]) + 1e-12
+            )
+            to_check.append(next_label)
+            next_label += 1
+
+    uniq = np.unique(labels_refined)
+    relabel = {int(old): i for i, old in enumerate(uniq)}
+    labels_or = np.array([relabel[int(l)] for l in labels_refined], int)
+    centers = np.vstack([centers_map[int(k)] for k in uniq])
 
     all_labels = -np.ones(U.shape[0], int)
     next_base = 0
@@ -574,7 +615,7 @@ def _recluster_discards(
             U[idx_disc],
             M[idx_disc],
             F[idx_disc],
-            Kmax=8,
+            Kmax=12,
             random_state=seed,
             s_min=0.80,
             t_min=1e-6,
