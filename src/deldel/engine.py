@@ -2025,7 +2025,8 @@ def fit_quadrics_from_records_weighted(
     temp: float = 0.15,
     density_k: Optional[int] = 8,
     eps: float = 1e-3,
-    C: float = 10.0
+    C: float = 10.0,
+    n_jobs: Optional[int] = None,
 ):
     def _standardize(X):
         mu = X.mean(axis=0); sd = X.std(axis=0); sd[sd<1e-12]=1.0
@@ -2057,11 +2058,11 @@ def fit_quadrics_from_records_weighted(
 
     F_by, B_by, W_by = build_weighted_frontier(records, prefer_cp, success_only,
                                                weight_map, gamma, temp, None, density_k)
-    models = {}
-    for key, F in F_by.items():
+    def _fit_single(key_and_F):
+        key, F = key_and_F
         w = W_by[key]
         if F.shape[0] < 3:
-            continue
+            return key, None
 
         if mode == "svd":
             Z, mu, sd = _standardize(F)
@@ -2073,9 +2074,9 @@ def fit_quadrics_from_records_weighted(
             d = F.shape[1]
             Qz, rz, cz = _unpack(theta, idx, d)
             Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
-            models[key] = {"Q":Qx, "r":rx, "c":cx, "mode":"svd_w", "cond": S[-1]/(S[0]+1e-12), "weights": w}
+            return key, {"Q":Qx, "r":rx, "c":cx, "mode":"svd_w", "cond": S[-1]/(S[0]+1e-12), "weights": w}
 
-        elif mode == "logistic":
+        if mode == "logistic":
             B = B_by[key]
             Udir = F - B
             Uu = Udir / (np.linalg.norm(Udir, axis=1, keepdims=True) + 1e-12)
@@ -2095,9 +2096,20 @@ def fit_quadrics_from_records_weighted(
             d = X.shape[1]
             Qz, rz, cz = _unpack(theta, idx, d)
             Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
-            models[key] = {"Q":Qx, "r":rx, "c":cx, "mode":"logistic_w", "weights": w}
-        else:
-            raise ValueError("mode debe ser 'svd' o 'logistic'")
+            return key, {"Q":Qx, "r":rx, "c":cx, "mode":"logistic_w", "weights": w}
+
+        raise ValueError("mode debe ser 'svd' o 'logistic'")
+
+    items = list(F_by.items())
+    if n_jobs is not None and len(items) > 1:
+        from joblib import Parallel, delayed
+        results = Parallel(n_jobs=n_jobs, prefer="threads")(
+            delayed(_fit_single)(item) for item in items
+        )
+    else:
+        results = [_fit_single(item) for item in items]
+
+    models = {k: v for k, v in results if v is not None}
     return models
 
 def fit_cubic_from_records_weighted(
@@ -2516,91 +2528,6 @@ def compute_frontier_planes_weighted(
             b = -float(n @ mu)
         planes[key] = {"n": n, "b": b, "mu": mu, "count": int(F.shape[0]), "points": F, "weights": w}
     return planes
-
-def fit_quadrics_from_records_weighted(
-    records: Iterable,
-    mode: str = "svd",           # 'svd' | 'logistic'
-    prefer_cp: bool = True,
-    success_only: bool = True,
-    weight_map: str = "power",
-    gamma: float = 2.0,
-    temp: float = 0.15,
-    density_k: Optional[int] = 8,
-    eps: float = 1e-3,
-    C: float = 10.0
-):
-    def _standardize(X):
-        mu = X.mean(axis=0); sd = X.std(axis=0); sd[sd<1e-12]=1.0
-        return (X-mu)/sd, mu, sd
-    def _destandardize(Qz, rz, cz, mu, sd):
-        D = np.diag(1.0/sd); Qx = D @ Qz @ D; r0 = D @ rz
-        rx = r0 - 2.0*(Qx @ mu); cx = float(mu.T@Qx@mu - r0.T@mu + cz)
-        return Qx, rx, cx
-    def _unpack(theta, idx, d):
-        Qz = np.zeros((d,d))
-        for i in range(d): Qz[i,i] = theta[idx["diag"][i]]
-        for k,(i,j) in enumerate(idx["pairs"]): Qz[i,j]=Qz[j,i]=0.5*theta[idx["off"][k]]
-        rz = theta[idx["lin"][0]: idx["lin"][0]+d]; cz = theta[idx["c"]]
-        return Qz, rz, float(cz)
-    def _poly2(Z):
-        n,d = Z.shape
-        diag=[Z[:,i]**2 for i in range(d)]
-        off=[]; pairs=[]
-        for i in range(d):
-            for j in range(i+1,d):
-                off.append(2.0*Z[:,i]*Z[:,j]); pairs.append((i,j))
-        lin=[Z[:,i] for i in range(d)]
-        Phi = np.column_stack(diag+off+lin+[np.ones(n)])
-        idx={"diag":list(range(d)),
-             "off":list(range(d, d+len(off))),
-             "lin":list(range(d+len(off), d+len(off)+d)),
-             "c":d+len(off)+d, "pairs":pairs}
-        return Phi, idx
-
-    F_by, B_by, W_by = build_weighted_frontier(records, prefer_cp, success_only,
-                                               weight_map, gamma, temp, None, density_k)
-    models = {}
-    for key, F in F_by.items():
-        w = W_by[key];
-        if F.shape[0] < 3:
-            continue
-
-        if mode == "svd":
-            Z, mu, sd = _standardize(F)
-            Phi, idx = _poly2(Z)
-            sw = np.sqrt(w + 1e-12)
-            Phi_w = Phi * sw[:,None]
-            U,S,Vt = np.linalg.svd(Phi_w, full_matrices=False)
-            theta = Vt[-1,:] / (np.linalg.norm(Vt[-1,:]) + 1e-12)
-            d = F.shape[1]
-            Qz, rz, cz = _unpack(theta, idx, d)
-            Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
-            models[key] = {"Q":Qx, "r":rx, "c":cx, "mode":"svd_w", "cond": S[-1]/(S[0]+1e-12), "weights": w}
-
-        elif mode == "logistic":
-            B = B_by[key]
-            Udir = F - B
-            Uu = Udir / (np.linalg.norm(Udir, axis=1, keepdims=True) + 1e-12)
-            eps_r = eps * (0.5 + 0.5*(1.0 - (w / (w.max()+1e-12))))  # en [0.5*eps, eps]
-            Xa = F + (eps_r[:,None]*Uu); Xb = F - (eps_r[:,None]*Uu)
-            X = np.vstack([Xa, Xb])
-            ybin = np.hstack([np.ones(Xa.shape[0], int), -np.ones(Xb.shape[0], int)])
-            w_lr = np.hstack([w, w])
-            Z, mu, sd = _standardize(X)
-            Phi, idx = _poly2(Z)
-            from sklearn.linear_model import LogisticRegression
-            clf = LogisticRegression(C=C, penalty="l2", max_iter=800)
-            clf.fit(Phi, ybin, sample_weight=w_lr)
-            wcoef = clf.coef_.reshape(-1); b0 = clf.intercept_[0]
-            theta = np.r_[wcoef, b0]
-            d = X.shape[1]
-            Qz, rz, cz = _unpack(theta, idx, d)
-            Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
-            models[key] = {"Q":Qx, "r":rx, "c":cx, "mode":"logistic_w", "weights": w}
-        else:
-            raise ValueError("mode debe ser 'svd' o 'logistic'")
-    return models
-
 
 def fit_cubic_from_records_weighted(
     records,
