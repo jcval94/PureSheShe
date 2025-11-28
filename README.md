@@ -143,6 +143,19 @@ print(describe_regions_report(valuable, region_id="rg_2d_c0_8ab309427e", dataset
 print(describe_regions_report(valuable, top_per_class=5, dataset_size=X.shape[0]))
 ```
 
+Cuando se necesitan resultados numéricos listos para CSV, la función
+`describe_regions_metrics` devuelve el mismo Top-K por clase en forma de lista de
+diccionarios con F1 y Lift de precisión por región. El input y el orden de
+ranking coinciden con el de `describe_regions_report`, por lo que basta con
+cambiar la llamada:
+
+```python
+from deldel import describe_regions_metrics
+
+metrics_rows = describe_regions_metrics(valuable, top_per_class=5, dataset_size=X.shape[0])
+# metrics_rows → [{"class_id": 0, "region_id": "rg_1d_c0_*", "f1": 0.73, "lift_precision": 2.06, ...}, ...]
+```
+
 ## Resumen de los CSV de benchmarks 30k×25
 
 Los tres experimentos `high_dim_run_*` incluyen cronómetros agresivos por etapa y los mejores resultados de las búsquedas
@@ -164,6 +177,29 @@ dimensión):
 En todos los casos se usó el mismo RandomForest (30 árboles) con datasets sintéticos de 30k muestras y 25 variables
 informativas (18 útiles, clase balanceada 3-way). Los CSV quedan listos para analizar variabilidad temporal y de calidad al
 ajustar semillas y fronteras.【F:experiments_outputs/high_dim_run_11/stage_timings.csv†L1-L8】【F:experiments_outputs/high_dim_run_17/stage_timings.csv†L1-L8】【F:experiments_outputs/high_dim_run_23/stage_timings.csv†L1-L8】
+
+### Barrido de hiperparámetros agresivo en 20k×25 (F1 y Lift por clase)
+
+El script `experiments_outputs/run_high_dim_metrics_sweep.py` ejecuta un barrido
+mucho más agresivo sobre el dataset sintético grande (20k muestras, 25
+variables) guardando el Top-5 por clase en CSV mediante
+`describe_regions_metrics`. Se tensaron cinco hiperparámetros de
+`find_low_dim_spaces` (`max_planes_in_rule`, `max_planes_per_pair`,
+`min_support`, `min_rel_gain_f1`, `min_lift_prec`) manteniendo
+`consider_dims_up_to=3` para contener el tiempo de cómputo.【F:experiments_outputs/run_high_dim_metrics_sweep.py†L75-L144】
+
+- Las cinco configuraciones cubren desde reglas muy permisivas (soporte mínimo
+  de 12 y 4–6 planos) hasta variantes de alta precisión (lift ≥ 2.5 con soportes
+  mínimos de 60).【F:experiments_outputs/run_high_dim_metrics_sweep.py†L90-L144】
+- Aun con el barrido agresivo, los mejores F1/Lift por clase se mantuvieron
+  idénticos en todas las combinaciones: F1≈0.745 y LiftPrec≈2.53 (clase 0),
+  F1≈0.590 y LiftPrec≈1.65 (clase 1), F1≈0.634 y LiftPrec≈2.21 (clase 2).【F:experiments_outputs/high_dim_metrics_summary.csv†L2-L6】
+- El coste temporal osciló entre 32.0 s y 64.7 s por configuración (dataset de
+  20k×25, búsqueda en 1D/2D/3D).【F:experiments_outputs/high_dim_metrics_summary.csv†L2-L6】
+- Los CSV `high_dim_metrics_summary.csv` (resumen por configuración) y
+  `high_dim_metrics_by_region.csv` (detalle por región y clase) quedan en
+  `experiments_outputs/` para comparar cómo varían los rankings cuando se
+  empujan los hiperparámetros al límite del pipeline.【F:experiments_outputs/high_dim_metrics_by_region.csv†L1-L10】
 
 ## Visualización interactiva de fronteras y superficies
 

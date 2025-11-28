@@ -410,6 +410,93 @@ def describe_regions_report(
     return "\n".join(lines)
 
 
+def describe_regions_metrics(
+    valuable: Dict[int, List[Dict[str, Any]]],
+    *,
+    region_id: Optional[str] = None,
+    top_per_class: int = 2,
+    dataset_size: Optional[int] = None,
+    verbosity: int = 0,
+) -> List[Dict[str, Any]]:
+    """Return structured metrics (F1 y Lift) por clase.
+
+    La entrada y el criterio de ranking replican ``describe_regions_report`` pero
+    en lugar de un texto legible produce una lista de diccionarios numéricos que
+    facilita el volcado a CSV o la inspección programática.  Cada entrada
+    corresponde a una región, mantiene el orden Top-K por clase y expone las
+    métricas principales (``f1`` y ``lift_precision``) junto con identificadores
+    útiles para rastrear resultados.
+    """
+
+    def _as_float(value: Any) -> Optional[float]:
+        try:
+            value_f = float(value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(value_f) or math.isinf(value_f):
+            return None
+        return value_f
+
+    logger = logging.getLogger(__name__)
+    level = verbosity_to_level(verbosity)
+    t0 = perf_counter()
+    logger.log(level, "describe_regions_metrics: inicio | region_id=%s", region_id)
+
+    if region_id:
+        region = _find_by_region_id(valuable, region_id)
+        if region is None:
+            return []
+        size, frac = _region_size_and_frac(region, dataset_size)
+        metrics = region.get("metrics", {}) or {}
+        logger.log(level, "describe_regions_metrics: ficha generada en %.6fs", perf_counter() - t0)
+        return [
+            dict(
+                class_id=int(region.get("target_class")),
+                rank_within_class=1,
+                region_id=region.get("region_id"),
+                dims=tuple(region.get("dims") or ()),
+                f1=_as_float(metrics.get("f1")),
+                lift_precision=_as_float(metrics.get("lift_precision")),
+                precision=_as_float(metrics.get("precision")),
+                recall=_as_float(metrics.get("recall")),
+                support=size,
+                support_frac=float(frac) if isinstance(frac, float) else None,
+                pareto=bool(region.get("is_pareto", False)),
+                cost=_cost_rec(region),
+            )
+        ]
+
+    grouped = _group_by_class(valuable)
+    if not grouped:
+        return []
+
+    k_top = max(1, int(top_per_class))
+    entries: List[Dict[str, Any]] = []
+    for class_id in sorted(grouped.keys()):
+        for idx, region in enumerate(grouped[class_id][:k_top], 1):
+            metrics = region.get("metrics", {}) or {}
+            size, frac = _region_size_and_frac(region, dataset_size)
+            entries.append(
+                dict(
+                    class_id=int(class_id),
+                    rank_within_class=int(idx),
+                    region_id=region.get("region_id"),
+                    dims=tuple(region.get("dims") or ()),
+                    f1=_as_float(metrics.get("f1")),
+                    lift_precision=_as_float(metrics.get("lift_precision")),
+                    precision=_as_float(metrics.get("precision")),
+                    recall=_as_float(metrics.get("recall")),
+                    support=size,
+                    support_frac=float(frac) if isinstance(frac, float) else None,
+                    pareto=bool(region.get("is_pareto", False)),
+                    cost=_cost_rec(region),
+                )
+            )
+
+    logger.log(level, "describe_regions_metrics: fin en %.6fs | clases=%d", perf_counter() - t0, len(grouped))
+    return entries
+
+
 def plot_selected_regions_interactive(
     sel_aug: dict,                # salida de prune_and_orient_planes_unified_globalmaj(...)
     X: np.ndarray,
