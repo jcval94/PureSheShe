@@ -333,6 +333,13 @@ res_c = compute_frontier_planes_all_modes(
     seed=0,
 )
 
+# Notas rápidas sobre `records_` y diversidad de clases
+# - No es necesario recalcular `d.records_` después de `compute_frontier_planes_all_modes`;
+#   la función solo recorre los `DeltaRecord` existentes para ajustar planos.
+# - La diversidad de `records_` se fija en el muestreo de pares dentro de `_pair_candidates_round_robin`,
+#   que reparte cuotas según `p_hat` (o `pair_mix_target` si lo especificas). Si quieres reflejar la
+#   mezcla real de etiquetas, pasa un `pair_mix_target` explícito y vuelve a ejecutar `fit`.
+
 # Ajustar también en los subespacios top del explorer_fast
 res_c_topdims = compute_frontier_planes_all_modes(
     records,
