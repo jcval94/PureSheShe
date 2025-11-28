@@ -114,9 +114,13 @@ def _get_logger(name: str = "deldel", level: int = logging.INFO) -> logging.Logg
     lg = logging.getLogger(name)
     if not lg.handlers:
         h = logging.StreamHandler()
-        h.setFormatter(logging.Formatter("[%(asctime)s][%(levelname)s] %(name)s: %(message)s",
-                                         datefmt="%H:%M:%S"))
+        h.setFormatter(logging.Formatter(
+            "[%(asctime)s][%(levelname)s] %(name)s: %(message)s",
+            datefmt="%H:%M:%S",
+        ))
+        h.setLevel(level)
         lg.addHandler(h)
+        lg.propagate = False
     lg.setLevel(level)
     return lg
 
@@ -795,6 +799,7 @@ class DelDel:
         w_dist = float(getattr(self.cfg, "w_dist", 0.20))
 
         vprint = print if verbose else (lambda *args, **kwargs: None)
+        logger = getattr(self, "logger", _get_logger("DelDel"))
 
         # Unicidad / caps / adaptación
         origin_global_budget   = int(getattr(self.cfg, "origin_global_budget", 2))   # veces máx que un origen puede aparecer en TOTAL
@@ -815,7 +820,9 @@ class DelDel:
         # =================== Datos base ===================
         X, P, y = self._X, self._P, self._y
         if X is None or P is None or y is None:
-            vprint(" [ERROR] X/P/y no inicializados. Regresando vacío.")
+            msg = "X/P/y no inicializados. Regresando vacío."
+            logger.error(msg)
+            vprint(f" [ERROR] {msg}")
             return [], [], [], []
         n, d = X.shape
         C = P.shape[1]
@@ -1255,6 +1262,10 @@ class DelDel:
         if total_sel < segments_target:
             vprint(f"[Aviso] No fue posible alcanzar segments_target={segments_target} con las restricciones. "
                    f"Seleccionados={total_sel}. Se hará un último intento redistributivo dentro de los mismos pares.")
+            logger.warning(
+                "No fue posible alcanzar segments_target=%d con las restricciones. Seleccionados=%d. Se intenta redistribuir.",
+                segments_target, total_sel,
+            )
             # Último intento: tomar del resto de candidatos aunque rompa más las reglas (pero sin cambiar el par)
             for key in order_pairs:
                 need = quotas[key] - len(per_pair_lists[key])
@@ -1299,7 +1310,12 @@ class DelDel:
         vprint(f"TOTAL seleccionados: {len(A_list)} segmentos (objetivo={segments_target})")
 
         if len(A_list) == 0:
+            logger.warning("No se seleccionaron segmentos en round-robin final (objetivo=%d)", segments_target)
             return [], [], [], []
+        logger.info(
+            "Round-robin completado con %d segmentos (objetivo=%d) distribuidos en %d pares",
+            len(A_list), segments_target, len(keys)
+        )
         return [np.vstack(A_list)], [np.vstack(B_list)], yA_list, yB_list
 
 
@@ -1337,16 +1353,28 @@ class DelDel:
                 self._adaptor = ScoreAdaptor(model, mode=self.cfg.mode)
                 self.records_.clear()
                 counts["n_samples"], counts["n_features"] = self._X.shape
+                self.logger.info(
+                    "Inicio de fit con %d muestras y %d características", counts["n_samples"], counts["n_features"]
+                )
 
             with _tick("01_scores_global"):
-                self._P = self._adaptor.scores(self._X)
+                try:
+                    self._P = self._adaptor.scores(self._X)
+                except Exception as exc:
+                    self.logger.error("Error calculando scores globales", exc_info=exc)
+                    raise
                 self._y = np.argmax(self._P, axis=1)
                 labels = sorted(np.unique(self._y).tolist())
                 counts["n_labels"] = len(labels)
+                self.logger.info("Scores globales listos; labels únicas=%s", labels)
                 vprint('labels', labels)
 
             with _tick("02_pair_candidates_round_robin"):
-                A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbose=verbose)
+                try:
+                    A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbose=verbose)
+                except Exception as exc:
+                    self.logger.error("Error generando pares candidatos", exc_info=exc)
+                    raise
 
             if not A_batches:
                 _get_logger("DelDel", logging.WARNING).warning(
@@ -1364,6 +1392,9 @@ class DelDel:
             all_records: List[DeltaRecord] = []
             per_batch_stats: List[Dict[str, Any]] = []
             counts["n_pair_candidates"] = len(yA_list)
+            self.logger.info(
+                "Generación de pares completada; candidatos=%d", counts["n_pair_candidates"]
+            )
 
             for b_idx, (A, B) in enumerate(zip(A_batches, B_batches)):
                 batch_stat = {"batch_index": b_idx}
@@ -1515,16 +1546,28 @@ class DelDel:
             self._adaptor = ScoreAdaptor(model, mode=self.cfg.mode)
             self.records_.clear()
             counts["n_samples"], counts["n_features"] = self._X.shape
+            self.logger.info(
+                "Inicio de fit con %d muestras y %d características", counts["n_samples"], counts["n_features"]
+            )
 
         with _tick("01_scores_global"):
-            self._P = self._adaptor.scores(self._X)
+            try:
+                self._P = self._adaptor.scores(self._X)
+            except Exception as exc:
+                self.logger.error("Error calculando scores globales", exc_info=exc)
+                raise
             self._y = np.argmax(self._P, axis=1)
             labels = sorted(np.unique(self._y).tolist())
             counts["n_labels"] = len(labels)
+            self.logger.info("Scores globales listos; labels únicas=%s", labels)
             vprint('labels', labels)
 
         with _tick("02_pair_candidates_round_robin"):
-            A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbose=verbose)
+            try:
+                A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbose=verbose)
+            except Exception as exc:
+                self.logger.error("Error generando pares candidatos", exc_info=exc)
+                raise
             # print("pair_candidates_round_robin", A_batches)
             # print("pair_candidates_round_robin", B_batches)
             # print("pair_candidates_round_robin", yA_list)
@@ -1546,6 +1589,9 @@ class DelDel:
         all_records: List[DeltaRecord] = []
         per_batch_stats: List[Dict[str, Any]] = []
         counts["n_pair_candidates"] = len(yA_list)
+        self.logger.info(
+            "Generación de pares completada; candidatos=%d", counts["n_pair_candidates"]
+        )
         #--------------------------------------------------------------------------------------------------------------------------------------------
         #--------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -1680,11 +1726,11 @@ class DelDel:
         else:
             timings["09_compute_change_points_for_records"] = 0.0
 
-        with _tick("10_logging"):
-            self.logger.info(
-                "DelDel listo. Pares=%d | tiempo_total=%.1f ms",
-                len(self.records_), (perf_counter() - t_total0) * 1000.0
-            )
+            with _tick("10_logging"):
+                self.logger.info(
+                    "DelDel listo. Pares=%d | tiempo_total=%.1f ms",
+                    len(self.records_), (perf_counter() - t_total0) * 1000.0
+                )
 
         timings["total_ms"] = (perf_counter() - t_total0) * 1000.0
         self.time_stats_ = {
@@ -1704,10 +1750,15 @@ class DelDel:
             recs = recs[:cp.topk_records]
 
         adaptor = self._adaptor
+        logger = getattr(self, "logger", _get_logger("DelDel"))
         # Ronda 0: mids de la malla base para todos los records (generic)
         base_samples = int(getattr(cp, "base_samples", 64))
         max_bisect_iters = int(getattr(cp, "max_bisect_iters", 22))
         limit_points = getattr(cp, "per_record_max_points", None)
+        logger.info(
+            "Inicio de cálculo de change points: records=%d | base_samples=%d | max_bisect_iters=%d | límite_por_record=%s",
+            len(recs), base_samples, max_bisect_iters, limit_points if limit_points is not None else "sin límite",
+        )
 
         pool = _BatchPoolCP(adaptor, getattr(self.cfg, "cache_decimals_stage09", 4))
         try:
@@ -1728,62 +1779,76 @@ class DelDel:
             # Determina cambios y define intervalos [tL,tR] por record
             actives = {}
             for rid, r, t_grid, mids, ends in rec_info:
-                if t_grid is None:
+                try:
+                    if t_grid is None:
+                        r.cp_t = np.empty(0, float); r.cp_x = np.empty((0, r.x0.size), float)
+                        r.cp_y_left = np.empty(0, int); r.cp_y_right = np.empty(0, int); r.cp_count = 0
+                        continue
+                    y_mid = np.argmax(np.vstack([pool.get(rid, "MID0", j) for j in range(mids.size)]), axis=1)
+                    change_idx = np.where(y_mid[1:] != y_mid[:-1])[0]
+                    if change_idx.size == 0:
+                        r.cp_t = np.empty(0, float); r.cp_x = np.empty((0, r.x0.size), float)
+                        r.cp_y_left = np.empty(0, int); r.cp_y_right = np.empty(0, int); r.cp_count = 0
+                        continue
+                    if limit_points is not None and change_idx.size > limit_points:
+                        keep = np.linspace(0, change_idx.size - 1, limit_points).round().astype(int)
+                        change_idx = change_idx[np.unique(keep)]
+                    tB = t_grid
+                    tL = tB[change_idx]; tR = tB[change_idx + 1]
+                    yL = y_mid[change_idx]; yR = y_mid[change_idx + 1]
+                    actives[rid] = {"r": r, "ends": ends, "tL": tL, "tR": tR, "yL": yL, "yR": yR}
+                except Exception as exc:
+                    logger.error("Error calculando puntos iniciales para record %d", rid, exc_info=exc)
                     r.cp_t = np.empty(0, float); r.cp_x = np.empty((0, r.x0.size), float)
                     r.cp_y_left = np.empty(0, int); r.cp_y_right = np.empty(0, int); r.cp_count = 0
-                    continue
-                y_mid = np.argmax(np.vstack([pool.get(rid, "MID0", j) for j in range(mids.size)]), axis=1)
-                change_idx = np.where(y_mid[1:] != y_mid[:-1])[0]
-                if change_idx.size == 0:
-                    r.cp_t = np.empty(0, float); r.cp_x = np.empty((0, r.x0.size), float)
-                    r.cp_y_left = np.empty(0, int); r.cp_y_right = np.empty(0, int); r.cp_count = 0
-                    continue
-                if limit_points is not None and change_idx.size > limit_points:
-                    keep = np.linspace(0, change_idx.size - 1, limit_points).round().astype(int)
-                    change_idx = change_idx[np.unique(keep)]
-                tB = t_grid
-                tL = tB[change_idx]; tR = tB[change_idx + 1]
-                yL = y_mid[change_idx]; yR = y_mid[change_idx + 1]
-                actives[rid] = {"r": r, "ends": ends, "tL": tL, "tR": tR, "yL": yL, "yR": yR}
 
             # Rondas de bisección batched
             for _ in range(max_bisect_iters):
                 push_count = 0
                 for rid, info in actives.items():
-                    x0, x1 = info["ends"]
-                    tL, tR = info["tL"], info["tR"]
-                    mids = 0.5*(tL + tR)
-                    Xm = _points_on_segment(x0, x1, mids)
-                    for j, row in enumerate(Xm):
-                        pool.push(rid, "BIS", j, row)
-                        push_count += 1
+                    try:
+                        x0, x1 = info["ends"]
+                        tL, tR = info["tL"], info["tR"]
+                        mids = 0.5*(tL + tR)
+                        Xm = _points_on_segment(x0, x1, mids)
+                        for j, row in enumerate(Xm):
+                            pool.push(rid, "BIS", j, row)
+                            push_count += 1
+                    except Exception as exc:
+                        logger.error("Error preparando bisección para record %d", rid, exc_info=exc)
+                        continue
                 if push_count == 0: break
                 pool.flush()
                 next_actives = {}
                 for rid, info in actives.items():
-                    x0, x1 = info["ends"]
-                    tL, tR, yL, yR = info["tL"], info["tR"], info["yL"], info["yR"]
-                    m = tL.size
-                    yM = np.argmax(np.vstack([pool.get(rid, "BIS", j) for j in range(m)]), axis=1)
-                    # Actualiza intervalos (bisección clásica por etiquetas)
-                    keepL = (yM == yL)
-                    keepR = ~keepL
-                    tL2 = np.where(keepL, 0.5*(tL + tR), tL)
-                    tR2 = np.where(keepR, 0.5*(tL + tR), tR)
-                    yL2 = np.where(keepL, yM, yL)
-                    yR2 = np.where(keepR, yM, yR)
-                    # Criterio de parada: cuando ya no cambian (longitud mínima)
-                    done = np.all(np.abs(tR2 - tL2) < 1e-6)
-                    if not done:
-                        next_actives[rid] = {"r": info["r"], "ends": (x0, x1), "tL": tL2, "tR": tR2, "yL": yL2, "yR": yR2}
-                    else:
-                        # guarda resultado aproximado
-                        t_star = 0.5*(tL2 + tR2)
-                        info["r"].cp_t = t_star.astype(float)
-                        info["r"].cp_x = _points_on_segment(x0, x1, t_star).astype(float)
-                        info["r"].cp_y_left = yL2.astype(int)
-                        info["r"].cp_y_right = yR2.astype(int)
-                        info["r"].cp_count = int(t_star.size)
+                    try:
+                        x0, x1 = info["ends"]
+                        tL, tR, yL, yR = info["tL"], info["tR"], info["yL"], info["yR"]
+                        m = tL.size
+                        yM = np.argmax(np.vstack([pool.get(rid, "BIS", j) for j in range(m)]), axis=1)
+                        # Actualiza intervalos (bisección clásica por etiquetas)
+                        keepL = (yM == yL)
+                        keepR = ~keepL
+                        tL2 = np.where(keepL, 0.5*(tL + tR), tL)
+                        tR2 = np.where(keepR, 0.5*(tL + tR), tR)
+                        yL2 = np.where(keepL, yM, yL)
+                        yR2 = np.where(keepR, yM, yR)
+                        # Criterio de parada: cuando ya no cambian (longitud mínima)
+                        done = np.all(np.abs(tR2 - tL2) < 1e-6)
+                        if not done:
+                            next_actives[rid] = {"r": info["r"], "ends": (x0, x1), "tL": tL2, "tR": tR2, "yL": yL2, "yR": yR2}
+                        else:
+                            # guarda resultado aproximado
+                            t_star = 0.5*(tL2 + tR2)
+                            info["r"].cp_t = t_star.astype(float)
+                            info["r"].cp_x = _points_on_segment(x0, x1, t_star).astype(float)
+                            info["r"].cp_y_left = yL2.astype(int)
+                            info["r"].cp_y_right = yR2.astype(int)
+                            info["r"].cp_count = int(t_star.size)
+                    except Exception as exc:
+                        logger.error("Error durante la bisección del record %d", rid, exc_info=exc)
+                        info["r"].cp_t = np.empty(0, float); info["r"].cp_x = np.empty((0, info["r"].x0.size), float)
+                        info["r"].cp_y_left = np.empty(0, int); info["r"].cp_y_right = np.empty(0, int); info["r"].cp_count = 0
                 actives = next_actives
 
             # Finaliza los que queden activos (máx iters alcanzado)
@@ -1795,6 +1860,11 @@ class DelDel:
                 info["r"].cp_y_left = info["yL"].astype(int)
                 info["r"].cp_y_right = info["yR"].astype(int)
                 info["r"].cp_count = int(t_star.size)
+            total_cp = int(sum(getattr(r, "cp_count", 0) for r in recs))
+            logger.info(
+                "Change points completados: records=%d | puntos_totales=%d",
+                len(recs), total_cp,
+            )
         finally:
             pool.close()
 
