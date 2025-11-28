@@ -7,17 +7,8 @@ from time import perf_counter
 
 import numpy as np
 
+from deldel.utils import _verbosity_to_level
 from .engine import DeltaRecord
-
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    if verbosity == 0:
-        return logging.WARNING
-    return logging.ERROR
 
 
 # ===================== compute_frontier_planes_all_modes — Modo C (mejorado) =====================

@@ -25,6 +25,8 @@ import warnings
 
 import numpy as np
 
+from deldel.utils import _verbosity_to_level
+
 from .datasets import make_corner_class_dataset
 from .engine import ChangePointConfig, DelDel, DelDelConfig, DeltaRecord
 from .frontier_planes_all_modes import compute_frontier_planes_all_modes
@@ -180,14 +182,6 @@ def _write_stage_timings_csv(
                 row[key] = value
 
         writer.writerow(row)
-
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
 
 
 def _setup_logger(name: str, verbosity: int) -> logging.Logger:

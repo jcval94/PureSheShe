@@ -4,6 +4,15 @@ DelDel es una biblioteca ligera para instrumentar clasificadores y descubrir reg
 configuración por defecto se centra en el `MultiClassSubspaceExplorer`, que ahora puede ejecutarse con un bundle curado de los
 cinco mejores métodos derivados del análisis multi-dataset.
 
+## Resumen de cambios recientes
+
+- Se consolidaron los helpers numéricos comunes (`_standardize`, `_destandardize`, `_unpack`) y el mapeo de verbosidad en
+  `src/deldel/utils.py` para evitar duplicaciones dentro del paquete.
+- El helper `_verbosity_to_level` vuelve a replicar la lógica original (valores <1 se mapean a `WARNING`) para mantener la
+  compatibilidad con los módulos que lo usaban antes del refactor.
+- Se verificó que la suite de pruebas (`python -m pytest tests`) entrega los mismos resultados que la versión anterior y se
+  documentó la comparación en `tests_results_comparison.csv`.
+
 ## Instalación
 
 El proyecto utiliza la convención de *src layout* y, gracias a la configuración en `pyproject.toml`, tanto `deldel` como

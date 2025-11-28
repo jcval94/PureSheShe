@@ -10,13 +10,7 @@ from time import perf_counter
 import numpy as np
 from sklearn.datasets import make_blobs, make_classification
 
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
+from deldel.utils import _verbosity_to_level
 
 
 def make_corner_class_dataset(

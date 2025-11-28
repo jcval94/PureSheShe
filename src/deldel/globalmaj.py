@@ -28,13 +28,7 @@ from time import perf_counter
 import math
 import numpy as np
 
-
-def _verbosity_to_level(verbosity: int) -> int:
-    if verbosity >= 2:
-        return logging.DEBUG
-    if verbosity == 1:
-        return logging.INFO
-    return logging.WARNING
+from deldel.utils import _verbosity_to_level
 
 
 # ============================================================

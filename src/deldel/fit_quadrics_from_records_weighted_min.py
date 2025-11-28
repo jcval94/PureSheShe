@@ -10,6 +10,8 @@ from time import perf_counter
 
 import numpy as np
 
+from deldel.utils import _destandardize, _standardize, _unpack
+
 
 logger = logging.getLogger(__name__)
 
@@ -163,34 +165,6 @@ def fit_quadrics_from_records_weighted(
             "weights": w (pesos usados)
         }
     """
-
-    def _standardize(X: np.ndarray):
-        mu = X.mean(axis=0)
-        sd = X.std(axis=0)
-        sd[sd < 1e-12] = 1.0
-        return (X - mu) / sd, mu, sd
-
-    def _destandardize(Qz, rz, cz, mu, sd):
-        D = np.diag(1.0 / sd)
-        Qx = D @ Qz @ D
-        r0 = D @ rz
-        rx = r0 - 2.0 * (Qx @ mu)
-        cx = float(mu.T @ Qx @ mu - r0.T @ mu + cz)
-        return Qx, rx, cx
-
-    def _unpack(theta, idx, d):
-        Qz = np.zeros((d, d))
-        # términos diagonales
-        for i in range(d):
-            Qz[i, i] = theta[idx["diag"][i]]
-        # términos fuera de diagonal (simetrizados)
-        for k, (i, j) in enumerate(idx["pairs"]):
-            val = 0.5 * theta[idx["off"][k]]
-            Qz[i, j] = val
-            Qz[j, i] = val
-        rz = theta[idx["lin"][0]: idx["lin"][0] + d]
-        cz = theta[idx["c"]]
-        return Qz, rz, float(cz)
 
     def _poly2(Z: np.ndarray):
         n, d = Z.shape
