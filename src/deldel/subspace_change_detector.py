@@ -1399,7 +1399,12 @@ class MultiClassSubspaceExplorer:
         results: List[SubspaceReport] = []
 
         counts = np.unique(y, return_counts=True)[1]
-        n_splits = int(min(self.cv_splits, counts.min())) if counts.size else 0
+        if counts.size:
+            min_class = counts.min()
+            requested_splits = max(int(self.cv_splits), 2)
+            n_splits = int(min(requested_splits, min_class))
+        else:
+            n_splits = 0
 
         if n_splits < 2:
             self.evaluated_reports_ = []
