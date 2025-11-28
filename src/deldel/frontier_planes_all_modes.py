@@ -15,7 +15,9 @@ def _verbosity_to_level(verbosity: int) -> int:
         return logging.DEBUG
     if verbosity == 1:
         return logging.INFO
-    return logging.WARNING
+    if verbosity == 0:
+        return logging.WARNING
+    return logging.ERROR
 
 
 # ===================== compute_frontier_planes_all_modes — Modo C (mejorado) =====================
@@ -381,6 +383,8 @@ def _maybe_split_bimodal_by_sign(
     min_side_frac: float = 0.25,
     mean_abs_max: float = 0.2,
 ) -> Optional[np.ndarray]:
+    if U.size == 0:
+        return None
     proj = U @ n.reshape(-1)
     frac_pos = float((proj >= 0).mean())
     frac_neg = 1.0 - frac_pos
@@ -867,11 +871,13 @@ def compute_frontier_planes_all_modes(
     explorer_reports: Optional[Sequence[Any]] = None,
     explorer_feature_names: Optional[Sequence[str]] = None,
     explorer_top_k: int = 5,
-    verbosity: int = 0,
+    verbosity: Optional[int] = None,
+    verbose: bool = False,
 ) -> Dict[Tuple[int, int], Dict[str, Any]]:
     """Encuentra planos frontera por par de clases usando exclusivamente el modo C mejorado."""
 
     logger = logging.getLogger(__name__)
+    verbosity = 1 if (verbosity is None and verbose) else (-1 if verbosity is None else int(verbosity))
     level = _verbosity_to_level(verbosity)
     logger.setLevel(level)
     explorer_top_k = int(explorer_top_k)
