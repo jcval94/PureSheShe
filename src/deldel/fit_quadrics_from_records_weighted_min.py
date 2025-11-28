@@ -147,6 +147,7 @@ def fit_quadrics_from_records_weighted(
     density_k: Optional[int] = 8,
     eps: float = 1e-3,
     C: float = 10.0,
+    n_jobs: Optional[int] = None,
     verbosity: int = 0,
 ) -> Dict[Tuple[int, int], Dict[str, np.ndarray]]:
     """
@@ -227,15 +228,13 @@ def fit_quadrics_from_records_weighted(
         verbosity=verbosity,
     )
 
-    models: Dict[Tuple[int, int], Dict[str, np.ndarray]] = {}
-
-    for key, F in F_by.items():
+    def _fit_single(item):
+        key, F = item
         pair_start = perf_counter()
         w = W_by[key]
         if F.shape[0] < 3:
-            # No hay suficientes puntos para una cuádrica estable
             _vlog(verbosity, 2, "fit_quadrics:skip_small", pair=key, points=F.shape[0])
-            continue
+            return key, None
 
         cond_val = float("nan")
 
@@ -254,7 +253,7 @@ def fit_quadrics_from_records_weighted(
             Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
             cond_val = float(S[-1] / (S[0] + 1e-12))
 
-            models[key] = {
+            model = {
                 "Q": Qx,
                 "r": rx,
                 "c": cx,
@@ -296,7 +295,7 @@ def fit_quadrics_from_records_weighted(
             Qz, rz, cz = _unpack(theta, idx, d)
             Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
 
-            models[key] = {
+            model = {
                 "Q": Qx,
                 "r": rx,
                 "c": cx,
@@ -317,6 +316,19 @@ def fit_quadrics_from_records_weighted(
             cond=cond_val,
             elapsed_s=round(perf_counter() - pair_start, 6),
         )
+        return key, model
+
+    items = list(F_by.items())
+    if n_jobs is not None and len(items) > 1:
+        from joblib import Parallel, delayed
+
+        results = Parallel(n_jobs=n_jobs, prefer="threads")(
+            delayed(_fit_single)(item) for item in items
+        )
+    else:
+        results = [_fit_single(item) for item in items]
+
+    models: Dict[Tuple[int, int], Dict[str, np.ndarray]] = {k: v for k, v in results if v is not None}
 
     _vlog(
         verbosity,

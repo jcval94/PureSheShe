@@ -196,6 +196,7 @@ def fit_quadrics_from_records_weighted(
     density_k: Optional[int] = 8,
     eps: float = 1e-3,
     C: float = 10.0,
+    n_jobs: Optional[int] = None,
     *,
     verbosity: int = 0,
 ):
@@ -234,12 +235,12 @@ def fit_quadrics_from_records_weighted(
     F_by, B_by, W_by = build_weighted_frontier(records, prefer_cp, success_only,
                                                weight_map, gamma, temp, None, density_k,
                                                verbosity=max(verbosity - 1, 0))
-    models = {}
-    for key, F in F_by.items():
+    def _fit_single(key_and_F):
+        key, F = key_and_F
         w = W_by[key];
         if F.shape[0] < 3:
             logger.log(level, "fit_quadrics_from_records_weighted: skip %s por falta de puntos (%d)", key, F.shape[0])
-            continue
+            return key, None
 
         if mode == "svd":
             Z, mu, sd = _standardize(F)
@@ -251,10 +252,11 @@ def fit_quadrics_from_records_weighted(
             d = F.shape[1]
             Qz, rz, cz = _unpack(theta, idx, d)
             Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
-            models[key] = {"Q":Qx, "r":rx, "c":cx, "mode":"svd_w", "cond": S[-1]/(S[0]+1e-12), "weights": w}
+            model = {"Q":Qx, "r":rx, "c":cx, "mode":"svd_w", "cond": S[-1]/(S[0]+1e-12), "weights": w}
             logger.log(level, "fit_quadrics_from_records_weighted: modelo svd %s cond=%.6f", key, S[-1]/(S[0]+1e-12))
+            return key, model
 
-        elif mode == "logistic":
+        if mode == "logistic":
             B = B_by[key]
             Udir = F - B
             Uu = Udir / (np.linalg.norm(Udir, axis=1, keepdims=True) + 1e-12)
@@ -273,10 +275,22 @@ def fit_quadrics_from_records_weighted(
             d = X.shape[1]
             Qz, rz, cz = _unpack(theta, idx, d)
             Qx, rx, cx = _destandardize(Qz, rz, cz, mu, sd)
-            models[key] = {"Q":Qx, "r":rx, "c":cx, "mode":"logistic_w", "weights": w}
+            model = {"Q":Qx, "r":rx, "c":cx, "mode":"logistic_w", "weights": w}
             logger.log(level, "fit_quadrics_from_records_weighted: modelo logit %s w_mean=%.6f", key, float(np.mean(w)))
-        else:
-            raise ValueError("mode debe ser 'svd' o 'logistic'")
+            return key, model
+
+        raise ValueError("mode debe ser 'svd' o 'logistic'")
+
+    items = list(F_by.items())
+    if n_jobs is not None and len(items) > 1:
+        from joblib import Parallel, delayed
+        results = Parallel(n_jobs=n_jobs, prefer="threads")(
+            delayed(_fit_single)(item) for item in items
+        )
+    else:
+        results = [_fit_single(item) for item in items]
+
+    models = {k: v for k, v in results if v is not None}
     logger.log(level, "fit_quadrics_from_records_weighted: fin en %.4fs | modelos=%d", perf_counter() - t0, len(models))
     return models
 

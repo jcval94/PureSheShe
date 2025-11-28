@@ -241,6 +241,34 @@ def test_fit_quadrics_and_cubics(sample_records):
     for model in quadrics.values():
         assert set(model.keys()) >= {"Q", "r", "c", "weights"}
 
+
+def test_fit_quadrics_parallel_matches_serial(sample_records):
+    serial = run_and_time(
+        "fit_quadrics_from_records_weighted (serial)",
+        fit_quadrics_from_records_weighted,
+        sample_records,
+        prefer_cp=False,
+        n_jobs=1,
+    )
+
+    parallel = run_and_time(
+        "fit_quadrics_from_records_weighted (parallel)",
+        fit_quadrics_from_records_weighted,
+        sample_records,
+        prefer_cp=False,
+        n_jobs=2,
+    )
+
+    assert serial.keys() == parallel.keys()
+    for key in serial:
+        a = serial[key]
+        b = parallel[key]
+        assert set(a.keys()) == set(b.keys())
+        assert_allclose(a["Q"], b["Q"], rtol=1e-8, atol=1e-10)
+        assert_allclose(a["r"], b["r"], rtol=1e-8, atol=1e-10)
+        assert np.isclose(a["c"], b["c"], rtol=1e-8, atol=1e-10)
+        assert_allclose(a["weights"], b["weights"], rtol=1e-8, atol=1e-10)
+
     cubics = run_and_time(
         "fit_cubic_from_records_weighted",
         fit_cubic_from_records_weighted,
