@@ -1,2 +1,0 @@
-run_index,runtime_s,params_json,regions_total,regions_dim1,best_f1_dim1,best_precision_dim1,regions_dim2,best_f1_dim2,best_precision_dim2,regions_dim3,best_f1_dim3,best_precision_dim3,regions_dim4,best_f1_dim4,best_precision_dim4
-0,0.704125,"{""consider_dims_up_to"": 4, ""max_planes_in_rule"": 3, ""max_planes_per_pair"": 4, ""min_lift_prec"": 1.4, ""min_rel_gain_f1"": 0.05, ""min_support"": 40, ""rng_seed"": 0}",200,50,0.741201,0.590759,50,0.845606,0.818182,50,0.942779,0.925134,50,0.946176,0.968944
