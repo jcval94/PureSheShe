@@ -35,7 +35,7 @@ import numpy as np
 from sklearn.feature_selection import mutual_info_classif
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
@@ -1399,21 +1399,32 @@ class MultiClassSubspaceExplorer:
         results: List[SubspaceReport] = []
 
         counts = np.unique(y, return_counts=True)[1]
-        if counts.size:
-            min_class = counts.min()
-            requested_splits = max(int(self.cv_splits), 2)
-            n_splits = int(min(requested_splits, min_class))
-        else:
-            n_splits = 0
-
-        if n_splits < 2:
+        if not counts.size:
             self.evaluated_reports_ = []
             self.candidate_reports_ = {}
             return []
 
-        skf = StratifiedKFold(
-            n_splits=n_splits, shuffle=True, random_state=self.random_state
-        )
+        min_class = counts.min()
+        if self.cv_splits <= 1:
+            if min_class < 2:
+                self.evaluated_reports_ = []
+                self.candidate_reports_ = {}
+                return []
+            splitter = StratifiedShuffleSplit(
+                n_splits=1,
+                test_size=0.25 if min_class > 3 else 0.5,
+                random_state=self.random_state,
+            )
+        else:
+            requested_splits = max(int(self.cv_splits), 2)
+            n_splits = int(min(requested_splits, min_class))
+            if n_splits < 2:
+                self.evaluated_reports_ = []
+                self.candidate_reports_ = {}
+                return []
+            splitter = StratifiedKFold(
+                n_splits=n_splits, shuffle=True, random_state=self.random_state
+            )
 
         # FAST PATH: omitir métricas secundarias caras en fast
         compute_secondary = True
@@ -1428,7 +1439,7 @@ class MultiClassSubspaceExplorer:
                 continue
 
             try:
-                metrics = _evaluate_subspace(X_sub, y, skf, classes)
+                metrics = _evaluate_subspace(X_sub, y, splitter, classes)
             except ValueError:
                 continue
 
@@ -2987,7 +2998,7 @@ def _encode_features(table: _Table, features: Sequence[str]) -> np.ndarray:
 def _evaluate_subspace(
     X: np.ndarray,
     y: np.ndarray,
-    skf: StratifiedKFold,
+    splitter: Any,
     classes: np.ndarray,
 ) -> Dict[str, Any]:
     scaler = StandardScaler()
@@ -2996,7 +3007,7 @@ def _evaluate_subspace(
     per_class_accum = np.zeros(classes.size, float)
     support = 0
 
-    for train_idx, test_idx in skf.split(X, y):
+    for train_idx, test_idx in splitter.split(X, y):
         X_train, X_test = X[train_idx], X[test_idx]
         y_train, y_test = y[train_idx], y[test_idx]
 

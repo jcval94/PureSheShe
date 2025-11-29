@@ -1,0 +1,11 @@
+version,run_seconds,mean_seconds,runs
+previous_2fold,0.0324,0.0305,5
+previous_2fold,0.0233,0.0305,5
+previous_2fold,0.0229,0.0305,5
+previous_2fold,0.0191,0.0305,5
+previous_2fold,0.0546,0.0305,5
+current_shuffle_holdout,0.0142,0.0206,5
+current_shuffle_holdout,0.0122,0.0206,5
+current_shuffle_holdout,0.0134,0.0206,5
+current_shuffle_holdout,0.0137,0.0206,5
+current_shuffle_holdout,0.0497,0.0206,5
