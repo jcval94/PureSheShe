@@ -1,7 +1,0 @@
-stage,callable,duration_s,params,run_index
-dataset_generation,deldel.datasets.make_corner_class_dataset,0.002481,"{""a"": 2.8, ""n_per_cluster"": 180, ""random_state"": 0, ""std_class1"": 0.5, ""std_other"": 0.85}",
-model_fit,sklearn.ensemble.RandomForestClassifier.fit,0.094635,,
-deldel_fit,deldel.engine.DelDel.fit,1.158430,,
-frontier_computation,deldel.frontier_planes_all_modes.compute_frontier_planes_all_modes,3.095632,,
-selection_prune,deldel.experiments.prune_and_orient_planes_unified_globalmaj,0.144507,,
-find_low_dim_spaces_run_0,deldel.find_low_dim_spaces_fast.find_low_dim_spaces,0.704125,,0.000000
