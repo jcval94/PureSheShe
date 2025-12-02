@@ -289,13 +289,15 @@ def _collect_all_planes(res: Dict[Tuple[int, int], Dict[str, Any]]) -> List[Dict
 
 
 def _same_family(
-    n1: np.ndarray, b1: float, n2: np.ndarray, b2: float,
+    n1: np.ndarray, b1: float, side1: int, n2: np.ndarray, b2: float, side2: int,
     *,
     cos_parallel: float = 0.999,
     tau_mult: float = 0.5,
     coef_eps: float = 1e-8,
     jaccard_support: float = 0.80,
-    coef_cos_min: float = 0.995
+    coef_cos_min: float = 0.995,
+    X_sample: Optional[np.ndarray] = None,
+    jaccard_region: Optional[float] = None,
 ) -> bool:
     """
     Decide si (n1,b1) y (n2,b2) (normales y b ya normalizados) pertenecen a la misma familia.
@@ -304,7 +306,11 @@ def _same_family(
       2) Distancia normalizada pequeña: |b1 - s*b2| <= tau, con s = sign(u1·u2)
          donde tau = tau_mult * tau_ref. Usamos tau_ref=1e-2 por defecto (fijo y estricto).
       3) Similitud de soporte y coseno en soporte: Jaccard >= jaccard_support y cos >= coef_cos_min
+      4) Si se provee X_sample: Jaccard de las máscaras inducidas debe ser alto
     """
+    if int(side1) != int(side2):
+        return False
+
     u1, b1n = _normalize_plane(n1, b1)
     u2, b2n = _normalize_plane(n2, b2)
 
@@ -326,6 +332,13 @@ def _same_family(
     mask = np.logical_or(s1, s2)
     if _cosine_on_support(n1, n2, mask) < coef_cos_min:
         return False
+
+    if X_sample is not None:
+        jr = jaccard_region if jaccard_region is not None else jaccard_support
+        mask1 = _pred_halfspace(X_sample, n1, b1, side1)
+        mask2 = _pred_halfspace(X_sample, n2, b2, side2)
+        if _jaccard(mask1, mask2) < jr:
+            return False
 
     return True
 
@@ -694,16 +707,29 @@ def prune_and_orient_planes_unified_globalmaj(
         r["entropy_eval"] = entropy_list[i]
 
     # ------------------ Familias (colapso extremadamente estricto) ------------------
+    # Usamos una muestra de X_eval para validar similitud real de las máscaras
+    if X_eval.size > 0:
+        sample_size = min(X_eval.shape[0], 2048)
+        if sample_size < X_eval.shape[0]:
+            rng_family = np.random.default_rng(2029)
+            idx_sample = rng_family.choice(X_eval.shape[0], size=sample_size, replace=False)
+            X_family = X_eval[idx_sample]
+        else:
+            X_family = X_eval
+    else:
+        X_family = None
+
     family_id = 0
     families: List[Dict[str, Any]] = []  # cada elemento: dict(rep=oriented_pool[i], members=[indices])
     for i, r in enumerate(oriented_pool):
         assigned = False
         for fam in families:
             rp = fam["rep"]
-            if _same_family(r["n"], r["b"], rp["n"], rp["b"],
+            if _same_family(r["n"], r["b"], r.get("side", 0), rp["n"], rp["b"], rp.get("side", 0),
                             cos_parallel=cos_parallel, tau_mult=tau_mult,
                             coef_eps=coef_eps, jaccard_support=jaccard_support,
-                            coef_cos_min=coef_cos_min):
+                            coef_cos_min=coef_cos_min, X_sample=X_family,
+                            jaccard_region=jaccard_support):
                 fam["members"].append(i)
                 assigned = True
                 break
