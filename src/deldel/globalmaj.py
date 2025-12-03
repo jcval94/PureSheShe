@@ -298,6 +298,15 @@ def _same_family(
     coef_cos_min: float = 0.995,
     X_sample: Optional[np.ndarray] = None,
     jaccard_region: Optional[float] = None,
+    best_class1: Optional[int] = None,
+    best_class2: Optional[int] = None,
+    metrics_by_class1: Optional[Dict[int, Dict[str, float]]] = None,
+    metrics_by_class2: Optional[Dict[int, Dict[str, float]]] = None,
+    metric_dist_threshold: Optional[float] = None,
+    metric_weights: Optional[Dict[str, float]] = None,
+    metric_norm: str = "l2",
+    label_weight1: Optional[float] = None,
+    label_weight2: Optional[float] = None,
 ) -> bool:
     """
     Decide si (n1,b1) y (n2,b2) (normales y b ya normalizados) pertenecen a la misma familia.
@@ -307,9 +316,12 @@ def _same_family(
          donde tau = tau_mult * tau_ref. Usamos tau_ref=1e-2 por defecto (fijo y estricto).
       3) Similitud de soporte y coseno en soporte: Jaccard >= jaccard_support y cos >= coef_cos_min
       4) Si se provee X_sample: Jaccard de las máscaras inducidas debe ser alto
+      5) Si se proveen métricas y mismo best_class: distancia de métricas <= metric_dist_threshold
     """
-    if int(side1) != int(side2):
-        return False
+    same_side = int(side1) == int(side2)
+
+    n1 = np.asarray(n1, float).reshape(-1)
+    n2 = np.asarray(n2, float).reshape(-1)
 
     u1, b1n = _normalize_plane(n1, b1)
     u2, b2n = _normalize_plane(n2, b2)
@@ -333,11 +345,45 @@ def _same_family(
     if _cosine_on_support(n1, n2, mask) < coef_cos_min:
         return False
 
-    if X_sample is not None:
+    if same_side and (X_sample is not None):
         jr = jaccard_region if jaccard_region is not None else jaccard_support
         mask1 = _pred_halfspace(X_sample, n1, b1, side1)
         mask2 = _pred_halfspace(X_sample, n2, b2, side2)
         if _jaccard(mask1, mask2) < jr:
+            return False
+
+    # Distancia de métricas por clase (opcional)
+    if (metric_dist_threshold is not None) and (best_class1 is not None) and (best_class2 is not None):
+        if int(best_class1) != int(best_class2):
+            return False
+
+        keys = ["lift", "recall", "precision", "f1"]
+        weights = np.array([metric_weights.get(k, 1.0) for k in keys]) if metric_weights else np.ones(len(keys))
+
+        def _vec(metrics: Optional[Dict[int, Dict[str, float]]]) -> Optional[np.ndarray]:
+            if not metrics or int(best_class1) not in metrics:
+                return None
+            m = metrics[int(best_class1)]
+            return np.array([float(m.get(k, 0.0)) for k in keys])
+
+        v1 = _vec(metrics_by_class1)
+        v2 = _vec(metrics_by_class2)
+
+        if v1 is None or v2 is None:
+            return False
+
+        # Factor opcional basado en la etiqueta de origen (planes_by_label)
+        lw1 = max(1.0, abs(float(label_weight1))) if label_weight1 is not None else 1.0
+        lw2 = max(1.0, abs(float(label_weight2))) if label_weight2 is not None else 1.0
+        label_factor = math.sqrt(lw1 * lw2)
+
+        diff = (v1 - v2) * weights * label_factor
+        if metric_norm.lower() == "l1":
+            dist_metrics = float(np.sum(np.abs(diff)))
+        else:
+            dist_metrics = float(np.sqrt(np.sum(diff ** 2)))
+
+        if dist_metrics > float(metric_dist_threshold):
             return False
 
     return True
@@ -560,6 +606,9 @@ def prune_and_orient_planes_unified_globalmaj(
     coef_eps: float = 1e-8,
     jaccard_support: float = 0.80,
     coef_cos_min: float = 0.995,
+    metric_dist_threshold: Optional[float] = None,
+    metric_weights: Optional[Dict[str, float]] = None,
+    metric_norm: str = "l2",
     # Guardarraíles globales
     min_region_size: int = 30,
     min_abs_diff: float = 0.05,
@@ -729,7 +778,12 @@ def prune_and_orient_planes_unified_globalmaj(
                             cos_parallel=cos_parallel, tau_mult=tau_mult,
                             coef_eps=coef_eps, jaccard_support=jaccard_support,
                             coef_cos_min=coef_cos_min, X_sample=X_family,
-                            jaccard_region=jaccard_support):
+                            jaccard_region=jaccard_support,
+                            best_class1=r.get("best_class"), best_class2=rp.get("best_class"),
+                            metrics_by_class1=r.get("metrics_by_class"), metrics_by_class2=rp.get("metrics_by_class"),
+                            metric_dist_threshold=metric_dist_threshold,
+                            metric_weights=metric_weights, metric_norm=metric_norm,
+                            label_weight1=r.get("label"), label_weight2=rp.get("label")):
                 fam["members"].append(i)
                 assigned = True
                 break
