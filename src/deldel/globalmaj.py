@@ -776,21 +776,21 @@ def prune_and_orient_planes_unified_globalmaj(
     metric_dist_threshold: Optional[float] = None,
     metric_weights: Optional[Dict[str, float]] = None,
     metric_norm: str = "l2",
-    family_clustering_mode: str = "greedy",  # {"greedy", "connected", "dbscan"}
-    family_dbscan_eps: float = 0.5,
+    family_clustering_mode: str = "dbscan",  # {"greedy", "connected", "dbscan"}
+    family_dbscan_eps: float = 0.30,
     family_dbscan_min_samples: int = 1,
     # Guardarraíles globales
-    min_region_size: int = 30,
-    min_abs_diff: float = 0.05,
-    min_rel_lift: float = 0.25,
+    min_region_size: int = 20,
+    min_abs_diff: float = 0.01,
+    min_rel_lift: float = 0.05,
     min_purity: float = 0.0,
     # Scoring
     w1_balacc: float = 0.5, w2_lift_cov: float = 0.4, w3_purity: float = 0.1, alpha_cov: float = 0.6,
     # ---------- Selección por par ----------
-    max_k: int = 5,
+    max_k: int = 6,
     min_improve: float = 1e-3,
-    min_recall: float = 0.85,
-    min_region_frac: float = 0.20,
+    min_recall: float = 0.75,
+    min_region_frac: float = 0.05,
     lambda_complexity: float = 0.0,
     diversity_additions: bool = True,
     max_diverse_add: int = 1,
