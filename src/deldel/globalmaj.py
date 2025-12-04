@@ -27,6 +27,7 @@ import logging
 from time import perf_counter
 import math
 import numpy as np
+from sklearn.cluster import DBSCAN
 
 from ._logging_utils import verbosity_to_level
 
@@ -298,6 +299,15 @@ def _same_family(
     coef_cos_min: float = 0.995,
     X_sample: Optional[np.ndarray] = None,
     jaccard_region: Optional[float] = None,
+    best_class1: Optional[int] = None,
+    best_class2: Optional[int] = None,
+    metrics_by_class1: Optional[Dict[int, Dict[str, float]]] = None,
+    metrics_by_class2: Optional[Dict[int, Dict[str, float]]] = None,
+    metric_dist_threshold: Optional[float] = None,
+    metric_weights: Optional[Dict[str, float]] = None,
+    metric_norm: str = "l2",
+    label_weight1: Optional[float] = None,
+    label_weight2: Optional[float] = None,
 ) -> bool:
     """
     Decide si (n1,b1) y (n2,b2) (normales y b ya normalizados) pertenecen a la misma familia.
@@ -307,9 +317,12 @@ def _same_family(
          donde tau = tau_mult * tau_ref. Usamos tau_ref=1e-2 por defecto (fijo y estricto).
       3) Similitud de soporte y coseno en soporte: Jaccard >= jaccard_support y cos >= coef_cos_min
       4) Si se provee X_sample: Jaccard de las máscaras inducidas debe ser alto
+      5) Si se proveen métricas y mismo best_class: distancia de métricas <= metric_dist_threshold
     """
-    if int(side1) != int(side2):
-        return False
+    same_side = int(side1) == int(side2)
+
+    n1 = np.asarray(n1, float).reshape(-1)
+    n2 = np.asarray(n2, float).reshape(-1)
 
     u1, b1n = _normalize_plane(n1, b1)
     u2, b2n = _normalize_plane(n2, b2)
@@ -333,14 +346,214 @@ def _same_family(
     if _cosine_on_support(n1, n2, mask) < coef_cos_min:
         return False
 
-    if X_sample is not None:
+    if same_side and (X_sample is not None):
         jr = jaccard_region if jaccard_region is not None else jaccard_support
         mask1 = _pred_halfspace(X_sample, n1, b1, side1)
         mask2 = _pred_halfspace(X_sample, n2, b2, side2)
         if _jaccard(mask1, mask2) < jr:
             return False
 
+    # Distancia de métricas por clase (opcional)
+    if (metric_dist_threshold is not None) and (best_class1 is not None) and (best_class2 is not None):
+        if int(best_class1) != int(best_class2):
+            return False
+
+        keys = ["lift", "recall", "precision", "f1"]
+        weights = np.array([metric_weights.get(k, 1.0) for k in keys]) if metric_weights else np.ones(len(keys))
+
+        def _vec(metrics: Optional[Dict[int, Dict[str, float]]]) -> Optional[np.ndarray]:
+            if not metrics or int(best_class1) not in metrics:
+                return None
+            m = metrics[int(best_class1)]
+            return np.array([float(m.get(k, 0.0)) for k in keys])
+
+        v1 = _vec(metrics_by_class1)
+        v2 = _vec(metrics_by_class2)
+
+        if v1 is None or v2 is None:
+            return False
+
+        # Factor opcional basado en la etiqueta de origen (planes_by_label)
+        lw1 = max(1.0, abs(float(label_weight1))) if label_weight1 is not None else 1.0
+        lw2 = max(1.0, abs(float(label_weight2))) if label_weight2 is not None else 1.0
+        label_factor = math.sqrt(lw1 * lw2)
+
+        diff = (v1 - v2) * weights * label_factor
+        if metric_norm.lower() == "l1":
+            dist_metrics = float(np.sum(np.abs(diff)))
+        else:
+            dist_metrics = float(np.sqrt(np.sum(diff ** 2)))
+
+        if dist_metrics > float(metric_dist_threshold):
+            return False
+
     return True
+
+
+def _family_similarity_matrix(
+    oriented_pool: List[Dict[str, Any]],
+    *,
+    cos_parallel: float,
+    tau_mult: float,
+    coef_eps: float,
+    jaccard_support: float,
+    coef_cos_min: float,
+    X_sample: Optional[np.ndarray],
+    jaccard_region: Optional[float],
+    metric_dist_threshold: Optional[float],
+    metric_weights: Optional[Dict[str, float]],
+    metric_norm: str,
+    label_weighted: bool = True,
+) -> np.ndarray:
+    n = len(oriented_pool)
+    sim = np.eye(n, dtype=bool)
+
+    for i in range(n):
+        r1 = oriented_pool[i]
+        for j in range(i + 1, n):
+            r2 = oriented_pool[j]
+            same = _same_family(
+                r1["n"], r1["b"], r1.get("side", 0),
+                r2["n"], r2["b"], r2.get("side", 0),
+                cos_parallel=cos_parallel, tau_mult=tau_mult,
+                coef_eps=coef_eps, jaccard_support=jaccard_support,
+                coef_cos_min=coef_cos_min, X_sample=X_sample,
+                jaccard_region=jaccard_region,
+                best_class1=r1.get("best_class"), best_class2=r2.get("best_class"),
+                metrics_by_class1=r1.get("metrics_by_class"), metrics_by_class2=r2.get("metrics_by_class"),
+                metric_dist_threshold=metric_dist_threshold,
+                metric_weights=metric_weights, metric_norm=metric_norm,
+                label_weight1=r1.get("label") if label_weighted else None,
+                label_weight2=r2.get("label") if label_weighted else None,
+            )
+            sim[i, j] = sim[j, i] = same
+    return sim
+
+
+def _families_from_labels(
+    oriented_pool: List[Dict[str, Any]], labels: List[int]
+) -> List[Dict[str, Any]]:
+    families: List[Dict[str, Any]] = []
+    unique_labels = sorted(set(labels))
+    label_to_fid = {lab: fid for fid, lab in enumerate(unique_labels)}
+
+    for i, lab in enumerate(labels):
+        oriented_pool[i]["family_id"] = label_to_fid[lab]
+
+    for lab in unique_labels:
+        members = [i for i, l in enumerate(labels) if l == lab]
+        rep_idx = max(members, key=lambda idx: oriented_pool[idx].get("score_global", 0.0))
+        families.append(dict(rep=oriented_pool[rep_idx], members=members, fid=label_to_fid[lab]))
+    return families
+
+
+def _cluster_families(
+    oriented_pool: List[Dict[str, Any]],
+    *,
+    cos_parallel: float,
+    tau_mult: float,
+    coef_eps: float,
+    jaccard_support: float,
+    coef_cos_min: float,
+    X_sample: Optional[np.ndarray],
+    jaccard_region: Optional[float],
+    metric_dist_threshold: Optional[float],
+    metric_weights: Optional[Dict[str, float]],
+    metric_norm: str,
+    mode: str = "greedy",
+    dbscan_eps: float = 0.5,
+    dbscan_min_samples: int = 1,
+    precomputed_sim: Optional[np.ndarray] = None,
+) -> List[Dict[str, Any]]:
+    mode_l = str(mode).lower()
+
+    if mode_l == "greedy":
+        family_id = 0
+        families: List[Dict[str, Any]] = []
+        for i, r in enumerate(oriented_pool):
+            assigned = False
+            for fam in families:
+                rp = fam["rep"]
+                if _same_family(
+                    r["n"], r["b"], r.get("side", 0), rp["n"], rp["b"], rp.get("side", 0),
+                    cos_parallel=cos_parallel, tau_mult=tau_mult,
+                    coef_eps=coef_eps, jaccard_support=jaccard_support,
+                    coef_cos_min=coef_cos_min, X_sample=X_sample,
+                    jaccard_region=jaccard_region,
+                    best_class1=r.get("best_class"), best_class2=rp.get("best_class"),
+                    metrics_by_class1=r.get("metrics_by_class"), metrics_by_class2=rp.get("metrics_by_class"),
+                    metric_dist_threshold=metric_dist_threshold,
+                    metric_weights=metric_weights, metric_norm=metric_norm,
+                    label_weight1=r.get("label"), label_weight2=rp.get("label"),
+                ):
+                    fam["members"].append(i)
+                    assigned = True
+                    break
+            if not assigned:
+                families.append(dict(rep=r, members=[i], fid=family_id))
+                family_id += 1
+
+        for fam in families:
+            best_idx = max(fam["members"], key=lambda idx: oriented_pool[idx].get("score_global", 0.0))
+            fam["rep"] = oriented_pool[best_idx]
+            for idx in fam["members"]:
+                oriented_pool[idx]["family_id"] = fam["fid"]
+        return families
+
+    sim = precomputed_sim
+    if sim is None:
+        sim = _family_similarity_matrix(
+            oriented_pool,
+            cos_parallel=cos_parallel,
+            tau_mult=tau_mult,
+            coef_eps=coef_eps,
+            jaccard_support=jaccard_support,
+            coef_cos_min=coef_cos_min,
+            X_sample=X_sample,
+            jaccard_region=jaccard_region,
+            metric_dist_threshold=metric_dist_threshold,
+            metric_weights=metric_weights,
+            metric_norm=metric_norm,
+        )
+
+    def _connected_labels(mat: np.ndarray) -> List[int]:
+        n = mat.shape[0]
+        visited = [False] * n
+        labels = [-1] * n
+        fid = 0
+        for i in range(n):
+            if visited[i]:
+                continue
+            stack = [i]
+            visited[i] = True
+            labels[i] = fid
+            while stack:
+                u = stack.pop()
+                neighbors = np.where(mat[u])[0]
+                for v in neighbors:
+                    if not visited[v]:
+                        visited[v] = True
+                        labels[v] = fid
+                        stack.append(v)
+            fid += 1
+        return labels
+
+    if mode_l in {"connected", "graph", "components"}:
+        labels = _connected_labels(sim)
+        return _families_from_labels(oriented_pool, labels)
+
+    dist = (~sim).astype(float)
+    np.fill_diagonal(dist, 0.0)
+
+    if mode_l == "dbscan":
+        db = DBSCAN(eps=dbscan_eps, min_samples=dbscan_min_samples, metric="precomputed")
+        labels = db.fit_predict(dist)
+        # DBSCAN usa -1 para ruido; mantenemos pero mapeamos a IDs contiguos en _families_from_labels
+        return _families_from_labels(oriented_pool, labels.tolist())
+
+    raise ValueError(
+        f"family clustering mode not supported: {mode}. Use one of: greedy, connected, dbscan"
+    )
 
 
 # ============================================================
@@ -560,6 +773,12 @@ def prune_and_orient_planes_unified_globalmaj(
     coef_eps: float = 1e-8,
     jaccard_support: float = 0.80,
     coef_cos_min: float = 0.995,
+    metric_dist_threshold: Optional[float] = None,
+    metric_weights: Optional[Dict[str, float]] = None,
+    metric_norm: str = "l2",
+    family_clustering_mode: str = "greedy",  # {"greedy", "connected", "dbscan"}
+    family_dbscan_eps: float = 0.5,
+    family_dbscan_min_samples: int = 1,
     # Guardarraíles globales
     min_region_size: int = 30,
     min_abs_diff: float = 0.05,
@@ -719,31 +938,22 @@ def prune_and_orient_planes_unified_globalmaj(
     else:
         X_family = None
 
-    family_id = 0
-    families: List[Dict[str, Any]] = []  # cada elemento: dict(rep=oriented_pool[i], members=[indices])
-    for i, r in enumerate(oriented_pool):
-        assigned = False
-        for fam in families:
-            rp = fam["rep"]
-            if _same_family(r["n"], r["b"], r.get("side", 0), rp["n"], rp["b"], rp.get("side", 0),
-                            cos_parallel=cos_parallel, tau_mult=tau_mult,
-                            coef_eps=coef_eps, jaccard_support=jaccard_support,
-                            coef_cos_min=coef_cos_min, X_sample=X_family,
-                            jaccard_region=jaccard_support):
-                fam["members"].append(i)
-                assigned = True
-                break
-        if not assigned:
-            families.append(dict(rep=r, members=[i], fid=family_id))
-            family_id += 1
-
-    # Elegir representante por familia (mejor score_global)
-    # Nota: marcamos family_id en todos los miembros; usamos el mejor en reportes
-    for fam in families:
-        best_idx = max(fam["members"], key=lambda idx: oriented_pool[idx]["score_global"])
-        fam["rep"] = oriented_pool[best_idx]
-        for idx in fam["members"]:
-            oriented_pool[idx]["family_id"] = fam["fid"]
+    families = _cluster_families(
+        oriented_pool,
+        cos_parallel=cos_parallel,
+        tau_mult=tau_mult,
+        coef_eps=coef_eps,
+        jaccard_support=jaccard_support,
+        coef_cos_min=coef_cos_min,
+        X_sample=X_family,
+        jaccard_region=jaccard_support,
+        metric_dist_threshold=metric_dist_threshold,
+        metric_weights=metric_weights,
+        metric_norm=metric_norm,
+        mode=family_clustering_mode,
+        dbscan_eps=family_dbscan_eps,
+        dbscan_min_samples=family_dbscan_min_samples,
+    )
 
     # ------------------ Filtro global (guardarraíles + Top-K por clase) ------------------
     survivors_idx: List[int] = []
