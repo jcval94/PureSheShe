@@ -406,6 +406,7 @@ sel = prune_and_orient_planes_unified_globalmaj(
     min_region_size=25,
     min_abs_diff=0.02,
     min_rel_lift=0.05,
+    # family_clustering_mode="connected",  # opciones: "greedy" (por defecto), "connected" o "dbscan"
 )
 
 # Bundle con los cinco métodos (sin recortes finales)
