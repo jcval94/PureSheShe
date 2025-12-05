@@ -46,7 +46,10 @@ def test_prune_and_orient_basic_family_collapse():
     )
 
     assert result["meta"]["total_families"] == 1
-    assert len(result["candidates_global"]) == 2  # ambos lados del mismo plano sobreviven
+    candidates = result["candidates_global"]
+    assert candidates, "se esperan candidatos globales"
+    assert all("target_class" in c for c in candidates)
+    assert {c["target_class"] for c in candidates} == {0, 1}
 
     per_plane = result["regions_global"]["per_plane"]
     assert per_plane, "se espera al menos una región global emitida"
@@ -96,3 +99,50 @@ def test_prune_and_orient_pair_filter_limits_pairs():
     assert list(result["by_pair_augmented"].keys()) == [(1, 2)]
     assert result["by_pair_augmented"][(1, 2)]["winning_planes"], "el filtro debe conservar planos para el par indicado"
     assert all(plane["origin_pair"] == (1, 2) for plane in result["winning_planes"])
+
+
+def test_multi_class_candidates_can_be_disabled():
+    X = np.array(
+        [
+            [0.0, 0.0],
+            [0.1, 0.0],
+            [0.2, 0.0],
+            [1.0, 0.0],
+            [1.1, 0.0],
+            [1.2, 0.0],
+        ]
+    )
+    y = np.array([0, 0, 0, 1, 1, 1])
+    res = {
+        (0, 1): {
+            "planes_by_label": {
+                0: [
+                    {"n": [1.0, 0.0], "b": -0.5},
+                    {"n": [0.0, 1.0], "b": 0.0},
+                ],
+                1: [{"n": [1.0, 0.0], "b": -1.1}],
+            }
+        }
+    }
+
+    common_kwargs = dict(
+        X=X,
+        y=y,
+        feature_names=["x0", "x1"],
+        min_region_size=1,
+        min_abs_diff=-1.0,
+        min_rel_lift=-1.0,
+        min_purity=0.0,
+        max_k=1,
+        min_recall=0.0,
+        min_region_frac=0.0,
+        diversity_additions=False,
+        global_sides="good",
+    )
+
+    result_multi = prune_and_orient_planes_unified_globalmaj(res, multi_class_candidates=True, **common_kwargs)
+    result_single = prune_and_orient_planes_unified_globalmaj(res, multi_class_candidates=False, **common_kwargs)
+
+    assert len(result_multi["candidates_global"]) >= len(result_single["candidates_global"])
+    assert any(c.get("target_class") != c.get("best_class") for c in result_multi["candidates_global"])
+    assert all(c.get("target_class") == c.get("best_class") for c in result_single["candidates_global"])
