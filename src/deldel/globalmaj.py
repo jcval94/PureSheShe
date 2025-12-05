@@ -784,6 +784,7 @@ def prune_and_orient_planes_unified_globalmaj(
     min_abs_diff: float = 0.01,
     min_rel_lift: float = 0.05,
     min_purity: float = 0.0,
+    multi_class_candidates: bool = True,
     # Scoring
     w1_balacc: float = 0.5, w2_lift_cov: float = 0.4, w3_purity: float = 0.1, alpha_cov: float = 0.6,
     # ---------- Selección por par ----------
@@ -956,54 +957,79 @@ def prune_and_orient_planes_unified_globalmaj(
     )
 
     # ------------------ Filtro global (guardarraíles + Top-K por clase) ------------------
-    survivors_idx: List[int] = []
-    # Guardarraíles por best_class del medio-espacio
-    for i, r in enumerate(oriented_pool):
-        bc = r["best_class"]
-        if bc is None:
-            continue
-        mbc = r["metrics_by_class"][bc]
+    def _passes_guardrails(mbc: Dict[str, float], base_c: float) -> bool:
         size_ok = (mbc["region_size"] >= int(min_region_size))
         lift_ok = (mbc["lift"] >= (1.0 + float(min_rel_lift))) or \
-                  ((mbc["purity"] - float(baseline.get(int(bc), 0.0))) >= float(min_abs_diff))
+                  ((mbc["purity"] - float(base_c)) >= float(min_abs_diff))
         purity_ok = (mbc["purity"] >= float(min_purity))
-        if size_ok and lift_ok and purity_ok:
-            survivors_idx.append(i)
+        return bool(size_ok and lift_ok and purity_ok)
+
+    def _entries_for_plane(idx: int) -> List[Dict[str, Any]]:
+        r = oriented_pool[idx]
+        entries: List[Dict[str, Any]] = []
+        scores = r.get("score_by_class") or {}
+        metrics = r.get("metrics_by_class") or {}
+        if multi_class_candidates:
+            iterator = scores.items()
+        else:
+            bc = r.get("best_class")
+            iterator = [(bc, scores.get(bc, r.get("score_global", 0.0)))] if bc is not None else []
+        for c, s in iterator:
+            if c is None:
+                continue
+            mbc = metrics.get(int(c))
+            if mbc is None:
+                continue
+            base_c = float(baseline.get(int(c), 0.0))
+            if not _passes_guardrails(mbc, base_c):
+                continue
+            entries.append(dict(
+                pool_index=idx,
+                oriented_plane=r,
+                target_class=int(c),
+                score=float(s)
+            ))
+        return entries
+
+    candidate_entries: List[Dict[str, Any]] = []
+    for i in range(len(oriented_pool)):
+        candidate_entries.extend(_entries_for_plane(i))
 
     # Top-K por clase, no más de 1 por familia en esta etapa
     per_class_buckets: Dict[int, List[int]] = {c: [] for c in labels_all}
     fam_used_per_class: Dict[int, set] = {c: set() for c in labels_all}
 
-    # ordenamos por score_global desc
-    survivors_idx.sort(key=lambda i: oriented_pool[i]["score_global"], reverse=True)
-    for i in survivors_idx:
-        r = oriented_pool[i]
-        c = r["best_class"]
-        if c is None:
-            continue
+    # ordenamos por score desc (dependiente de la clase objetivo)
+    sorted_entries = list(range(len(candidate_entries)))
+    sorted_entries.sort(key=lambda idx: candidate_entries[idx]["score"], reverse=True)
+    for idx in sorted_entries:
+        entry = candidate_entries[idx]
+        c = entry["target_class"]
         if len(per_class_buckets[c]) >= int(refine_topK_per_class):
             continue
-        fid = r.get("family_id")
+        fid = entry["oriented_plane"].get("family_id")
         if (fid is not None) and (fid in fam_used_per_class[c]):
             continue
-        per_class_buckets[c].append(i)
+        per_class_buckets[c].append(idx)
         if fid is not None:
             fam_used_per_class[c].add(fid)
 
     # Union de índices seleccionados
-    selected_global_idx = sorted(set(sum(per_class_buckets.values(), [])))
-    selected_global = [oriented_pool[i] for i in selected_global_idx]
+    selected_entries_idx = sorted(set(sum(per_class_buckets.values(), [])))
+    selected_global_planes_idx = sorted(set([candidate_entries[i]["pool_index"] for i in selected_entries_idx]))
+    selected_global = [oriented_pool[i] for i in selected_global_planes_idx]
 
     # Si usamos sketch, refinamos métricas en full X solo para survivors
     if 0.0 < sketch_frac < 1.0 and len(selected_global) > 0:
-        U2 = np.stack([r["n_norm"] for r in selected_global], axis=1)
-        b2 = np.array([r["b_norm"] for r in selected_global], float)
+        mapping_idx = list(selected_global_planes_idx)
+        U2 = np.stack([oriented_pool[i]["n_norm"] for i in mapping_idx], axis=1)
+        b2 = np.array([oriented_pool[i]["b_norm"] for i in mapping_idx], float)
         metrics_full = []
         for lo, hi, H in _batched_project(X, U2, b2, batch=batch_size):
             mse_leq, mse_geq = _halfspace_masks_from_H(H)
             for j in range(H.shape[1]):
-                idx_pool = lo + j
-                r = selected_global[idx_pool]
+                idx_pool = mapping_idx[lo + j]
+                r = oriented_pool[idx_pool]
                 side = r["side"]
                 mask = mse_leq[:, j] if side >= 0 else mse_geq[:, j]
                 mbc = _ovr_metrics_for_side(y, mask, labels_all, baseline)
@@ -1017,21 +1043,37 @@ def prune_and_orient_planes_unified_globalmaj(
                 r["entropy_eval"] = _entropy(_region_props(y[mask]))
 
         # Reordenar buckets por score recalculado
+        candidate_entries = []
+        for idx in selected_global_planes_idx:
+            candidate_entries.extend(_entries_for_plane(idx))
+
         per_class_buckets = {c: [] for c in labels_all}
         fam_used_per_class = {c: set() for c in labels_all}
-        selected_global.sort(key=lambda r: r["score_global"], reverse=True)
-        for idx, r in enumerate(selected_global):
-            c = r["best_class"]
-            if c is None:
-                continue
+        sorted_entries = list(range(len(candidate_entries)))
+        sorted_entries.sort(key=lambda idx: candidate_entries[idx]["score"], reverse=True)
+        for idx in sorted_entries:
+            entry = candidate_entries[idx]
+            c = entry["target_class"]
             if len(per_class_buckets[c]) >= int(refine_topK_per_class):
                 continue
-            fid = r.get("family_id")
+            fid = entry["oriented_plane"].get("family_id")
             if (fid is not None) and (fid in fam_used_per_class[c]):
                 continue
             per_class_buckets[c].append(idx)
             if fid is not None:
                 fam_used_per_class[c].add(fid)
+
+        selected_entries_idx = sorted(set(sum(per_class_buckets.values(), [])))
+        selected_global_planes_idx = sorted(set([candidate_entries[i]["pool_index"] for i in selected_entries_idx]))
+        selected_global = [oriented_pool[i] for i in selected_global_planes_idx]
+
+    def _materialize_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+        r = dict(entry["oriented_plane"])
+        r["target_class"] = entry["target_class"]
+        r["score_global"] = entry.get("score", r.get("score_global", 0.0))
+        return r
+
+    selected_global_entries = [_materialize_entry(candidate_entries[i]) for i in selected_entries_idx]
 
     # ------------------ Construcción de regiones globales ------------------
     region_counter = 0
@@ -1050,7 +1092,8 @@ def prune_and_orient_planes_unified_globalmaj(
         side = int(r["side"])
         n = np.asarray(r["n_norm"], float)
         b0 = float(r["b_norm"])
-        bc = int(r["best_class"]) if r["best_class"] is not None else None
+        target_c = r.get("target_class", r.get("best_class"))
+        bc = int(target_c) if target_c is not None else None
         if bc is None:
             return None
         reg = dict(
@@ -1091,7 +1134,7 @@ def prune_and_orient_planes_unified_globalmaj(
             return [-int(r["side"])]
 
     # Emitir regiones (puede crear nuevas copias del lado contrario si aplica)
-    for r in selected_global:
+    for r in selected_global_entries:
         for sd in _sides_to_emit_for(r):
             if sd == int(r["side"]):
                 rr = r
@@ -1099,6 +1142,7 @@ def prune_and_orient_planes_unified_globalmaj(
                 # crear un duplicado con el lado opuesto para emitir
                 rr = dict(r)
                 rr["side"] = int(sd)
+                rr["target_class"] = r.get("target_class")
                 # recalcular best_class y métricas para ese lado
                 h = X @ rr["n_norm"] + rr["b_norm"]
                 mask = (h <= 0.0) if sd >= 0 else (h >= 0.0)
@@ -1136,7 +1180,7 @@ def prune_and_orient_planes_unified_globalmaj(
         # Puedes elegir: restringir a los originados en (a,b) o permitir todos
         # Aquí permitimos todos pero guardamos el origin para trazabilidad.
         planes_for_pair = []
-        for r in selected_global:
+        for r in selected_global_entries:
             rr = dict(r)
             # Añade inequations bonitas respecto a dims_for_text
             n = rr["n_norm"]
@@ -1184,12 +1228,13 @@ def prune_and_orient_planes_unified_globalmaj(
 
     # ------------------ Candidatos globales (tabla auditable) ------------------
     candidates_global = []
-    for r in selected_global:
+    for r in selected_global_entries:
         candidates_global.append(dict(
             plane_id=r.get("plane_id"),
             oriented_plane_id=r.get("oriented_plane_id"),
             family_id=r.get("family_id"),
             best_class=r.get("best_class"),
+            target_class=r.get("target_class", r.get("best_class")),
             score_global=float(r.get("score_global", 0.0)),
             region_size=int(r.get("region_size_eval", 0)),
             region_frac=float(r.get("region_frac_eval", 0.0)),
@@ -1216,25 +1261,26 @@ def prune_and_orient_planes_unified_globalmaj(
             baseline=baseline,
             labels_all=labels_all,
             N=int(N), d=int(d),
-            total_pairs=len(pair_keys),
-            total_input_planes=len(all_planes_raw),
-            total_oriented=len(oriented_pool),
-            total_families=len(families),
-            total_candidates_global=len(selected_global),
-            total_regions=len(regions_per_plane),
-            params=dict(
-                global_sides=global_sides,
-                sketch_frac=sketch_frac,
-                refine_topK_per_class=refine_topK_per_class,
-                batch_size=batch_size,
-                family=dict(cos_parallel=cos_parallel, tau_mult=tau_mult,
-                            coef_eps=coef_eps, jaccard_support=jaccard_support, coef_cos_min=coef_cos_min),
-                guards=dict(min_region_size=min_region_size, min_abs_diff=min_abs_diff,
-                            min_rel_lift=min_rel_lift, min_purity=min_purity),
-                scoring=dict(w1_balacc=w1_balacc, w2_lift_cov=w2_lift_cov, w3_purity=w3_purity, alpha_cov=alpha_cov),
-                selection_by_pair=dict(
-                    max_k=max_k, min_improve=min_improve, min_recall=min_recall, min_region_frac=min_region_frac,
-                    lambda_complexity=lambda_complexity, diversity_additions=diversity_additions,
+        total_pairs=len(pair_keys),
+        total_input_planes=len(all_planes_raw),
+        total_oriented=len(oriented_pool),
+        total_families=len(families),
+        total_candidates_global=len(selected_global_entries),
+        total_regions=len(regions_per_plane),
+        params=dict(
+            global_sides=global_sides,
+            sketch_frac=sketch_frac,
+            refine_topK_per_class=refine_topK_per_class,
+            batch_size=batch_size,
+            family=dict(cos_parallel=cos_parallel, tau_mult=tau_mult,
+                        coef_eps=coef_eps, jaccard_support=jaccard_support, coef_cos_min=coef_cos_min),
+            guards=dict(min_region_size=min_region_size, min_abs_diff=min_abs_diff,
+                        min_rel_lift=min_rel_lift, min_purity=min_purity),
+            multi_class=dict(candidates=multi_class_candidates),
+            scoring=dict(w1_balacc=w1_balacc, w2_lift_cov=w2_lift_cov, w3_purity=w3_purity, alpha_cov=alpha_cov),
+            selection_by_pair=dict(
+                max_k=max_k, min_improve=min_improve, min_recall=min_recall, min_region_frac=min_region_frac,
+                lambda_complexity=lambda_complexity, diversity_additions=diversity_additions,
                     max_diverse_add=max_diverse_add, ortho_add_cos_thresh=ortho_add_cos_thresh,
                     family_penalty=family_penalty
                 ),
