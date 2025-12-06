@@ -836,6 +836,9 @@ def prune_and_orient_planes_unified_globalmaj(
 
     # Enumerar TODOS los planos
     all_planes_raw = _collect_all_planes(res)
+    if pair_filter is not None:
+        allowed_pairs = set(tuple(p) for p in pair_filter)
+        all_planes_raw = [p for p in all_planes_raw if tuple(p.get("origin_pair", ())) in allowed_pairs]
     if not all_planes_raw:
         logger.log(level, "Sin planos de entrada, terminando")
         return dict(by_pair_augmented={}, winning_planes=[], regions_global=dict(per_plane=[], per_class={c: [] for c in labels_all}),
@@ -995,9 +998,8 @@ def prune_and_orient_planes_unified_globalmaj(
     for i in range(len(oriented_pool)):
         candidate_entries.extend(_entries_for_plane(i))
 
-    # Top-K por clase, no más de 1 por familia en esta etapa
+    # Top-K por clase (permitiendo múltiples planos por familia para auditoría)
     per_class_buckets: Dict[int, List[int]] = {c: [] for c in labels_all}
-    fam_used_per_class: Dict[int, set] = {c: set() for c in labels_all}
 
     # ordenamos por score desc (dependiente de la clase objetivo)
     sorted_entries = list(range(len(candidate_entries)))
@@ -1007,12 +1009,7 @@ def prune_and_orient_planes_unified_globalmaj(
         c = entry["target_class"]
         if len(per_class_buckets[c]) >= int(refine_topK_per_class):
             continue
-        fid = entry["oriented_plane"].get("family_id")
-        if (fid is not None) and (fid in fam_used_per_class[c]):
-            continue
         per_class_buckets[c].append(idx)
-        if fid is not None:
-            fam_used_per_class[c].add(fid)
 
     # Union de índices seleccionados
     selected_entries_idx = sorted(set(sum(per_class_buckets.values(), [])))
@@ -1048,7 +1045,6 @@ def prune_and_orient_planes_unified_globalmaj(
             candidate_entries.extend(_entries_for_plane(idx))
 
         per_class_buckets = {c: [] for c in labels_all}
-        fam_used_per_class = {c: set() for c in labels_all}
         sorted_entries = list(range(len(candidate_entries)))
         sorted_entries.sort(key=lambda idx: candidate_entries[idx]["score"], reverse=True)
         for idx in sorted_entries:
@@ -1056,12 +1052,7 @@ def prune_and_orient_planes_unified_globalmaj(
             c = entry["target_class"]
             if len(per_class_buckets[c]) >= int(refine_topK_per_class):
                 continue
-            fid = entry["oriented_plane"].get("family_id")
-            if (fid is not None) and (fid in fam_used_per_class[c]):
-                continue
             per_class_buckets[c].append(idx)
-            if fid is not None:
-                fam_used_per_class[c].add(fid)
 
         selected_entries_idx = sorted(set(sum(per_class_buckets.values(), [])))
         selected_global_planes_idx = sorted(set([candidate_entries[i]["pool_index"] for i in selected_entries_idx]))
@@ -1133,8 +1124,19 @@ def prune_and_orient_planes_unified_globalmaj(
         else:  # "opposite"
             return [-int(r["side"])]
 
-    # Emitir regiones (puede crear nuevas copias del lado contrario si aplica)
+    # Emitir regiones (puede crear nuevas copias del lado contrario si aplica). Solo se
+    # utiliza el mejor representante por familia para evitar duplicados casi idénticos.
+    best_per_family: Dict[Any, Dict[str, Any]] = {}
     for r in selected_global_entries:
+        fid = r.get("family_id")
+        key = (fid if fid is not None else r.get("plane_id"), int(r.get("side", 0)))
+        cur = best_per_family.get(key)
+        if (cur is None) or (r.get("score_global", 0.0) > cur.get("score_global", 0.0)):
+            best_per_family[key] = r
+
+    region_sources = list(best_per_family.values())
+
+    for r in region_sources:
         for sd in _sides_to_emit_for(r):
             if sd == int(r["side"]):
                 rr = r
@@ -1192,21 +1194,58 @@ def prune_and_orient_planes_unified_globalmaj(
             )
             planes_for_pair.append(rr)
 
-        # Selección greedy
-        selected, overall = _greedy_and_selection_by_pair(
-            planes_for_pair, Xab, yab, a, b,
-            max_k=max_k, min_improve=min_improve,
-            min_recall=min_recall, min_region_frac=min_region_frac,
-            lambda_complexity=lambda_complexity,
-            diversity_additions=diversity_additions,
-            max_diverse_add=max_diverse_add,
-            ortho_add_cos_thresh=ortho_add_cos_thresh,
-            family_penalty=family_penalty
-        )
+        # Métricas específicas del par (a, b) para elegir representante por familia
+        pair_baseline = _baseline_props(yab)
+        planes_with_pair_metrics = []
+        for rr in planes_for_pair:
+            mask_pair = _pred_halfspace(Xab, rr["n_norm"], rr["b_norm"], int(rr["side"]))
+            mbc_pair = _ovr_metrics_for_side(yab, mask_pair, [a, b], pair_baseline)
+            bc_pair, bs_pair, sc_pair = _score_by_class(mbc_pair, w1=w1_balacc, w2=w2_lift_cov, w3=w3_purity, alpha=alpha_cov)
+            r_aug = dict(rr)
+            r_aug["metrics_pair"] = mbc_pair
+            r_aug["best_class_pair"] = bc_pair
+            r_aug["score_pair"] = bs_pair
+            r_aug["score_pair_by_class"] = sc_pair
+            planes_with_pair_metrics.append(r_aug)
 
-        # Otros planos = pool superviviente no elegido (para auditoría)
-        used_ids = set([p["oriented_plane_id"] for p in selected])
-        others = [p for p in planes_for_pair if p["oriented_plane_id"] not in used_ids]
+        planes_by_family: Dict[Any, List[Dict[str, Any]]] = {}
+        for rr in planes_with_pair_metrics:
+            fid = rr.get("family_id")
+            fid = fid if fid is not None else rr.get("plane_id")
+            planes_by_family.setdefault(fid, []).append(rr)
+
+        selected = []
+        others: List[Dict[str, Any]] = []
+        for fid, plist in planes_by_family.items():
+            plist_sorted = sorted(
+                plist,
+                key=lambda p: (
+                    p.get("score_pair_by_class", {}).get(int(a), 0.0),
+                    p.get("score_pair", 0.0),
+                    p.get("score_global", 0.0),
+                ),
+                reverse=True,
+            )
+            if not plist_sorted:
+                continue
+            best = plist_sorted[0]
+            rest = plist_sorted[1:]
+            selected.append(best)
+            others.extend(rest)
+
+        # Planos con lift <= 1 pasan a other_planes
+        selected_filtered = []
+        for p in selected:
+            bc = p.get("best_class", p.get("target_class"))
+            lift_val = None
+            if bc is not None:
+                metrics_cls = p.get("metrics_by_class", {})
+                lift_val = metrics_cls.get(int(bc), {}).get("lift")
+            if lift_val is not None and lift_val <= 1.0:
+                others.append(p)
+            else:
+                selected_filtered.append(p)
+        selected = selected_filtered
 
         # Regla compuesta (AND) en forma de desigualdades
         ineqs = []
@@ -1217,6 +1256,12 @@ def prune_and_orient_planes_unified_globalmaj(
                 n=p["n_norm"], b=p["b_norm"],
                 text=p["inequality"]["general"]
             ))
+
+        # Métrica global usando la intersección de los planos seleccionados
+        cur_pred = np.ones_like(yab, dtype=bool)
+        for p in selected:
+            cur_pred &= _pred_halfspace(Xab, p["n_norm"], p["b_norm"], int(p["side"]))
+        overall = _metrics_pair_all(cur_pred, yab, a, b)
 
         by_pair_augmented[(a, b)] = dict(
             winning_planes=selected,
@@ -1245,9 +1290,25 @@ def prune_and_orient_planes_unified_globalmaj(
     # ------------------ Resumen meta ------------------
     # winning_planes: los medio-espacios seleccionados en algún par
     winning_planes_unified = []
+    valid_origin_pairs = set(pair_keys)
     for k, payload in by_pair_augmented.items():
         for p in payload.get("winning_planes", []):
             winning_planes_unified.append(dict(p))  # copia
+
+    # Incluir regiones globales como ganadores asociados a su mejor clase
+    for reg in regions_per_plane:
+        if tuple(reg.get("origin_pair", (-1, -1))) not in valid_origin_pairs:
+            continue
+        winning_planes_unified.append(dict(
+            region_id=reg.get("region_id"),
+            plane_id=reg.get("plane_id"),
+            oriented_plane_id=reg.get("oriented_plane_id"),
+            best_class=int(reg.get("class_id")),
+            origin_pair=tuple(reg.get("origin_pair", (-1, -1))),
+            inequality=reg.get("inequality"),
+            side=reg.get("side"),
+            from_region=True,
+        ))
 
     out = dict(
         by_pair_augmented=by_pair_augmented,
