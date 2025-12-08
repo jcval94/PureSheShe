@@ -414,7 +414,13 @@ def _cluster_vmf_offsets_perp(
     for K in range(1, max(1, Kmax) + 1):
         km = KMeans(n_clusters=K, n_init=10, random_state=random_state).fit(U)
         lab = km.labels_
-        s = silhouette_score(U[sub], lab[sub], metric="cosine") if K > 1 else -0.1
+        if K > 1:
+            n_sub = int(sub.size)
+            n_labels = int(np.unique(lab[sub]).size)
+            valid_silhouette = (n_sub >= 3) and (2 <= n_labels <= n_sub - 1)
+            s = silhouette_score(U[sub], lab[sub], metric="cosine") if valid_silhouette else -0.1
+        else:
+            s = -0.1
         score = s - 0.05 * K
         if score > best:
             best, bestK, bestlab, bestcent = score, K, lab, km.cluster_centers_
