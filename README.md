@@ -4,6 +4,12 @@ DelDel es una biblioteca ligera para instrumentar clasificadores y descubrir reg
 configuración por defecto se centra en el `MultiClassSubspaceExplorer`, que ahora puede ejecutarse con un bundle curado de los
 cinco mejores métodos derivados del análisis multi-dataset.
 
+## Protocolo obligatorio de experimentación
+
+Antes de modificar código o ejecutar nuevos experimentos, revisa el documento maestro `docs/EXPERIMENT_PROTOCOL.md`. Allí se
+detalla el pipeline de referencia que siempre debe usarse para evaluar cambios y cómo registrar F1, lift y tiempo promedio en
+`docs/experiments_log.csv` (promediando el Top-3 por clase de `describe_regions_report`).
+
 ## Instalación
 
 El proyecto utiliza la convención de *src layout* y, gracias a la configuración en `pyproject.toml`, tanto `deldel` como
@@ -148,6 +154,15 @@ print(describe_regions_report(valuable, region_id="rg_2d_c0_8ab309427e", dataset
 
 # Top-5 por clase con deduplicación
 print(describe_regions_report(valuable, top_per_class=5, dataset_size=X.shape[0]))
+
+# Promedios (F1 y lift de precisión) por clase y globales sobre el Top-K
+averages = describe_regions_report(
+    valuable,
+    top_per_class=3,
+    dataset_size=X.shape[0],
+    return_average_metrics=True,
+)
+print(averages["per_class"])  # {0: {"mean_f1": ..., "mean_lift_precision": ...}, 1: {...}, ...}
 ```
 
 Cuando se necesitan resultados numéricos listos para CSV, la función

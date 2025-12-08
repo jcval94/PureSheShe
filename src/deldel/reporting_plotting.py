@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import math
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from time import perf_counter
 
@@ -296,9 +296,15 @@ def describe_regions_report(
     show_per_class_in_top: bool = False,
     fix_rule_text: bool = True,
     show_original_if_changed: bool = True,
+    return_average_metrics: bool = False,
     verbosity: int = 0,
-) -> str:
-    """Generate a textual report describing the discovered regions."""
+) -> Union[str, Dict[str, Any]]:
+    """Generate a textual report describing the discovered regions.
+
+    When ``return_average_metrics`` is ``True`` the function returns a dictionary
+    with per-class and global means for F1 and lift_precision across the
+    Top-K (``top_per_class``) regions ranked within each class.
+    """
 
     logger = logging.getLogger(__name__)
     level = verbosity_to_level(verbosity)
@@ -342,6 +348,56 @@ def describe_regions_report(
         return "No hay regiones disponibles."
 
     k_top = max(1, int(top_per_class))
+
+    def _as_float(value: Any) -> Optional[float]:
+        try:
+            value_f = float(value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(value_f) or math.isinf(value_f):
+            return None
+        return value_f
+
+    def _mean_or_none(values: List[Optional[float]]) -> Optional[float]:
+        valid = [v for v in values if v is not None]
+        return float(sum(valid) / len(valid)) if valid else None
+
+    if return_average_metrics:
+        per_class: Dict[int, Dict[str, Any]] = {}
+        for class_id, regions in grouped.items():
+            top_regions = regions[:k_top]
+            f1_vals: List[Optional[float]] = []
+            lift_vals: List[Optional[float]] = []
+            for region in top_regions:
+                metrics = region.get("metrics", {}) or {}
+                f1_vals.append(_as_float(metrics.get("f1")))
+                lift_vals.append(_as_float(metrics.get("lift_precision")))
+
+            per_class[class_id] = {
+                "mean_f1": _mean_or_none(f1_vals),
+                "mean_lift_precision": _mean_or_none(lift_vals),
+                "count": len(top_regions),
+            }
+
+        global_f1_vals = [vals.get("mean_f1") for vals in per_class.values() if vals.get("mean_f1") is not None]
+        global_lift_vals = [
+            vals.get("mean_lift_precision") for vals in per_class.values() if vals.get("mean_lift_precision") is not None
+        ]
+
+        logger.log(
+            level,
+            "describe_regions_report: fin (promedios) en %.6fs | clases=%d",
+            perf_counter() - t0,
+            len(grouped),
+        )
+        return {
+            "per_class": per_class,
+            "global_mean": {
+                "f1": _mean_or_none(global_f1_vals),
+                "lift_precision": _mean_or_none(global_lift_vals),
+            },
+        }
+
     lines = ["====== TOP REGIONES POR CLASE ======"]
     for class_id in sorted(grouped.keys()):
         lines.append(f"\n--- Clase {class_id} ---")
