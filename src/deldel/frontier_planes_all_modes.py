@@ -407,11 +407,16 @@ def _cluster_vmf_offsets_perp(
 
     U = U / (np.linalg.norm(U, axis=1, keepdims=True) + 1e-12)
     n_total, d = U.shape
+    max_k = min(int(Kmax), int(n_total))
+
+    if n_total < 2:
+        return np.zeros(n_total, dtype=int)
 
     bestK, best, bestlab, bestcent = 1, -1e9, None, None
     rng = np.random.RandomState(random_state)
     sub = rng.choice(U.shape[0], size=min(1500, U.shape[0]), replace=False)
-    for K in range(1, max(1, Kmax) + 1):
+    # El número de clusters no puede exceder el total de muestras disponibles.
+    for K in range(1, max(1, max_k) + 1):
         km = KMeans(n_clusters=K, n_init=10, random_state=random_state).fit(U)
         lab = km.labels_
         if K > 1:
