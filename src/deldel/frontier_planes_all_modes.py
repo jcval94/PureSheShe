@@ -923,8 +923,9 @@ def compute_frontier_planes_all_modes(
     """
 
     logger = logging.getLogger(__name__)
-    level = verbosity_to_level(verbosity)
-    logger.setLevel(level)
+    log_level = verbosity_to_level(verbosity)
+    logger.setLevel(log_level)
+    progress_level = logging.INFO
     explorer_top_k = int(explorer_top_k)
 
     if pairs is None:
@@ -940,7 +941,7 @@ def compute_frontier_planes_all_modes(
 
     out: Dict[Tuple[int, int], Dict[str, Any]] = {}
     logger.log(
-        level,
+        progress_level,
         "Inicio compute_frontier_planes_all_modes | mode=%s prefer_cp=%s min_cluster_size=%d total_pairs=%d",
         mode,
         prefer_cp,
@@ -949,7 +950,7 @@ def compute_frontier_planes_all_modes(
     )
     for pair in pairs:
         pair_start = perf_counter()
-        logger.log(level, "Procesando par %s", pair)
+        logger.log(progress_level, "Procesando par %s", pair)
         try:
             base_block = _fit_for_pair_all(
                 records,
@@ -1009,7 +1010,7 @@ def compute_frontier_planes_all_modes(
             subspace_blocks: Dict[Tuple[int, ...], Dict[str, Any]] = {}
             for dims in dims_list:
                 dims_start = perf_counter()
-                logger.log(level, "Ajustando subespacio %s para par %s", dims, pair)
+                logger.log(progress_level, "Ajustando subespacio %s para par %s", dims, pair)
                 subspace_blocks[dims] = _fit_for_pair_all(
                     records,
                     pair,
@@ -1025,7 +1026,7 @@ def compute_frontier_planes_all_modes(
                     feature_names=explorer_feature_names,
                 )
                 logger.log(
-                    level,
+                    progress_level,
                     "Subespacio %s completado en %.6f s",
                     dims,
                     perf_counter() - dims_start,
@@ -1047,13 +1048,13 @@ def compute_frontier_planes_all_modes(
 
         out[pair] = base_block
         logger.log(
-            level,
+            progress_level,
             "Par %s finalizado en %.6f s (bloques=%d)",
             pair,
             perf_counter() - pair_start,
             1 + len(base_block.get("subspace_variants", {})),
         )
-    logger.log(level, "compute_frontier_planes_all_modes completado | pares=%d", len(out))
+    logger.log(progress_level, "compute_frontier_planes_all_modes completado | pares=%d", len(out))
     return out
 
 
