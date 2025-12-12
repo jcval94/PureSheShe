@@ -1065,8 +1065,11 @@ def plot_planes_with_point_lines(
     pair: Optional[Tuple[int, int]] = None,
     dims: Tuple[int, int, int] = (0, 1, 2),
     feature_names: Optional[Sequence[str]] = None,
+    X: Optional[np.ndarray] = None,
+    y: Optional[Sequence[Any]] = None,
     show_planes: bool = True,
     show_points: bool = True,
+    show_cloud: bool = False,
     line_kind: str = "both",
     plane_opacity: float = 0.28,
     point_opacity: float = 0.7,
@@ -1260,6 +1263,40 @@ def plot_planes_with_point_lines(
         except Exception:
             pass
     fig = go.Figure()
+
+    if show_cloud:
+        if X is None:
+            raise ValueError("show_cloud=True requiere proporcionar 'X'.")
+        if y is None:
+            raise ValueError("show_cloud=True requiere proporcionar 'y'.")
+
+        X = np.asarray(X)
+        if X.ndim != 2:
+            raise ValueError("'X' debe ser un arreglo 2D (n_samples, n_features).")
+        if max(dims) >= X.shape[1]:
+            raise ValueError("'X' no tiene suficientes columnas para los índices en 'dims'.")
+
+        y_arr = np.asarray(y)
+        if y_arr.shape[0] != X.shape[0]:
+            raise ValueError("'X' y 'y' deben tener la misma cantidad de filas.")
+
+        uniq = list(dict.fromkeys(y_arr.tolist()))
+        cloud_palette = {lbl: base_palette[i % len(base_palette)] for i, lbl in enumerate(uniq)}
+        cloud_colors = [cloud_palette[val] for val in y_arr]
+
+        X_sel = X[:, dims]
+        fig.add_trace(
+            go.Scatter3d(
+                x=X_sel[:, 0],
+                y=X_sel[:, 1],
+                z=X_sel[:, 2],
+                mode="markers",
+                name="Nube X",
+                legendgroup="cloud",
+                marker=dict(size=2.5, color=cloud_colors, opacity=float(point_opacity)),
+                hovertemplate="X<br>x:%{x:.3f}<br>y:%{y:.3f}<br>z:%{z:.3f}<extra></extra>",
+            )
+        )
 
     if show_points:
         col_pts = _rgba("rgb(90,90,90)", point_opacity)
