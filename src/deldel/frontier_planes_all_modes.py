@@ -1363,7 +1363,10 @@ def plot_planes_with_point_lines(
                 n_full, b_full = lut[(int(lbl), int(j))]
                 F_full = F[idx]
                 dist = F_full @ n_full + b_full
-                F_proj = F_full - dist[:, None] * n_full[None, :]
+                norm_sq = float(np.dot(n_full, n_full))
+                if norm_sq <= 1e-12:
+                    norm_sq = 1e-12
+                F_proj = F_full - (dist[:, None] / norm_sq) * n_full[None, :]
                 P1 = F_full[:, dims]
                 P2 = F_proj[:, dims]
                 xs, ys, zs = [], [], []
