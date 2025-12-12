@@ -391,6 +391,36 @@ def test_plot_helpers(sample_records):
     assert fig3 is not None
 
 
+def test_plot_handles_stale_rec_indices(sample_records):
+    plotly = pytest.importorskip("plotly")
+    res = compute_frontier_planes_all_modes(sample_records, min_cluster_size=2)
+
+    first_block = next(iter(res.values()))
+    rec_idx = np.asarray(first_block.get("assignment", {}).get("rec_indices", []), int)
+    if rec_idx.size == 0:
+        pytest.skip("sample records did not yield stored rec_indices")
+
+    truncated_records = sample_records[:-1]
+
+    try:
+        fig = plot_planes_with_point_lines(
+            res,
+            records=truncated_records,
+            trust_rec_indices=True,
+            pair=None,
+            show_planes=False,
+            show_points=False,
+            show=False,
+            return_fig=True,
+        )
+    except ValueError as exc:
+        if "planes_by_label vacío" in str(exc):
+            pytest.skip("no planes available to plot for sample records")
+        raise
+
+    assert fig is not None
+
+
 def test_plot_cloud_bounds_include_negative_values():
     plotly = pytest.importorskip("plotly")
     import plotly.graph_objects as go
