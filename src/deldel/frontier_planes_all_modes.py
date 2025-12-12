@@ -1247,8 +1247,6 @@ def plot_planes_with_point_lines(
     if show_cloud:
         if X is None:
             raise ValueError("show_cloud=True requiere proporcionar 'X'.")
-        if y is None:
-            raise ValueError("show_cloud=True requiere proporcionar 'y'.")
 
         X = np.asarray(X)
         if X.ndim != 2:
@@ -1256,13 +1254,14 @@ def plot_planes_with_point_lines(
         if max(dims) >= X.shape[1]:
             raise ValueError("'X' no tiene suficientes columnas para los índices en 'dims'.")
 
-        y_arr = np.asarray(y)
-        if y_arr.shape[0] != X.shape[0]:
+        y_arr = None if y is None else np.asarray(y)
+        if y_arr is not None and y_arr.shape[0] != X.shape[0]:
             raise ValueError("'X' y 'y' deben tener la misma cantidad de filas.")
 
-        uniq = list(dict.fromkeys(y_arr.tolist()))
+        uniq = list(dict.fromkeys(y_arr.tolist())) if y_arr is not None else [None]
         cloud_palette = {lbl: base_palette[i % len(base_palette)] for i, lbl in enumerate(uniq)}
-        cloud_colors = [cloud_palette[val] for val in y_arr]
+        default_col = cloud_palette[uniq[0]] if uniq else base_palette[0]
+        cloud_colors = [cloud_palette.get(val, default_col) for val in (y_arr if y_arr is not None else np.zeros(X.shape[0]))]
         cloud_sel = X[:, dims]
 
     mu_sel = np.vstack(mu_list)[:, dims] if mu_list else np.empty((0, len(dims)))
@@ -1272,12 +1271,22 @@ def plot_planes_with_point_lines(
     points_for_bounds = [A[:, dims], B[:, dims], F[:, dims]]
     if mu_sel_valid:
         points_for_bounds.append(mu_sel)
-    if cloud_sel is not None:
-        points_for_bounds.append(cloud_sel)
 
-    all_bounds = np.vstack(points_for_bounds)
-    lo = all_bounds.min(axis=0)
-    hi = all_bounds.max(axis=0)
+    base_bounds = np.vstack(points_for_bounds)
+    lo = base_bounds.min(axis=0)
+    hi = base_bounds.max(axis=0)
+
+    if cloud_sel is not None:
+        cloud_lo = cloud_sel.min(axis=0)
+        cloud_hi = cloud_sel.max(axis=0)
+        lo = np.minimum(lo, cloud_lo)
+        hi = np.maximum(hi, cloud_hi)
+
+        # Si no hay mus válidos o el rango de planos/segmentos es degenerado, usa la nube como respaldo.
+        if (not mu_sel_valid) or np.any(np.isclose(base_bounds.max(axis=0) - base_bounds.min(axis=0), 0)):
+            lo = cloud_lo
+            hi = cloud_hi
+
     span = np.maximum(hi - lo, 1e-6)
     lo = lo - 0.10 * span
     hi = hi + 0.10 * span
