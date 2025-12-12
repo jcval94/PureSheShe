@@ -374,6 +374,22 @@ def test_plot_helpers(sample_records):
     )
     assert fig2 is not None
 
+    fig3 = run_and_time(
+        "plot_planes_with_point_lines (cloud)",
+        plot_planes_with_point_lines,
+        res,
+        records=sample_records,
+        X=X,
+        y=y,
+        pair=None,
+        show_planes=False,
+        show_points=False,
+        show_cloud=True,
+        show=False,
+        return_fig=True,
+    )
+    assert fig3 is not None
+
 
 def test_full_pipeline(dataset):
     X = dataset["X"]
