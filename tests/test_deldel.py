@@ -391,6 +391,63 @@ def test_plot_helpers(sample_records):
     assert fig3 is not None
 
 
+def test_plot_normal_lines_use_unit_norm():
+    plotly = pytest.importorskip("plotly")
+
+    class DummyRecord:
+        def __init__(self):
+            self.x0 = np.array([-2.0, -1.0, 0.0])
+            self.x1 = np.array([2.0, 1.0, 0.0])
+            self.y0 = 0
+            self.y1 = 1
+            self.cp_x = np.empty((0, 0), float)
+            self.cp_count = 0
+            self.success = True
+            self.final_score = 1.0
+
+    record = DummyRecord()
+    res = {
+        (0, 1): {
+            "planes_by_label": {
+                0: [
+                    {
+                        "n": [2.0, 0.0, 0.0],
+                        "b": -1.0,
+                        "mu": [0.0, 0.0, 0.0],
+                        "fit_error": {"inlier_rmse": 0.0},
+                    }
+                ]
+            },
+            "assignment": {
+                "rec_indices": [0],
+                "assigned_label": [0],
+                "assigned_plane": [0],
+            },
+        }
+    }
+
+    fig = plot_planes_with_point_lines(
+        res,
+        records=[record],
+        pair=(0, 1),
+        show_planes=False,
+        show_points=False,
+        line_kind="normal",
+        show=False,
+        return_fig=True,
+    )
+
+    normal_traces = [tr for tr in fig.data if tr.name.startswith("Normal")]
+    assert normal_traces, "No se generó la línea normal"
+    xs = list(normal_traces[0].x)
+    ys = list(normal_traces[0].y)
+    v = record.x1 - record.x0
+    u = v / np.linalg.norm(v)
+    expected_frontier = record.x1 + 1e-3 * u
+    assert_allclose([xs[0], xs[1]], [expected_frontier[0], 0.5], atol=1e-6)
+    assert_allclose([ys[0], ys[1]], [expected_frontier[1], expected_frontier[1]], atol=1e-6)
+
+
 def test_full_pipeline(dataset):
     X = dataset["X"]
     model = dataset["model"]
