@@ -391,6 +391,143 @@ def test_plot_helpers(sample_records):
     assert fig3 is not None
 
 
+def test_plot_cloud_bounds_include_negative_values():
+    plotly = pytest.importorskip("plotly")
+    import plotly.graph_objects as go
+
+    class DummyRecord:
+        def __init__(self):
+            self.x0 = np.array([-1.0, -1.0, -1.0])
+            self.x1 = np.array([-0.5, -0.25, -0.1])
+            self.y0 = 0
+            self.y1 = 1
+            self.cp_x = np.empty((0, 0), float)
+            self.cp_count = 0
+            self.success = True
+            self.final_score = 1.0
+
+    record = DummyRecord()
+    res = {
+        (0, 1): {
+            "planes_by_label": {
+                0: [
+                    {
+                        "n": [0.5, 0.5, 0.7],
+                        "b": 0.0,
+                        "mu": [1.0, 1.0, 1.0],
+                        "fit_error": {"inlier_rmse": 0.0},
+                    }
+                ]
+            },
+            "assignment": {
+                "rec_indices": [0],
+                "assigned_label": [0],
+                "assigned_plane": [0],
+            },
+        }
+    }
+
+    X = np.array(
+        [
+            [-5.0, -4.0, -3.0],
+            [-4.5, -3.5, -2.5],
+            [-4.0, -3.0, -2.0],
+        ]
+    )
+    y = np.array([0, 1, 0])
+
+    fig = plot_planes_with_point_lines(
+        res,
+        records=[record],
+        X=X,
+        y=y,
+        pair=(0, 1),
+        show_planes=True,
+        show_points=False,
+        show_cloud=True,
+        show=False,
+        return_fig=True,
+    )
+
+    assert any(isinstance(tr, go.Surface) for tr in fig.data), "No se generó el plano esperado"
+
+    def _finite_vals(data):
+        arr = np.asarray(data, float).ravel()
+        return arr[np.isfinite(arr)]
+
+    all_x = np.concatenate([_finite_vals(tr.x) for tr in fig.data])
+    all_y = np.concatenate([_finite_vals(tr.y) for tr in fig.data])
+    all_z = np.concatenate([_finite_vals(tr.z) for tr in fig.data])
+
+    assert all_x.min() <= X[:, 0].min()
+    assert all_y.min() <= X[:, 1].min()
+    assert all_z.min() <= X[:, 2].min()
+
+
+def test_plot_bounds_use_raw_endpoints_when_cp_collapses_span():
+    plotly = pytest.importorskip("plotly")
+    import plotly.graph_objects as go
+
+    class DummyRecord:
+        def __init__(self):
+            self.x0 = np.array([2.0, 2.0, 2.0])
+            self.x1 = np.array([-3.0, -1.5, -0.5])
+            self.cp_x = np.array([[0.8, 0.7, 0.6], [0.5, 0.6, 0.4]])
+            self.cp_count = self.cp_x.shape[0]
+            self.y0 = 0
+            self.y1 = 1
+            self.success = True
+            self.final_score = 1.0
+
+    record = DummyRecord()
+    res = {
+        (0, 1): {
+            "planes_by_label": {
+                0: [
+                    {
+                        "n": [0.2, 0.3, 0.4],
+                        "b": 0.0,
+                        "mu": [0.0, 0.0, 0.0],
+                        "fit_error": {"inlier_rmse": 0.0},
+                    }
+                ]
+            },
+            "assignment": {
+                "rec_indices": [0],
+                "assigned_label": [0],
+                "assigned_plane": [0],
+            },
+        }
+    }
+
+    fig = plot_planes_with_point_lines(
+        res,
+        records=[record],
+        pair=(0, 1),
+        show_planes=True,
+        show_points=False,
+        show_cloud=False,
+        show=False,
+        return_fig=True,
+    )
+
+    surfaces = [tr for tr in fig.data if isinstance(tr, go.Surface)]
+    assert surfaces, "No se generó el plano esperado"
+
+    def _finite_vals(data):
+        arr = np.asarray(data, float).ravel()
+        return arr[np.isfinite(arr)]
+
+    surface = surfaces[0]
+    all_x = _finite_vals(surface.x)
+    all_y = _finite_vals(surface.y)
+    all_z = _finite_vals(surface.z)
+
+    assert all_x.min() <= record.x1[0]
+    assert all_y.min() <= record.x1[1]
+    assert all_z.min() <= record.x1[2]
+
+
 def test_plot_normal_lines_use_unit_norm():
     plotly = pytest.importorskip("plotly")
 
