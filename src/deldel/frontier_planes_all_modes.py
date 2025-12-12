@@ -1241,12 +1241,43 @@ def plot_planes_with_point_lines(
     if len(dims) != 3:
         raise ValueError("Esta función es 3D: 'dims' debe tener tres índices.")
 
-    MU = np.vstack(mu_list) if mu_list else F
-    lo = MU[:, dims].min(axis=0)
-    hi = MU[:, dims].max(axis=0)
-    allP = np.vstack([A[:, dims], B[:, dims], F[:, dims]])
-    lo = np.minimum(lo, allP.min(axis=0))
-    hi = np.maximum(hi, allP.max(axis=0))
+    cloud_sel = None
+    cloud_colors = None
+    cloud_palette = None
+    if show_cloud:
+        if X is None:
+            raise ValueError("show_cloud=True requiere proporcionar 'X'.")
+        if y is None:
+            raise ValueError("show_cloud=True requiere proporcionar 'y'.")
+
+        X = np.asarray(X)
+        if X.ndim != 2:
+            raise ValueError("'X' debe ser un arreglo 2D (n_samples, n_features).")
+        if max(dims) >= X.shape[1]:
+            raise ValueError("'X' no tiene suficientes columnas para los índices en 'dims'.")
+
+        y_arr = np.asarray(y)
+        if y_arr.shape[0] != X.shape[0]:
+            raise ValueError("'X' y 'y' deben tener la misma cantidad de filas.")
+
+        uniq = list(dict.fromkeys(y_arr.tolist()))
+        cloud_palette = {lbl: base_palette[i % len(base_palette)] for i, lbl in enumerate(uniq)}
+        cloud_colors = [cloud_palette[val] for val in y_arr]
+        cloud_sel = X[:, dims]
+
+    mu_sel = np.vstack(mu_list)[:, dims] if mu_list else np.empty((0, len(dims)))
+    mu_sel_valid = mu_sel.size > 0 and np.all(np.isfinite(mu_sel))
+    # Si los planos están ausentes o degenerados, la nube (cloud_sel) sirve de respaldo.
+
+    points_for_bounds = [A[:, dims], B[:, dims], F[:, dims]]
+    if mu_sel_valid:
+        points_for_bounds.append(mu_sel)
+    if cloud_sel is not None:
+        points_for_bounds.append(cloud_sel)
+
+    all_bounds = np.vstack(points_for_bounds)
+    lo = all_bounds.min(axis=0)
+    hi = all_bounds.max(axis=0)
     span = np.maximum(hi - lo, 1e-6)
     lo = lo - 0.10 * span
     hi = hi + 0.10 * span
@@ -1267,32 +1298,12 @@ def plot_planes_with_point_lines(
             pass
     fig = go.Figure()
 
-    if show_cloud:
-        if X is None:
-            raise ValueError("show_cloud=True requiere proporcionar 'X'.")
-        if y is None:
-            raise ValueError("show_cloud=True requiere proporcionar 'y'.")
-
-        X = np.asarray(X)
-        if X.ndim != 2:
-            raise ValueError("'X' debe ser un arreglo 2D (n_samples, n_features).")
-        if max(dims) >= X.shape[1]:
-            raise ValueError("'X' no tiene suficientes columnas para los índices en 'dims'.")
-
-        y_arr = np.asarray(y)
-        if y_arr.shape[0] != X.shape[0]:
-            raise ValueError("'X' y 'y' deben tener la misma cantidad de filas.")
-
-        uniq = list(dict.fromkeys(y_arr.tolist()))
-        cloud_palette = {lbl: base_palette[i % len(base_palette)] for i, lbl in enumerate(uniq)}
-        cloud_colors = [cloud_palette[val] for val in y_arr]
-
-        X_sel = X[:, dims]
+    if cloud_sel is not None:
         fig.add_trace(
             go.Scatter3d(
-                x=X_sel[:, 0],
-                y=X_sel[:, 1],
-                z=X_sel[:, 2],
+                x=cloud_sel[:, 0],
+                y=cloud_sel[:, 1],
+                z=cloud_sel[:, 2],
                 mode="markers",
                 name="Nube X",
                 legendgroup="cloud",
