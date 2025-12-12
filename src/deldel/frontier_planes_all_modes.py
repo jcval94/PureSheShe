@@ -4,6 +4,7 @@ from typing import Iterable, Tuple, List, Dict, Optional, Any, Sequence
 
 import logging
 from time import perf_counter
+import warnings
 
 import numpy as np
 
@@ -1079,6 +1080,7 @@ def plot_planes_with_point_lines(
     line_opacity: float = 0.35,
     max_points: Optional[int] = None,
     prefer_cp: bool = True,
+    trust_rec_indices: bool = False,
     renderer: Optional[str] = None,
     title: str = "Planos + líneas por punto",
     show: bool = True,
@@ -1086,12 +1088,15 @@ def plot_planes_with_point_lines(
 ):
     """
     Versión robusta:
-      - Si res[pair]['assignment']['rec_indices'] está vacío o ausente,
-        reconstruye A,B,F y asignación a planos desde 'records'.
+      - Si res[pair]['assignment']['rec_indices'] está vacío, ausente o se
+        consideran inseguros, reconstruye A,B,F y asignación a planos desde
+        'records'.
     """
 
     import plotly.graph_objects as go
     import plotly.express as px
+
+    records = list(records)
 
     keys = list(res.keys())
     if pair is None:
@@ -1168,12 +1173,32 @@ def plot_planes_with_point_lines(
 
     assignment = block.get("assignment", {}) or {}
     rec_idx = np.asarray(assignment.get("rec_indices", []), int)
+    if not trust_rec_indices:
+        rec_idx = np.array([], int)
     assigned_label = np.asarray(assignment.get("assigned_label", []), int)
     assigned_plane = np.asarray(assignment.get("assigned_plane", []), int)
 
     A_list, B_list, F_list, idx_list = [], [], [], []
     eps = 1e-3
     a_cls, b_cls = int(pair[0]), int(pair[1])
+    if rec_idx.size:
+        invalid_reason = None
+        if np.any(rec_idx < 0) or (rec_idx.size and np.max(rec_idx) >= len(records)):
+            invalid_reason = "índices fuera de rango para los 'records' actuales"
+        else:
+            pair_set = {a_cls, b_cls}
+            bad = [idx for idx in rec_idx if {int(getattr(records[idx], "y0")), int(getattr(records[idx], "y1"))} != pair_set]
+            if bad:
+                invalid_reason = "rec_indices no corresponden al par solicitado"
+
+        if invalid_reason:
+            warnings.warn(
+                "Ignorando rec_indices almacenados: " + invalid_reason,
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            rec_idx = np.array([], int)
+
     if rec_idx.size == 0:
         for i, r in enumerate(records):
             if not getattr(r, "success", True):
