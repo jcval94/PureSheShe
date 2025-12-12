@@ -312,7 +312,7 @@ def run_corner_pipeline_experiments(
     engine = DelDel(cfg)
     t0 = perf_counter()
     try:
-        engine.fit(X, model)
+        engine.fit(X, model, verbosity=max(verbosity - 1, 0))
     except Exception:
         logger.exception("Error en DelDel.fit")
         raise
@@ -809,7 +809,7 @@ def run_corner_random_forest_pipeline(
     engine = DelDel(cfg, cp_cfg)
     deldel_start = perf_counter()
     try:
-        engine.fit(X, model, verbose=verbosity > 1)
+        engine.fit(X, model, verbosity=max(verbosity - 1, 0))
     except Exception:
         logger.exception("Error durante DelDel.fit")
         raise

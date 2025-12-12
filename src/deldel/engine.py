@@ -101,6 +101,8 @@ from typing import Any, Dict, List, Optional, Tuple, Iterable, NamedTuple
 import numpy as np
 from collections import defaultdict
 
+from ._logging_utils import verbosity_to_level
+
 from ._numeric_utils import (
     destandardize_quadratic,
     standardize_matrix,
@@ -497,13 +499,21 @@ class ChangePointConfig:
 # -------------------------
 # Predicción etiquetas (para CP)
 # -------------------------
-def _predict_labels(model, X: np.ndarray, *, adaptor: Optional[ScoreAdaptor] = None, verbose: bool = False) -> np.ndarray:
+def _predict_labels(
+    model,
+    X: np.ndarray,
+    *,
+    adaptor: Optional[ScoreAdaptor] = None,
+    verbosity: int = 0,
+) -> np.ndarray:
+    """Obtain labels from ``model`` respecting the verbosity contract."""
+
     X = np.asarray(X, float)
     if adaptor is not None:
         S = adaptor.scores_dedup(X) if hasattr(adaptor, 'scores_dedup') else adaptor.scores(X)
         return np.argmax(S, axis=1)
     # (solo si no hay adaptor, opcionalmente imprime)
-    if verbose:
+    if verbosity > 0:
         print('Usando modelo', X.shape)
     if hasattr(model, "predict"):
         y = model.predict(X); return np.asarray(y)
@@ -765,7 +775,7 @@ class DelDel:
         self._y: Optional[np.ndarray] = None
         self.calls_: List[Dict[str, Any]] = []
 
-    def _pair_candidates_round_robin(self, labels, *, verbose: bool = False):
+    def _pair_candidates_round_robin(self, labels, *, verbosity: int = 0):
         """
         Selección de segmentos con:
           - Objetivo global exacto: segments_target (mezclado por round-robin al final).
@@ -798,8 +808,10 @@ class DelDel:
         w_ent  = float(getattr(self.cfg, "w_ent", 0.35))
         w_dist = float(getattr(self.cfg, "w_dist", 0.20))
 
-        vprint = print if verbose else (lambda *args, **kwargs: None)
+        vprint = print if verbosity > 0 else (lambda *args, **kwargs: None)
+        self.logger.setLevel(verbosity_to_level(verbosity))
         logger = getattr(self, "logger", _get_logger("DelDel"))
+        logger.setLevel(verbosity_to_level(verbosity))
 
         # Unicidad / caps / adaptación
         origin_global_budget   = int(getattr(self.cfg, "origin_global_budget", 2))   # veces máx que un origen puede aparecer en TOTAL
@@ -1321,14 +1333,16 @@ class DelDel:
 
 
     # ---------- API principal ----------
-    def fit(self, X: np.ndarray, model: Any, verbose: bool = False) -> "DelDel":
+    def fit(self, X: np.ndarray, model: Any, verbosity: int = 0) -> "DelDel":
         with _collect_calls(self.calls_):
 
             self.calls_.clear()
             from time import perf_counter
             from contextlib import contextmanager
 
-            vprint = print if verbose else (lambda *args, **kwargs: None)
+            vprint = print if verbosity > 0 else (lambda *args, **kwargs: None)
+            level = verbosity_to_level(verbosity)
+            self.logger.setLevel(level)
 
             @contextmanager
             def _tick(name: str):
@@ -1371,7 +1385,7 @@ class DelDel:
 
             with _tick("02_pair_candidates_round_robin"):
                 try:
-                    A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbose=verbose)
+                    A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbosity=verbosity)
                 except Exception as exc:
                     self.logger.error("Error generando pares candidatos", exc_info=exc)
                     raise
@@ -1518,12 +1532,18 @@ class DelDel:
             return self
 
 
-    def fit(self, X: np.ndarray, model: Any, verbose: bool = False) -> "DelDel":
+    def fit(self, X: np.ndarray, model: Any, verbosity: int = 0) -> "DelDel":
+        """Entrena DelDel con control de verbosidad por niveles enteros.
+
+        El valor predeterminado (0) evita la salida adicional en consola; valores
+        mayores habilitan trazas progresivamente más detalladas.
+        """
         from time import perf_counter
         from contextlib import contextmanager
         from collections import Counter  # <-- añadido para los conteos
 
-        vprint = print if verbose else (lambda *args, **kwargs: None)
+        vprint = print if verbosity > 0 else (lambda *args, **kwargs: None)
+        self.logger.setLevel(verbosity_to_level(verbosity))
 
         @contextmanager
         def _tick(name: str):
@@ -1564,7 +1584,7 @@ class DelDel:
 
         with _tick("02_pair_candidates_round_robin"):
             try:
-                A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbose=verbose)
+                A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbosity=verbosity)
             except Exception as exc:
                 self.logger.error("Error generando pares candidatos", exc_info=exc)
                 raise

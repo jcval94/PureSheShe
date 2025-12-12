@@ -914,13 +914,15 @@ def compute_frontier_planes_all_modes(
     explorer_reports: Optional[Sequence[Any]] = None,
     explorer_feature_names: Optional[Sequence[str]] = None,
     explorer_top_k: int = 5,
-    verbosity: Optional[int] = None,
-    verbose: bool = False,
+    verbosity: int = 0,
 ) -> Dict[Tuple[int, int], Dict[str, Any]]:
-    """Encuentra planos frontera por par de clases usando exclusivamente el modo C mejorado."""
+    """Encuentra planos frontera por par de clases usando exclusivamente el modo C mejorado.
+
+    ``verbosity`` controla el nivel de logging; el valor por defecto (0)
+    mantiene la salida en consola al mínimo.
+    """
 
     logger = logging.getLogger(__name__)
-    verbosity = 1 if (verbosity is None and verbose) else (-1 if verbosity is None else int(verbosity))
     level = verbosity_to_level(verbosity)
     logger.setLevel(level)
     explorer_top_k = int(explorer_top_k)
