@@ -95,16 +95,47 @@ plot_corner_class_dataset(X, y, feature_names)
 ## Ejemplo de uso de `find_low_dim_spaces`
 
 El siguiente ejemplo reproduce el flujo recomendado para explorar reglas en subespacios de baja dimensión a partir de una
-selección de planos frontera (`sel`).
+selección de planos frontera (`sel`). Parte del dataset sintético 4D definido más arriba (`X`, `y` y `feature_names`).
 
 ```python
+import time
+
+from deldel import (
+    ChangePointConfig,
+    DelDel,
+    DelDelConfig,
+    compute_frontier_planes_all_modes,
+    prune_and_orient_planes_unified_globalmaj,
+)
 from deldel.find_low_dim_spaces_fast import find_low_dim_spaces
 
-%%time
-# 9s
+# Configuración base reutilizable en todo el README
+clf = RandomForestClassifier(n_estimators=200, random_state=0).fit(X, y)
+cfg = DelDelConfig(segments_target=180, random_state=0)
+records = DelDel(cfg, ChangePointConfig(enabled=False)).fit(X, clf).records_
+
+frontiers = compute_frontier_planes_all_modes(
+    records,
+    mode="C",
+    min_cluster_size=8,
+    max_models_per_round=4,
+    seed=0,
+)
+sel = prune_and_orient_planes_unified_globalmaj(
+    frontiers,
+    X,
+    y,
+    feature_names=feature_names,
+    max_k=6,
+    min_region_size=20,
+    min_abs_diff=0.01,
+    min_rel_lift=0.05,
+)
+
+t0 = time.time()
 valuable = find_low_dim_spaces(
     X, y, sel,
-    feature_names=[f"x{i}" for i in range(X.shape[1])],
+    feature_names=feature_names,
     max_planes_in_rule=3,       # conjunciones hasta 3 planos
     max_planes_per_pair=4,      # como tope por par
     min_support=40,             # evita reglas con muy pocos puntos
@@ -113,6 +144,7 @@ valuable = find_low_dim_spaces(
     consider_dims_up_to=X.shape[1],  # busca 1..d
     rng_seed=0,
 )
+print(f"Búsqueda completada en {time.time()-t0:.2f} s")
 
 planos_ = []
 # Presentación: de 1 a d dimensiones
@@ -398,18 +430,6 @@ res_c = compute_frontier_planes_all_modes(
 #   que reparte cuotas según `p_hat` (o `pair_mix_target` si lo especificas). Si quieres reflejar la
 #   mezcla real de etiquetas, pasa un `pair_mix_target` explícito y vuelve a ejecutar `fit`.
 
-# Ajustar también en los subespacios top del explorer_fast
-res_c_topdims = compute_frontier_planes_all_modes(
-    records,
-    mode="C",
-    min_cluster_size=12,
-    max_models_per_round=6,
-    seed=0,
-    explorer_reports=explorer_fast.get_report(),
-    explorer_feature_names=[f"f{i}" for i in range(X.shape[1])],
-    explorer_top_k=5,
-)
-
 # Selección global orientada
 sel = prune_and_orient_planes_unified_globalmaj(
     res_c,
@@ -441,6 +461,18 @@ explorer_fast.fit(
     X,
     y,
     preset="fast",               # CV ligero y poda agresiva
+)
+
+# Ajustar también en los subespacios top del explorer_fast
+res_c_topdims = compute_frontier_planes_all_modes(
+    records,
+    mode="C",
+    min_cluster_size=12,
+    max_models_per_round=6,
+    seed=0,
+    explorer_reports=explorer_fast.get_report(),
+    explorer_feature_names=[f"f{i}" for i in range(X.shape[1])],
+    explorer_top_k=5,
 )
 
 explorer_ultra = MultiClassSubspaceExplorer()
