@@ -464,6 +464,66 @@ def test_plot_cloud_bounds_include_negative_values():
     assert all_z.min() <= X[:, 2].min()
 
 
+def test_plot_cloud_used_for_bounds_when_planes_positive():
+    plotly = pytest.importorskip("plotly")
+
+    class DummyRecord:
+        def __init__(self):
+            self.x0 = np.array([1.0, 1.0, 1.0])
+            self.x1 = np.array([2.0, 2.0, 2.0])
+            self.y0 = 0
+            self.y1 = 1
+            self.cp_x = np.empty((0, 0), float)
+            self.cp_count = 0
+            self.success = True
+            self.final_score = 1.0
+
+    record = DummyRecord()
+    res = {
+        (0, 1): {
+            "planes_by_label": {
+                0: [
+                    {
+                        "n": [1.0, 0.0, 0.0],
+                        "b": -1.0,
+                        "mu": [1.0, 1.0, 1.0],
+                        "fit_error": {"inlier_rmse": 0.0},
+                    }
+                ]
+            },
+            "assignment": {
+                "rec_indices": [0],
+                "assigned_label": [0],
+                "assigned_plane": [0],
+            },
+        }
+    }
+
+    X = np.array([[-5.0, -4.0, -3.0], [-4.5, -3.5, -2.5], [-4.0, -3.0, -2.0]])
+    y = np.array([0, 1, 0])
+
+    fig = plot_planes_with_point_lines(
+        res,
+        records=[record],
+        X=X,
+        y=y,
+        pair=(0, 1),
+        show_planes=False,
+        show_points=False,
+        show_cloud=True,
+        line_kind="segment",
+        show=False,
+        return_fig=True,
+    )
+
+    def _finite_vals(data):
+        arr = np.asarray(data, float).ravel()
+        return arr[np.isfinite(arr)]
+
+    all_x = np.concatenate([_finite_vals(tr.x) for tr in fig.data])
+    assert all_x.min() <= X[:, 0].min()
+
+
 def test_plot_normal_lines_use_unit_norm():
     plotly = pytest.importorskip("plotly")
 
