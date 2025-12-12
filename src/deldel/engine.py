@@ -808,10 +808,10 @@ class DelDel:
         w_ent  = float(getattr(self.cfg, "w_ent", 0.35))
         w_dist = float(getattr(self.cfg, "w_dist", 0.20))
 
+        level = verbosity_to_level(verbosity)
+        logger = getattr(self, "logger", None) or _get_logger("DelDel", level)
+        logger.setLevel(level)
         vprint = print if verbosity > 0 else (lambda *args, **kwargs: None)
-        self.logger.setLevel(verbosity_to_level(verbosity))
-        logger = getattr(self, "logger", _get_logger("DelDel"))
-        logger.setLevel(verbosity_to_level(verbosity))
 
         # Unicidad / caps / adaptación
         origin_global_budget   = int(getattr(self.cfg, "origin_global_budget", 2))   # veces máx que un origen puede aparecer en TOTAL
