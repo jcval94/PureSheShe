@@ -1,8 +1,9 @@
 import logging
 import numpy as np
 
-from deldel._logging_utils import verbosity_to_level
 from deldel import _numeric_utils
+from deldel._logging_utils import verbosity_to_level
+from deldel.engine import _predict_labels
 
 
 def test_verbosity_to_level_matches_legacy_behavior():
@@ -72,3 +73,20 @@ def test_numeric_helpers_match_legacy_implementations():
 
     for new, old in zip(unpacked_new, unpacked_old):
         np.testing.assert_allclose(new, old)
+
+
+def test_predict_labels_verbosity_controls_output(capsys):
+    class _DummyModel:
+        def predict(self, X):
+            return np.zeros(len(X), dtype=int)
+
+    X = np.zeros((2, 3))
+    model = _DummyModel()
+
+    _predict_labels(model, X, verbosity=0)
+    captured = capsys.readouterr()
+    assert captured.out == ""
+
+    _predict_labels(model, X, verbosity=1)
+    captured = capsys.readouterr()
+    assert "Usando modelo" in captured.out
