@@ -463,13 +463,13 @@ def find_low_dim_spaces(
     *,
     feature_names: Optional[List[str]] = None,
     max_planes_in_rule: int = 3,
-    max_planes_per_pair: int = 2,
+    max_planes_per_pair: int = 4,
     max_rules_per_dim: int = 50,
-    min_support: int = 30,
+    min_support: int = 8,
     # ---- criterios adaptativos (rel + abs) ----
-    min_rel_gain_f1: float = 0.25,
+    min_rel_gain_f1: float = 0.01,
     min_abs_gain_f1: float = 0.05,
-    min_lift_prec: float = 1.25,
+    min_lift_prec: float = 1.05,
     min_abs_gain_prec: float = 0.05,
     # ---- robustez geométrica ----
     min_norm_in_dims: float = 1e-8,
@@ -1047,4 +1047,3 @@ __all__ = [
     "find_low_dim_spaces_support_first",
     "find_low_dim_spaces_precision_boost",
 ]
-
