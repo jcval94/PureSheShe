@@ -307,7 +307,7 @@ def describe_regions_report(
     """
 
     logger = logging.getLogger(__name__)
-    level = verbosity_to_level(verbosity)
+    level = verbosity_to_level(max(1, verbosity))
     t0 = perf_counter()
     logger.log(level, "describe_regions_report: inicio | region_id=%s", region_id)
 
@@ -569,7 +569,7 @@ def describe_regions_report_with_sel(
     """
 
     logger = logging.getLogger(__name__)
-    level = verbosity_to_level(verbosity)
+    level = verbosity_to_level(max(1, verbosity))
     logger.log(level, "describe_regions_report_with_sel: inicio | plane_id=%s", plane_id)
 
     filtered = _filter_valuable_by_plane_id(valuable, plane_id) if plane_id else valuable
@@ -632,7 +632,7 @@ def describe_regions_metrics(
         return value_f
 
     logger = logging.getLogger(__name__)
-    level = verbosity_to_level(verbosity)
+    level = verbosity_to_level(max(1, verbosity))
     t0 = perf_counter()
     logger.log(level, "describe_regions_metrics: inicio | region_id=%s", region_id)
 
@@ -732,8 +732,12 @@ def plot_selected_regions_interactive(
     rng_seed: int | None = 1337            # reproducibilidad del muestreo
 ):
     logger = logging.getLogger(__name__)
-    logger.log(verbosity_to_level(sel_aug.get("verbosity", 0) if isinstance(sel_aug, dict) else 0),
-               "plot_selected_regions_interactive: inicio | X=%s y=%s selected_planes=%s", getattr(X, 'shape', None), getattr(y, 'shape', None), selected_plane_ids)
+    verbosity = sel_aug.get("verbosity", 0) if isinstance(sel_aug, dict) else 0
+    logger.log(
+        verbosity_to_level(max(1, verbosity)),
+        "plot_selected_regions_interactive: inicio | X=%s y=%s selected_planes=%s",
+        getattr(X, 'shape', None), getattr(y, 'shape', None), selected_plane_ids,
+    )
     """
     Cambios críticos integrados (3D fix):
       • **SIEMPRE** se pinta el lado n·x + b ≤ 0. Para ello, en 3D se
