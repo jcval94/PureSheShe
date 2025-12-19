@@ -202,7 +202,8 @@ Si además necesitas cruzar las reglas con la selección de planos de
 ``plane_id`` concreto, utiliza ``describe_regions_report_with_sel``. El
 comportamiento base es el mismo, pero añade un bloque con los planos
 seleccionados y permite restringir el reporte a las regiones que usan un plano
-determinado:
+determinado. Si solo te interesa el resumen de selección puedes omitir
+``valuable`` y se mostrará únicamente ese bloque:
 
 ```python
 from deldel import describe_regions_report_with_sel

@@ -541,7 +541,7 @@ def _fmt_sel_summary(sel: Any, plane_id: Optional[str]) -> List[str]:
 
 
 def describe_regions_report_with_sel(
-    valuable: Dict[int, List[Dict[str, Any]]],
+    valuable: Optional[Dict[int, List[Dict[str, Any]]]] = None,
     *,
     sel: Any = None,
     plane_id: Optional[str] = None,
@@ -566,29 +566,31 @@ def describe_regions_report_with_sel(
       :func:`prune_and_orient_planes_unified_globalmaj` (or an iterable of
       plane dicts). A compact summary of the planes is appended to the textual
       report or returned under the ``selection`` key when requesting averages.
+    - ``valuable`` is optional; when omitted, the function returns only the
+      selection summary (if any) without computing the base report.
     """
 
     logger = logging.getLogger(__name__)
     level = verbosity_to_level(max(1, verbosity))
     logger.log(level, "describe_regions_report_with_sel: inicio | plane_id=%s", plane_id)
 
-    if valuable is None:
-        raise ValueError("'valuable' es obligatorio en describe_regions_report_with_sel")
+    filtered = _filter_valuable_by_plane_id(valuable, plane_id) if plane_id and valuable else valuable
 
-    filtered = _filter_valuable_by_plane_id(valuable, plane_id) if plane_id else valuable
-
-    base = describe_regions_report(
-        filtered,
-        region_id=region_id,
-        top_per_class=top_per_class,
-        dataset_size=dataset_size,
-        max_rule_text_chars=max_rule_text_chars,
-        show_per_class_in_top=show_per_class_in_top,
-        fix_rule_text=fix_rule_text,
-        show_original_if_changed=show_original_if_changed,
-        return_average_metrics=return_average_metrics,
-        verbosity=verbosity,
-    )
+    if filtered is None:
+        base: Union[str, Dict[str, Any]] = {} if return_average_metrics else ""
+    else:
+        base = describe_regions_report(
+            filtered,
+            region_id=region_id,
+            top_per_class=top_per_class,
+            dataset_size=dataset_size,
+            max_rule_text_chars=max_rule_text_chars,
+            show_per_class_in_top=show_per_class_in_top,
+            fix_rule_text=fix_rule_text,
+            show_original_if_changed=show_original_if_changed,
+            return_average_metrics=return_average_metrics,
+            verbosity=verbosity,
+        )
 
     sel_lines = _fmt_sel_summary(sel, plane_id)
     if return_average_metrics:
