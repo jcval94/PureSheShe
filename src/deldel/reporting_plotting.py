@@ -842,7 +842,19 @@ def plot_selected_regions_interactive(
                 if rid:
                     valuable_region_index[rid] = rr
 
-    selected_plane_ids = list(selected_plane_ids or [])
+    def _normalize_plane_id(pid):
+        if isinstance(pid, (list, tuple)) and pid:
+            pid = pid[0]
+        if isinstance(pid, dict):
+            pid = pid.get("plane_id") or pid.get("id")
+        return pid
+
+    selected_plane_ids_raw = selected_plane_ids or []
+    selected_plane_ids = []
+    for pid in selected_plane_ids_raw:
+        pid_norm = _normalize_plane_id(pid)
+        if pid_norm is not None:
+            selected_plane_ids.append(pid_norm)
     selected_region_ids = list(selected_region_ids or [])
     rules_to_show = list(rules_to_show or [])
 
