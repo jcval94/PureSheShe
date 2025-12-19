@@ -1083,6 +1083,7 @@ def plot_planes_with_point_lines(
     trust_rec_indices: bool = False,
     renderer: Optional[str] = None,
     title: str = "Planos + líneas por punto",
+    aspectmode: str = "data",
     show: bool = True,
     return_fig: bool = False,
 ):
@@ -1462,14 +1463,21 @@ def plot_planes_with_point_lines(
                     )
                 )
 
+    scene = dict(
+        xaxis_title=_axis_label(dims[0]),
+        yaxis_title=_axis_label(dims[1]),
+        zaxis_title=_axis_label(dims[2]),
+        aspectmode=aspectmode,
+    )
+
+    if aspectmode == "data":
+        scene["xaxis"] = dict(range=[float(lo[0]), float(hi[0])])
+        scene["yaxis"] = dict(range=[float(lo[1]), float(hi[1])])
+        scene["zaxis"] = dict(range=[float(lo[2]), float(hi[2])])
+
     fig.update_layout(
         title=title + f" — par {pair}",
-        scene=dict(
-            xaxis_title=_axis_label(dims[0]),
-            yaxis_title=_axis_label(dims[1]),
-            zaxis_title=_axis_label(dims[2]),
-            aspectmode="cube",
-        ),
+        scene=scene,
         legend=dict(itemsizing="constant", groupclick="toggleitem"),
     )
     if renderer:
