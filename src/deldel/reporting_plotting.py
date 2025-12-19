@@ -572,6 +572,9 @@ def describe_regions_report_with_sel(
     level = verbosity_to_level(max(1, verbosity))
     logger.log(level, "describe_regions_report_with_sel: inicio | plane_id=%s", plane_id)
 
+    if valuable is None:
+        raise ValueError("'valuable' es obligatorio en describe_regions_report_with_sel")
+
     filtered = _filter_valuable_by_plane_id(valuable, plane_id) if plane_id else valuable
 
     base = describe_regions_report(
