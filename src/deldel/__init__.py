@@ -38,6 +38,7 @@ from .find_low_dim_spaces_fast import (
 from .reporting_plotting import (
     describe_regions_metrics,
     describe_regions_report,
+    describe_regions_report_with_sel,
     plot_selected_regions_interactive,
 )
 from . import stage_infer_ab
@@ -79,6 +80,7 @@ __all__ = [
     "find_low_dim_spaces_support_first",
     "describe_regions_metrics",
     "describe_regions_report",
+    "describe_regions_report_with_sel",
     "plot_selected_regions_interactive",
     "MultiClassSubspaceExplorer",
     "SubspacePlane",

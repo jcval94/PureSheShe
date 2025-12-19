@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import math
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from time import perf_counter
 
@@ -464,6 +464,144 @@ def describe_regions_report(
 
     logger.log(level, "describe_regions_report: fin en %.6fs | clases=%d", perf_counter() - t0, len(grouped))
     return "\n".join(lines)
+
+
+def _filter_valuable_by_plane_id(
+    valuable: Dict[int, List[Dict[str, Any]]], plane_id: str
+) -> Dict[int, List[Dict[str, Any]]]:
+    """Filter ``valuable`` keeping only regions that reference ``plane_id``.
+
+    The function inspects ``plane_ids`` as well as the optional ``sources``
+    block, returning a structure with the same shape as the input to preserve
+    ordering per dimensionality.
+    """
+
+    if not plane_id:
+        return valuable
+
+    filtered: Dict[int, List[Dict[str, Any]]] = {}
+    for dim_k, regions in (valuable or {}).items():
+        keep: List[Dict[str, Any]] = []
+        for region in regions or []:
+            planes = set(region.get("plane_ids") or [])
+            sources = {src.get("plane_id") for src in region.get("sources", []) if src.get("plane_id") is not None}
+            if plane_id in planes or plane_id in sources:
+                keep.append(region)
+        if keep:
+            filtered[int(dim_k)] = keep
+    return filtered
+
+
+def _fmt_sel_summary(sel: Any, plane_id: Optional[str]) -> List[str]:
+    """Render a compact summary of the selection structure (``sel``).
+
+    The function is resilient to partial structures: it looks for a
+    ``winning_planes`` collection first, otherwise falls back to any iterable
+    provided directly. When ``plane_id`` is supplied the summary only includes
+    matching planes.
+    """
+
+    if sel is None:
+        return []
+
+    planes: List[Dict[str, Any]] = []
+    if isinstance(sel, dict):
+        maybe_planes = sel.get("winning_planes") or sel.get("planes") or sel.get("selection")
+        if maybe_planes is None:
+            return []
+        planes = list(maybe_planes)
+    elif isinstance(sel, Iterable):  # type: ignore[unreachable]
+        try:
+            planes = list(sel)
+        except Exception:
+            return []
+
+    lines = ["====== PLANOS SELECCIONADOS ======"]
+    for plane in planes:
+        pid = plane.get("plane_id", "—")
+        if plane_id and pid != plane_id:
+            continue
+        tgt = plane.get("target_class", "—")
+        dims = plane.get("dims") or plane.get("axes") or ()
+        source = plane.get("source") or plane.get("family") or "?"
+        score = _fmt_float(plane.get("score"))
+        lines.append(
+            "  id={pid} | clase={cls} | dims={dims} | score={score} | src={src}".format(
+                pid=pid,
+                cls=tgt,
+                dims=tuple(dims) if dims else "—",
+                score=score,
+                src=source,
+            )
+        )
+
+    if len(lines) == 1:
+        return []
+    return lines
+
+
+def describe_regions_report_with_sel(
+    valuable: Dict[int, List[Dict[str, Any]]],
+    *,
+    sel: Any = None,
+    plane_id: Optional[str] = None,
+    region_id: Optional[str] = None,
+    top_per_class: int = 2,
+    dataset_size: Optional[int] = None,
+    max_rule_text_chars: int = 220,
+    show_per_class_in_top: bool = False,
+    fix_rule_text: bool = True,
+    show_original_if_changed: bool = True,
+    return_average_metrics: bool = False,
+    verbosity: int = 0,
+) -> Union[str, Dict[str, Any]]:
+    """Variant of :func:`describe_regions_report` with selection context.
+
+    Additional features:
+
+    - ``plane_id``: filters the regions to those that reference a specific
+      plane (via ``plane_ids`` or ``sources``) and surfaces the matching plane
+      from ``sel`` if provided.
+    - ``sel``: selection structure returned by
+      :func:`prune_and_orient_planes_unified_globalmaj` (or an iterable of
+      plane dicts). A compact summary of the planes is appended to the textual
+      report or returned under the ``selection`` key when requesting averages.
+    """
+
+    logger = logging.getLogger(__name__)
+    level = verbosity_to_level(verbosity)
+    logger.log(level, "describe_regions_report_with_sel: inicio | plane_id=%s", plane_id)
+
+    filtered = _filter_valuable_by_plane_id(valuable, plane_id) if plane_id else valuable
+
+    base = describe_regions_report(
+        filtered,
+        region_id=region_id,
+        top_per_class=top_per_class,
+        dataset_size=dataset_size,
+        max_rule_text_chars=max_rule_text_chars,
+        show_per_class_in_top=show_per_class_in_top,
+        fix_rule_text=fix_rule_text,
+        show_original_if_changed=show_original_if_changed,
+        return_average_metrics=return_average_metrics,
+        verbosity=verbosity,
+    )
+
+    sel_lines = _fmt_sel_summary(sel, plane_id)
+    if return_average_metrics:
+        result: Dict[str, Any] = {"metrics": base} if isinstance(base, dict) else {"metrics": base}
+        if sel_lines:
+            result["selection"] = "\n".join(sel_lines)
+        logger.log(level, "describe_regions_report_with_sel: fin (promedios)")
+        return result
+
+    if sel_lines and isinstance(base, str):
+        report = f"{base}\n\n" + "\n".join(sel_lines)
+    else:
+        report = base
+
+    logger.log(level, "describe_regions_report_with_sel: fin")
+    return report
 
 
 def describe_regions_metrics(

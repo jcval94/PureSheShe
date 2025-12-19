@@ -197,6 +197,28 @@ averages = describe_regions_report(
 print(averages["per_class"])  # {0: {"mean_f1": ..., "mean_lift_precision": ...}, 1: {...}, ...}
 ```
 
+Si además necesitas cruzar las reglas con la selección de planos de
+``prune_and_orient_planes_unified_globalmaj`` (``sel``) o filtrar por un
+``plane_id`` concreto, utiliza ``describe_regions_report_with_sel``. El
+comportamiento base es el mismo, pero añade un bloque con los planos
+seleccionados y permite restringir el reporte a las regiones que usan un plano
+determinado:
+
+```python
+from deldel import describe_regions_report_with_sel
+
+# Reporte filtrado al plano "pl0007" y mostrando los planos seleccionados
+print(
+    describe_regions_report_with_sel(
+        valuable,
+        sel=sel,
+        plane_id="pl0007",
+        top_per_class=3,
+        dataset_size=X.shape[0],
+    )
+)
+```
+
 Cuando se necesitan resultados numéricos listos para CSV, la función
 `describe_regions_metrics` devuelve el mismo Top-K por clase en forma de lista de
 diccionarios con F1 y Lift de precisión por región. El input y el orden de
