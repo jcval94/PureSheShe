@@ -826,13 +826,13 @@ def prune_and_orient_planes_unified_globalmaj(
     baseline = _baseline_props(y)
     labels_all = sorted(baseline.keys())
 
-    logger.log(
-        level,
-        "Inicio prune_and_orient_planes_unified_globalmaj | muestras=%d dims=%d planos=%d",
-        N,
-        d,
-        sum(len(v.get("planes_by_label", {})) for v in res.values()),
-    )
+    if verbosity:
+        logger.info(
+            "Inicio prune_and_orient_planes_unified_globalmaj | muestras=%d dims=%d planos=%d",
+            N,
+            d,
+            sum(len(v.get("planes_by_label", {})) for v in res.values()),
+        )
 
     # Enumerar TODOS los planos
     all_planes_raw = _collect_all_planes(res)
@@ -861,7 +861,8 @@ def prune_and_orient_planes_unified_globalmaj(
         u, bn = _normalize_plane(n, b0)
         r["n_norm"] = u
         r["b_norm"] = bn
-    logger.log(level, "Planos normalizados | total=%d", len(all_planes_raw))
+    if verbosity:
+        logger.info("Planos normalizados | total=%d", len(all_planes_raw))
 
     # Construir medio-espacios orientados (dos lados por plano)
     oriented_pool = []
@@ -871,7 +872,8 @@ def prune_and_orient_planes_unified_globalmaj(
             rr["side"] = int(side)
             rr["oriented_plane_id"] = (f"{rr['plane_id']}:{'≤' if side >= 0 else '≥'}") if rr.get("plane_id") else None
             oriented_pool.append(rr)
-    logger.log(level, "Pool orientado construido | elementos=%d", len(oriented_pool))
+    if verbosity:
+        logger.info("Pool orientado construido | elementos=%d", len(oriented_pool))
 
     # Two-stage: submuestreo
     if 0.0 < sketch_frac < 1.0:
@@ -1349,12 +1351,12 @@ def prune_and_orient_planes_unified_globalmaj(
             )
         )
     )
-    logger.log(
-        level,
-        "Poda/orientación completada en %.6f s | regiones=%d candidatos=%d",
-        perf_counter() - start_global,
-        len(regions_per_plane),
-        len(candidates_global),
-    )
+    if verbosity:
+        logger.info(
+            "Poda/orientación completada en %.6f s | regiones=%d candidatos=%d",
+            perf_counter() - start_global,
+            len(regions_per_plane),
+            len(candidates_global),
+        )
     return out
 
