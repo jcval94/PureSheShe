@@ -223,6 +223,55 @@ def _fmt_metrics_per_class(region: Dict[str, Any], nd: int = 3) -> str:
     return "\n".join(lines)
 
 
+def _fmt_metrics_by_class(metrics: Dict[int, Dict[str, Any]], nd: int = 3) -> str:
+    if not metrics:
+        return ""
+
+    columns = [
+        ("class", "clase"),
+        ("acc", "acc"),
+        ("precision", "prec"),
+        ("recall", "rec"),
+        ("f1", "f1"),
+        ("lift", "lift"),
+        ("coverage", "cov"),
+        ("purity", "pur"),
+        ("region_size", "tam"),
+        ("region_frac", "%"),
+    ]
+
+    rows: List[List[str]] = []
+    for class_id in sorted(metrics.keys()):
+        values = metrics[class_id] or {}
+        row: List[str] = [f"c{class_id}"]
+        for key, _ in columns[1:]:
+            if key not in values:
+                row.append("—")
+                continue
+            val = values.get(key)
+            if key == "region_frac" and isinstance(val, (int, float, np.number)):
+                rendered = f"{float(val)*100:.1f}%"
+            elif isinstance(val, (int, np.integer)):
+                rendered = str(int(val))
+            else:
+                rendered = _fmt_float(val, nd)
+            row.append(rendered)
+        rows.append(row)
+
+    widths = [len(label) for _, label in columns]
+    for row in rows:
+        for idx, cell in enumerate(row):
+            widths[idx] = max(widths[idx], len(cell))
+
+    def _fmt_row(cells: List[str]) -> str:
+        return " | ".join(cell.ljust(widths[idx]) for idx, cell in enumerate(cells))
+
+    header = _fmt_row([label for _, label in columns])
+    separator = "-+-".join("-" * width for width in widths)
+    body = "\n".join(_fmt_row(row) for row in rows)
+    return "\n".join([header, separator, body])
+
+
 def _class_mix_stats(region: Dict[str, Any]) -> Tuple[float, float, List[Tuple[int, float, float, float]]]:
     per_class = _normalize_metrics_per_class(region)
     size, _ = _region_size_and_frac(region, dataset_size=None)
@@ -516,24 +565,45 @@ def _fmt_sel_summary(sel: Any, plane_id: Optional[str]) -> List[str]:
         except Exception:
             return []
 
+    if plane_id:
+        planes = [p for p in planes if p.get("plane_id") == plane_id]
+
     lines = ["====== PLANOS SELECCIONADOS ======"]
+    seen: set = set()
     for plane in planes:
         pid = plane.get("plane_id", "—")
-        if plane_id and pid != plane_id:
-            continue
         tgt = plane.get("target_class", "—")
         dims = plane.get("dims") or plane.get("axes") or ()
         source = plane.get("source") or plane.get("family") or "?"
         score = _fmt_float(plane.get("score"))
+        oriented = plane.get("oriented_plane_id", "—")
+
+        key = (pid, oriented, tgt, tuple(dims))
+        if key in seen:
+            continue
+        seen.add(key)
+
+        if tgt == "—" and (not dims) and score == "—" and source == "?":
+            continue
+
         lines.append(
-            "  id={pid} | clase={cls} | dims={dims} | score={score} | src={src}".format(
+            "  id={pid} | oriented_id={oriented} | clase={cls} | dims={dims} | score={score} | src={src}".format(
                 pid=pid,
+                oriented=oriented,
                 cls=tgt,
                 dims=tuple(dims) if dims else "—",
                 score=score,
                 src=source,
             )
         )
+
+        metrics_by_class = plane.get("metrics_by_class") or {}
+        mbc_text = _fmt_metrics_by_class(metrics_by_class)
+        if mbc_text:
+            indented = "\n".join("      " + line for line in mbc_text.splitlines())
+            lines.append("    Métricas por clase:\n" + indented)
+        else:
+            lines.append("    Métricas por clase: (sin metrics_by_class)")
 
     if len(lines) == 1:
         return []
