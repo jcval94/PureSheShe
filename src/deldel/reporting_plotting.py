@@ -553,6 +553,8 @@ def describe_regions_report_with_sel(
     fix_rule_text: bool = True,
     show_original_if_changed: bool = True,
     return_average_metrics: bool = False,
+    regions: bool = True,
+    region_metrics: Optional[Iterable[str]] = None,
     verbosity: int = 0,
 ) -> Union[str, Dict[str, Any]]:
     """Variant of :func:`describe_regions_report` with selection context.
@@ -568,6 +570,11 @@ def describe_regions_report_with_sel(
       report or returned under the ``selection`` key when requesting averages.
     - ``valuable`` is optional; when omitted, the function returns only the
       selection summary (if any) without computing the base report.
+    - When ``regions`` is ``True`` (default) and ``plane_id`` is provided, the
+      output includes the regions that rely on that plane, showing
+      ``oriented_plane_id``, ``region_id`` and per-class metrics. ``region_metrics``
+      lets you choose which metrics per class to display (defaults to
+      precisión, recall y lift).
     """
 
     logger = logging.getLogger(__name__)
@@ -593,20 +600,78 @@ def describe_regions_report_with_sel(
         )
 
     sel_lines = _fmt_sel_summary(sel, plane_id)
+    region_lines: List[str] = []
+    if regions and plane_id and filtered:
+        region_lines = _fmt_regions_for_plane(
+            filtered,
+            plane_id,
+            metrics_fields=tuple(region_metrics) if region_metrics else ("precision", "recall", "lift"),
+        )
     if return_average_metrics:
         result: Dict[str, Any] = {"metrics": base} if isinstance(base, dict) else {"metrics": base}
         if sel_lines:
             result["selection"] = "\n".join(sel_lines)
+        if region_lines:
+            result["regions"] = "\n".join(region_lines)
         logger.log(level, "describe_regions_report_with_sel: fin (promedios)")
         return result
 
-    if sel_lines and isinstance(base, str):
-        report = f"{base}\n\n" + "\n".join(sel_lines)
-    else:
-        report = base
+    sections: List[str] = []
+    if isinstance(base, str) and base:
+        sections.append(base)
+    if region_lines:
+        sections.append("\n".join(region_lines))
+    if sel_lines:
+        sections.append("\n".join(sel_lines))
+
+    report = "\n\n".join(sections) if sections else base
 
     logger.log(level, "describe_regions_report_with_sel: fin")
     return report
+
+
+def _fmt_regions_for_plane(
+    valuable: Dict[int, List[Dict[str, Any]]],
+    plane_id: str,
+    *,
+    metrics_fields: Iterable[str],
+) -> List[str]:
+    """Render the regions that reference a given ``plane_id`` grouped by class."""
+
+    grouped = _group_by_class(valuable)
+    if not grouped:
+        return []
+
+    def _fmt_metrics(metrics_per_class: Dict[int, Any]) -> str:
+        parts: List[str] = []
+        for cls_id in sorted(metrics_per_class.keys()):
+            values = metrics_per_class[cls_id] or {}
+            metrics_parts = []
+            for name in metrics_fields:
+                key = {"lift": "lift_precision"}.get(name, name)
+                metrics_parts.append(f"{name}={_fmt_float(values.get(key))}")
+            parts.append(f"c{cls_id}: " + ", ".join(metrics_parts))
+        return " | ".join(parts)
+
+    lines = [f"====== REGIONES QUE USAN EL PLANO {plane_id} ======"]
+    for class_id in sorted(grouped.keys()):
+        lines.append(f"\n--- Clase {class_id} ---")
+        for region in grouped[class_id]:
+            plane_ids = tuple(region.get("plane_ids") or [])
+            lines.append(
+                "  id={region_id} | oriented_plane_id={orient} | plane_ids={planes}".format(
+                    region_id=region.get("region_id", "—"),
+                    orient=region.get("oriented_plane_id", "—"),
+                    planes=plane_ids if plane_ids else "—",
+                )
+            )
+            per_class = _normalize_metrics_per_class(region)
+            if per_class:
+                lines.append("    Métricas por clase: " + _fmt_metrics(per_class))
+            else:
+                lines.append("    Métricas por clase: (sin métricas por clase)")
+
+    return lines
 
 
 def describe_regions_metrics(

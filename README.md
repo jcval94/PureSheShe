@@ -203,7 +203,10 @@ Si además necesitas cruzar las reglas con la selección de planos de
 comportamiento base es el mismo, pero añade un bloque con los planos
 seleccionados y permite restringir el reporte a las regiones que usan un plano
 determinado. Si solo te interesa el resumen de selección puedes omitir
-``valuable`` y se mostrará únicamente ese bloque:
+``valuable`` y se mostrará únicamente ese bloque. Con ``regions=True`` (valor
+por defecto) también se listan las regiones que referencian el ``plane_id``
+incluyendo ``oriented_plane_id``/``region_id`` y las métricas por clase
+(precisión, recall y lift), personalizables mediante ``region_metrics``:
 
 ```python
 from deldel import describe_regions_report_with_sel
