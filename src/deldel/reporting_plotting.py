@@ -223,6 +223,29 @@ def _fmt_metrics_per_class(region: Dict[str, Any], nd: int = 3) -> str:
     return "\n".join(lines)
 
 
+def _fmt_metrics_by_class(metrics: Dict[int, Dict[str, Any]], nd: int = 3) -> str:
+    if not metrics:
+        return ""
+
+    fields = ("acc", "precision", "recall", "f1", "lift", "coverage", "purity", "region_size", "region_frac")
+    parts: List[str] = []
+    for class_id in sorted(metrics.keys()):
+        values = metrics[class_id] or {}
+        metrics_parts: List[str] = []
+        for name in fields:
+            if name not in values:
+                continue
+            val = values.get(name)
+            if isinstance(val, (int, np.integer)):
+                rendered = str(int(val))
+            else:
+                rendered = _fmt_float(val, nd)
+            metrics_parts.append(f"{name}={rendered}")
+        if metrics_parts:
+            parts.append(f"c{class_id}: " + ", ".join(metrics_parts))
+    return " | ".join(parts)
+
+
 def _class_mix_stats(region: Dict[str, Any]) -> Tuple[float, float, List[Tuple[int, float, float, float]]]:
     per_class = _normalize_metrics_per_class(region)
     size, _ = _region_size_and_frac(region, dataset_size=None)
@@ -516,24 +539,34 @@ def _fmt_sel_summary(sel: Any, plane_id: Optional[str]) -> List[str]:
         except Exception:
             return []
 
+    if plane_id:
+        planes = [p for p in planes if p.get("plane_id") == plane_id]
+
     lines = ["====== PLANOS SELECCIONADOS ======"]
     for plane in planes:
         pid = plane.get("plane_id", "—")
-        if plane_id and pid != plane_id:
-            continue
         tgt = plane.get("target_class", "—")
         dims = plane.get("dims") or plane.get("axes") or ()
         source = plane.get("source") or plane.get("family") or "?"
         score = _fmt_float(plane.get("score"))
+        oriented = plane.get("oriented_plane_id", "—")
         lines.append(
-            "  id={pid} | clase={cls} | dims={dims} | score={score} | src={src}".format(
+            "  id={pid} | oriented_id={oriented} | clase={cls} | dims={dims} | score={score} | src={src}".format(
                 pid=pid,
+                oriented=oriented,
                 cls=tgt,
                 dims=tuple(dims) if dims else "—",
                 score=score,
                 src=source,
             )
         )
+
+        metrics_by_class = plane.get("metrics_by_class") or {}
+        mbc_text = _fmt_metrics_by_class(metrics_by_class)
+        if mbc_text:
+            lines.append("    Métricas por clase: " + mbc_text)
+        else:
+            lines.append("    Métricas por clase: (sin metrics_by_class)")
 
     if len(lines) == 1:
         return []
