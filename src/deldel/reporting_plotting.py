@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import math
 import re
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from time import perf_counter
 
@@ -542,7 +542,53 @@ def _fmt_sel_summary(sel: Any, plane_id: Optional[str]) -> List[str]:
     if plane_id:
         planes = [p for p in planes if p.get("plane_id") == plane_id]
 
+    def _render_metric(value: Any) -> str:
+        if value is None:
+            return "—"
+        if isinstance(value, (int, np.integer)):
+            return str(int(value))
+        return _fmt_float(value)
+
+    field_labels = (
+        ("acc", "Acc"),
+        ("precision", "Prec"),
+        ("recall", "Rec"),
+        ("f1", "F1"),
+        ("lift", "Lift"),
+        ("coverage", "Cov"),
+        ("purity", "Pur"),
+        ("region_size", "n"),
+        ("region_frac", "Frac"),
+    )
+
+    def _fmt_metrics_table(metrics_by_class: Dict[int, Dict[str, Any]]) -> List[str]:
+        if not metrics_by_class:
+            return ["    Métricas por clase: (sin metrics_by_class)"]
+
+        header = ["clase"] + [label for _, label in field_labels]
+        rows: List[List[str]] = []
+        for class_id in sorted(metrics_by_class.keys()):
+            values = metrics_by_class[class_id] or {}
+            row = [f"c{class_id}"]
+            for key, _ in field_labels:
+                row.append(_render_metric(values.get(key)))
+            rows.append(row)
+
+        widths = [len(col) for col in header]
+        for row in rows:
+            widths = [max(w, len(val)) for w, val in zip(widths, row)]
+
+        lines = [
+            "    Métricas por clase:",
+            "    " + " | ".join(col.ljust(width) for col, width in zip(header, widths)),
+            "    " + "-+-".join("-" * width for width in widths),
+        ]
+        for row in rows:
+            lines.append("    " + " | ".join(val.ljust(width) for val, width in zip(row, widths)))
+        return lines
+
     lines = ["====== PLANOS SELECCIONADOS ======"]
+    seen: Set[Tuple[Any, ...]] = set()
     for plane in planes:
         pid = plane.get("plane_id", "—")
         tgt = plane.get("target_class", "—")
@@ -550,23 +596,22 @@ def _fmt_sel_summary(sel: Any, plane_id: Optional[str]) -> List[str]:
         source = plane.get("source") or plane.get("family") or "?"
         score = _fmt_float(plane.get("score"))
         oriented = plane.get("oriented_plane_id", "—")
+
+        if tgt == "—" and (not dims) and score == "—" and source == "?":
+            continue
+
+        unique_key = (pid, oriented, tuple(dims) if dims else (), tgt, score, source)
+        if unique_key in seen:
+            continue
+        seen.add(unique_key)
+
+        dim_text = tuple(dims) if dims else "—"
         lines.append(
-            "  id={pid} | oriented_id={oriented} | clase={cls} | dims={dims} | score={score} | src={src}".format(
-                pid=pid,
-                oriented=oriented,
-                cls=tgt,
-                dims=tuple(dims) if dims else "—",
-                score=score,
-                src=source,
-            )
+            f"  Plano {pid} (clase objetivo: {tgt}) | dims={dim_text} | score={score} | src={source} | oriented_id={oriented}"
         )
 
         metrics_by_class = plane.get("metrics_by_class") or {}
-        mbc_text = _fmt_metrics_by_class(metrics_by_class)
-        if mbc_text:
-            lines.append("    Métricas por clase: " + mbc_text)
-        else:
-            lines.append("    Métricas por clase: (sin metrics_by_class)")
+        lines.extend(_fmt_metrics_table(metrics_by_class))
 
     if len(lines) == 1:
         return []
