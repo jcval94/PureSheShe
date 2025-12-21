@@ -540,78 +540,142 @@ def _fmt_sel_summary(sel: Any, plane_id: Optional[str]) -> List[str]:
             return []
 
     if plane_id:
-        planes = [p for p in planes if p.get("plane_id") == plane_id]
+        planes = [p for p in planes if plane_id in (p.get("plane_id"), p.get("oriented_plane_id"))]
 
     def _render_metric(value: Any) -> str:
-        if value is None:
-            return "—"
         if isinstance(value, (int, np.integer)):
             return str(int(value))
+        try:
+            float(value)
+        except Exception:
+            return "—"
         return _fmt_float(value)
 
     field_labels = (
-        ("acc", "Acc"),
-        ("precision", "Prec"),
-        ("recall", "Rec"),
-        ("f1", "F1"),
-        ("lift", "Lift"),
-        ("coverage", "Cov"),
-        ("purity", "Pur"),
-        ("region_size", "n"),
-        ("region_frac", "Frac"),
+        ("acc", "acc"),
+        ("precision", "prec"),
+        ("recall", "recall"),
+        ("f1", "f1"),
+        ("lift", "lift"),
+        ("coverage", "coverage"),
+        ("purity", "purity"),
+        ("region_size", "region_size"),
+        ("region_frac", "region_frac"),
     )
+    metric_keys = [key for key, _ in field_labels]
 
-    def _fmt_metrics_table(metrics_by_class: Dict[int, Dict[str, Any]]) -> List[str]:
+    def _normalize_classes(metrics_by_class: Dict[Any, Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+        normalised: Dict[int, Dict[str, Any]] = {}
+        for class_id, values in (metrics_by_class or {}).items():
+            try:
+                class_int = int(class_id)
+            except (TypeError, ValueError):
+                continue
+            normalised[class_int] = values or {}
+        return normalised
+
+    def _avg_metrics(metrics_by_class: Dict[int, Dict[str, Any]]) -> Dict[str, float]:
+        acc: Dict[str, float] = {key: 0.0 for key in metric_keys}
+        counts: Dict[str, int] = {key: 0 for key in metric_keys}
+        for values in metrics_by_class.values():
+            for key in metric_keys:
+                try:
+                    val = float(values.get(key))
+                except (TypeError, ValueError):
+                    continue
+                if math.isnan(val) or math.isinf(val):
+                    continue
+                acc[key] += val
+                counts[key] += 1
+
+        averages: Dict[str, float] = {}
+        for key, total in acc.items():
+            if counts[key]:
+                averages[key] = total / counts[key]
+        return averages
+
+    def _fmt_table(metrics_by_class: Dict[int, Dict[str, Any]]) -> List[str]:
         if not metrics_by_class:
-            return ["    Métricas por clase: (sin metrics_by_class)"]
+            return ["(sin metrics_by_class)"]
 
         header = ["clase"] + [label for _, label in field_labels]
         rows: List[List[str]] = []
         for class_id in sorted(metrics_by_class.keys()):
-            values = metrics_by_class[class_id] or {}
+            values = metrics_by_class[class_id]
             row = [f"c{class_id}"]
             for key, _ in field_labels:
                 row.append(_render_metric(values.get(key)))
             rows.append(row)
 
+        avg_values = _avg_metrics(metrics_by_class)
+        avg_row = ["avg"] + [_render_metric(avg_values.get(key)) for key in metric_keys]
+
         widths = [len(col) for col in header]
-        for row in rows:
+        for row in rows + [avg_row]:
             widths = [max(w, len(val)) for w, val in zip(widths, row)]
 
+        def _border(left: str, middle: str, right: str) -> str:
+            parts = ["─" * (w + 2) for w in widths]
+            return left + middle.join(parts) + right
+
+        def _fmt_row(row: List[str]) -> str:
+            return "│ " + " │ ".join(val.ljust(width) for val, width in zip(row, widths)) + " │"
+
         lines = [
-            "    Métricas por clase:",
-            "    " + " | ".join(col.ljust(width) for col, width in zip(header, widths)),
-            "    " + "-+-".join("-" * width for width in widths),
+            _border("┌", "┬", "┐"),
+            _fmt_row(header),
+            _border("├", "┼", "┤"),
         ]
         for row in rows:
-            lines.append("    " + " | ".join(val.ljust(width) for val, width in zip(row, widths)))
+            lines.append(_fmt_row(row))
+        lines.append(_border("├", "┼", "┤"))
+        lines.append(_fmt_row(avg_row))
+        lines.append(_border("└", "┴", "┘"))
         return lines
 
-    lines = ["====== PLANOS SELECCIONADOS ======"]
+    lines = ["====== PLANOS SELECCIONADOS (MATRIZ CLASE×MÉTRICA) ======"]
     seen: Set[Tuple[Any, ...]] = set()
     for plane in planes:
         pid = plane.get("plane_id", "—")
-        tgt = plane.get("target_class", "—")
+        oriented = plane.get("oriented_plane_id") or pid or "—"
+        metrics_raw = plane.get("metrics_by_class") or {}
+        metrics_by_class = _normalize_classes(metrics_raw)
+        if not metrics_by_class:
+            continue
+
         dims = plane.get("dims") or plane.get("axes") or ()
         source = plane.get("source") or plane.get("family") or "?"
         score = _fmt_float(plane.get("score"))
-        oriented = plane.get("oriented_plane_id", "—")
+        tgt = plane.get("target_class", "—")
 
-        if tgt == "—" and (not dims) and score == "—" and source == "?":
-            continue
-
-        unique_key = (pid, oriented, tuple(dims) if dims else (), tgt, score, source)
+        unique_key = (pid, oriented, tuple(dims) if dims else ())
         if unique_key in seen:
             continue
         seen.add(unique_key)
 
-        dim_text = tuple(dims) if dims else "—"
-        lines.append(
-            f"  Plano {pid} (clase objetivo: {tgt}) | dims={dim_text} | score={score} | src={source} | oriented_id={oriented}"
-        )
+        dim_text = f"({','.join(str(d) for d in dims)})" if dims else "—"
+        region_size = plane.get("region_size")
+        region_frac = plane.get("region_frac")
+        if metrics_by_class:
+            sample_values = next(iter(metrics_by_class.values()), {})
+            region_size = region_size if region_size is not None else sample_values.get("region_size")
+            region_frac = region_frac if region_frac is not None else sample_values.get("region_frac")
 
-        metrics_by_class = plane.get("metrics_by_class") or {}
-        lines.extend(_fmt_metrics_table(metrics_by_class))
+        target_text = f"c{tgt}" if tgt not in (None, "—") else "—"
+        lines.append("")
+        lines.append(
+            "[{}] target={} | dims={} | score={} | region_size={} | region_frac={} | src={}".format(
+                oriented,
+                target_text,
+                dim_text,
+                score,
+                _render_metric(region_size),
+                _render_metric(region_frac),
+                source,
+            )
+        )
+        lines.append("")
+        lines.extend(_fmt_table(metrics_by_class))
 
     if len(lines) == 1:
         return []
