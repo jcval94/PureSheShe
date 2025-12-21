@@ -251,15 +251,64 @@ def _onehot_y(y: np.ndarray, labels: List[int]) -> np.ndarray:
 
 # ========= Recolector de planos por clase =========
 
-def _gather_candidate_planes_for_class(sel: Dict[str,Any], cls: int) -> List[Dict[str,Any]]:
-    out = []
+def _gather_candidate_planes_for_class(
+    sel: Dict[str, Any],
+    cls: int,
+    *,
+    baseline_by_class: Dict[int, float],
+    include_opposite_for_perfect: bool = False,
+    perfect_precision_threshold: float = 0.999,
+    priority_metric: str = "precision",
+) -> List[Dict[str, Any]]:
+    def _metrics_for_cls(entry: Dict[str, Any]) -> Dict[str, float]:
+        return (entry.get("metrics_by_class") or {}).get(int(cls), {}) or {}
+
+    def _priority_tuple(entry: Dict[str, Any]) -> Tuple[float, float]:
+        metrics_cls = _metrics_for_cls(entry)
+        prec = float(metrics_cls.get("precision", 0.0))
+        lift = float(metrics_cls.get("lift_precision", 0.0))
+        base = float(baseline_by_class.get(int(cls), 0.0))
+        if lift <= 0.0 and base > 0.0:
+            lift = prec / base if prec > 0 else 0.0
+        if priority_metric == "lift_precision":
+            return lift, prec
+        if priority_metric == "precision":
+            return prec, lift
+        if priority_metric in metrics_cls:
+            return float(metrics_cls[priority_metric]), lift
+        if "f1" in metrics_cls:
+            return float(metrics_cls["f1"]), lift
+        return prec, lift
+
+    out: List[Dict[str, Any]] = []
+
+    def _append_entry(base: Dict[str, Any], *, side_for_cls: int, source: str):
+        prec_score, lift_score = _priority_tuple(base)
+        record = dict(
+            plane_id=base.get("plane_id", None),
+            n=np.asarray(base["n"], float),
+            b=float(base["b"]),
+            side_for_cls=int(side_for_cls),
+            origin_pair=tuple(base.get("origin_pair", (None, None))),
+            source=source,
+            priority_precision=prec_score,
+            priority_lift=lift_score,
+            priority_perfect=bool(prec_score >= float(perfect_precision_threshold)),
+        )
+        out.append(record)
+        if include_opposite_for_perfect and record["priority_perfect"]:
+            opp = dict(record)
+            opp["side_for_cls"] = -int(side_for_cls)
+            opp["source"] = f"{source}_opposite"
+            opp["is_opposite_clone"] = True
+            opp["priority_precision"] = max(prec_score - 1e-6, 0.0)
+            out.append(opp)
+
     by_pair = sel.get("by_pair_augmented", {}) or {}
-    for (a,b), payload in by_pair.items():
-        a,b = int(a), int(b)
+    for (a, b), payload in by_pair.items():
+        a, b = int(a), int(b)
         win = payload.get("winning_planes", []) or []
         for p in win:
-            n = np.asarray(p["n"], float)
-            b0 = float(p["b"])
             side_ab = int(p.get("side", +1))
             if cls == a:
                 side_for = side_ab
@@ -267,26 +316,23 @@ def _gather_candidate_planes_for_class(sel: Dict[str,Any], cls: int) -> List[Dic
                 side_for = -side_ab
             else:
                 continue
-            out.append(dict(
-                plane_id=p.get("plane_id", None),
-                n=n, b=b0, side_for_cls=int(side_for),
-                origin_pair=(a,b),
-                source="pair"
-            ))
+            _append_entry(p, side_for_cls=side_for, source="pair")
+
     regs = sel.get("regions_global", {}).get("per_plane", []) or []
     for R in regs:
         if int(R.get("class_id", -999)) != int(cls):
             continue
         geom = R.get("geometry", {}) or {}
-        n = np.asarray(geom.get("n"), float)
-        b0 = float(geom.get("b"))
-        side = int(geom.get("side"))
-        out.append(dict(
+        payload = dict(
             plane_id=R.get("plane_id", None),
-            n=n, b=b0, side_for_cls=int(side),
-            origin_pair=tuple(R.get("origin_pair", (None,None))),
-            source="global"
-        ))
+            n=np.asarray(geom.get("n"), float),
+            b=float(geom.get("b")),
+            origin_pair=tuple(R.get("origin_pair", (None, None))),
+            metrics_by_class=R.get("metrics_by_class", {}),
+        )
+        side = int(geom.get("side"))
+        _append_entry(payload, side_for_cls=side, source="global")
+
     return out
 
 # ========================= Núcleo: combos AND masivos con bitsets =========================
@@ -382,9 +428,7 @@ def _eval_combos_fast_on_dims_bitset(
     cls_idx = labels.index(int(cls))
     total_pos_c = int(_popcount_bits(packed_Y_by_class[int(cls)]))
 
-    rng_local = random.Random(0xC0FFEE ^ (hash((cls, dims)) & 0xFFFF))
     all_idxs = list(range(K))
-    rng_local.shuffle(all_idxs)
 
     def _maybe_push_pool(rec, f1, lift, size):
         pool.append((float(f1), float(lift), int(size), rec))
@@ -478,6 +522,10 @@ def find_low_dim_spaces(
     per_class_floor_topk: int = 3,
     consider_dims_up_to: Optional[int] = None,
     rng_seed: int = 0,
+    include_opposite_for_perfect: bool = True,
+    perfect_precision_threshold: float = 0.999,
+    priority_metric: str = "precision",
+    enable_priority_sorting: bool = True,
     # ---- referencia de proyección ----
     projection_ref: Any = "class_mean",  # "class_mean" | "global_mean" | "zero" | np.ndarray
     # ---- logging ----
@@ -647,16 +695,37 @@ def find_low_dim_spaces(
         base_cls = float(baseline[int(cls)])
         _log("class_start", cls=int(cls), baseline=base_cls)
 
-        cand_all = _gather_candidate_planes_for_class(sel, int(cls))
+        cand_all = _gather_candidate_planes_for_class(
+            sel,
+            int(cls),
+            baseline_by_class=baseline,
+            include_opposite_for_perfect=include_opposite_for_perfect,
+            perfect_precision_threshold=perfect_precision_threshold,
+            priority_metric=priority_metric,
+        )
         _log("candidates_collected", cls=int(cls), total=len(cand_all))
 
         # limitar por par
+        def _sort_by_priority(lst: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            return sorted(
+                lst,
+                key=lambda p: (
+                    bool(p.get("priority_perfect", False)),
+                    float(p.get("priority_precision", 0.0)),
+                    float(p.get("priority_lift", 0.0)),
+                ),
+                reverse=True,
+            )
+
+        if enable_priority_sorting:
+            cand_all = _sort_by_priority(cand_all)
+
         group: Dict[Tuple[int,int], List[Dict[str,Any]]] = {}
         for p in cand_all:
             group.setdefault(tuple(p["origin_pair"]), []).append(p)
         cand_limited: List[Dict[str,Any]] = []
         for k, lst in group.items():
-            lst_sorted = lst
+            lst_sorted = _sort_by_priority(lst) if enable_priority_sorting else lst
             cand_limited += lst_sorted[:int(max_planes_per_pair)]
 
         # recorte global por clase para controlar memoria/tiempo
