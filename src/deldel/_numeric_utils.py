@@ -26,11 +26,17 @@ def destandardize_quadratic(Qz, rz, cz, mu, sd):
 
 def unpack_quadratic_parameters(theta, idx, d):
     """Rebuild symmetric matrix, linear and constant terms from flat params."""
+    theta = np.asarray(theta)
     Qz = np.zeros((d, d))
-    for i in range(d):
-        Qz[i, i] = theta[idx["diag"][i]]
-    for k, (i, j) in enumerate(idx["pairs"]):
-        Qz[i, j] = Qz[j, i] = 0.5 * theta[idx["off"][k]]
-    rz = theta[idx["lin"][0] : idx["lin"][0] + d]
-    cz = theta[idx["c"]]
+    diag_idx = np.asarray(idx["diag"], dtype=int)
+    Qz[np.arange(d), np.arange(d)] = theta[diag_idx]
+    pairs = np.asarray(idx["pairs"], dtype=int)
+    if pairs.size:
+        off_idx = np.asarray(idx["off"], dtype=int)
+        vals = 0.5 * theta[off_idx]
+        Qz[pairs[:, 0], pairs[:, 1]] = vals
+        Qz[pairs[:, 1], pairs[:, 0]] = vals
+    lin_start = int(idx["lin"][0])
+    rz = theta[lin_start : lin_start + d]
+    cz = theta[int(idx["c"])]
     return Qz, rz, float(cz)
