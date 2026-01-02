@@ -533,11 +533,10 @@ def _unique_sorted(arr: np.ndarray, tol: float = 1e-12) -> np.ndarray:
     if arr.size == 0:
         return arr
     arr = np.sort(arr)
-    keep = [0]
-    for i in range(1, arr.size):
-        if abs(arr[i] - arr[keep[-1]]) > tol:
-            keep.append(i)
-    return arr[keep]
+    diffs = np.diff(arr)
+    keep_mask = np.ones(arr.size, dtype=bool)
+    keep_mask[1:] = diffs > tol
+    return arr[keep_mask]
 
 # -------------------------
 # TREEFAST helpers

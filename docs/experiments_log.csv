@@ -1,4 +1,5 @@
 version,metric_f1_top3_avg,metric_lift_top3_avg,avg_runtime_seconds,change_summary,results_summary
+vectorized_unique_sorted,n/a,n/a,1.6890,"Vectorización de _unique_sorted en deldel.engine; pipeline con consider_dims_up_to=3 y sample_limit_per_r=400 por límite de tiempo","Sin regiones disponibles en describe_regions_report (pipeline estándar no produjo planes); métricas no calculables en esta corrida"
 current_doc_update,pending,pending,pending,"Documento maestro de experimentación añadido","Métricas no ejecutadas en esta revisión; completa tras correr el protocolo obligatorio"
 aggressive_find_low_dim_sweep,0.6918,1.8017,0.0730,300x5 hyperparam sweep find_low_dim_spaces,Promedio de mejores configuraciones por dataset (5 datasets, 300 runs c/u)
 aggressive_find_low_dim_sweep_grid_b,0.6557,2.0057,0.2384,"Grid B (324 combinaciones) añadido sobre las corridas previas","Top-3 mean_f1 y lift_precision por dataset para corridas 300–623 de cada dataset"
