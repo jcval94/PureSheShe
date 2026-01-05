@@ -741,13 +741,9 @@ def find_comb_dim_spaces(
             i = parents[0]
             parent_id[j] = region_ids[i]
             deltas_to_parent[j] = {
-                "delta_precision": float(cands[j].metrics["precision"] - cands[i].metrics["precision"]),
-                "delta_recall": float(cands[j].metrics["recall"] - cands[i].metrics["recall"]),
-                "delta_f1": float(cands[j].metrics["f1"] - cands[i].metrics["f1"]),
-                "delta_size": float(cands[j].metrics["size"] - cands[i].metrics["size"]),
-                "delta_lift_precision": float(
-                    cands[j].metrics["lift_precision"] - cands[i].metrics["lift_precision"]
-                ),
+                "dF1": float(cands[j].metrics["f1"] - cands[i].metrics["f1"]),
+                "dPrecision": float(cands[j].metrics["precision"] - cands[i].metrics["precision"]),
+                "dRecall": float(cands[j].metrics["recall"] - cands[i].metrics["recall"]),
             }
 
         # Mark floors: top-k per (class, num_dims)
@@ -796,7 +792,7 @@ def find_comb_dim_spaces(
             elif len(fam_unique) == 0:
                 family_id_val = None
             else:
-                family_id_val = tuple(fam_unique)
+                family_id_val = ",".join(fam_unique)
 
             num_dims = int(len(rc.dims))
             num_planes = int(len(rc.plane_indices))
@@ -831,7 +827,7 @@ def find_comb_dim_spaces(
                 "family_id": family_id_val,
                 "parent_id": parent_id[idx],
                 "deltas_to_parent": deltas_to_parent[idx],
-                "planes_used": ([sources] if include_planes_used else []),  # opcional
+                "planes_used": (sources if include_planes_used else []),  # opcional
                 "seed_type": "beam_and",
                 "mask_signature": mask_sigs[idx],
                 "_mask_bits": rc.mask_bits,
@@ -879,6 +875,14 @@ def find_comb_dim_spaces(
             ),
             reverse=True,
         )
+
+    if not include_masks:
+        for rules in valuable.values():
+            for r in rules:
+                if "_mask" in r:
+                    del r["_mask"]
+                if "_mask_bits" in r:
+                    del r["_mask_bits"]
 
     return valuable
 
