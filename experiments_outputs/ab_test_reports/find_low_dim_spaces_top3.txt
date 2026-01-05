@@ -1,0 +1,29 @@
+====== TOP REGIONES POR CLASE ======
+
+--- Clase 0 ---
+  #1  id=rg_2d_c0_bb9f0ed6e7  |  dims=(0, 11)  |  coste=2.500  |  Pareto=sí
+      F1=0.638  |  Prec=0.771  |  Rec=0.544  |  LiftPrec=1.553  |  size=210 (35.00%)
+      Calidad: pureza=0.771 | H=0.776 | c0:sh=0.771, c1:sh=0.229
+      Regla: f11 ≥ 0.18·f0 + 2.19
+  #2  id=rg_2d_c0_bb9f0ed6e7  |  dims=(0, 11)  |  coste=2.500  |  Pareto=sí
+      F1=0.638  |  Prec=0.771  |  Rec=0.544  |  LiftPrec=1.553  |  size=210 (35.00%)
+      Calidad: pureza=0.771 | H=0.776 | c0:sh=0.771, c1:sh=0.229
+      Regla: f11 ≥ 0.18·f0 + 2.19
+  #3  id=rg_1d_c0_03f4116f5a  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.634  |  Prec=0.857  |  Rec=0.503  |  LiftPrec=1.726  |  size=175 (29.17%)
+      Calidad: pureza=0.857 | H=0.592 | c0:sh=0.857, c1:sh=0.143
+      Regla: f0 ≤ -1.05
+
+--- Clase 1 ---
+  #1  id=rg_1d_c1_b26f435c68  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.644  |  Prec=0.828  |  Rec=0.526  |  LiftPrec=1.645  |  size=192 (32.00%)
+      Calidad: pureza=0.828 | H=0.662 | c1:sh=0.828, c0:sh=0.172
+      Regla: f0 ≥ 0.90
+  #2  id=rg_1d_c1_b26f435c68  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.644  |  Prec=0.828  |  Rec=0.526  |  LiftPrec=1.645  |  size=192 (32.00%)
+      Calidad: pureza=0.828 | H=0.662 | c1:sh=0.828, c0:sh=0.172
+      Regla: f0 ≥ 0.90
+  #3  id=rg_4d_c1_c0b2e01088  |  dims=(0, 2, 4, 7)  |  coste=4.500  |  Pareto=sí
+      F1=0.635  |  Prec=0.850  |  Rec=0.507  |  LiftPrec=1.689  |  size=180 (30.00%)
+      Calidad: pureza=0.850 | H=0.610 | c1:sh=0.850, c0:sh=0.150
+      Regla: 0.03·f0 - 0.55·f2 - 0.06·f4 + 0.31·f7 -0.65 ≥ 0

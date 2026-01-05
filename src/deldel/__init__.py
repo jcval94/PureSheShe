@@ -35,6 +35,7 @@ from .find_low_dim_spaces_fast import (
     find_low_dim_spaces_precision_boost,
     find_low_dim_spaces_support_first,
 )
+from .combiantions import find_comb_dim_spaces
 from .reporting_plotting import (
     describe_regions_metrics,
     describe_regions_report,
@@ -78,6 +79,7 @@ __all__ = [
     "find_low_dim_spaces_deterministic",
     "find_low_dim_spaces_precision_boost",
     "find_low_dim_spaces_support_first",
+    "find_comb_dim_spaces",
     "describe_regions_metrics",
     "describe_regions_report",
     "describe_regions_report_with_sel",
