@@ -1,0 +1,23 @@
+====== TOP REGIONES POR CLASE ======
+
+--- Clase 0 ---
+  #1  id=rg467d2f42ba  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.753  |  Prec=0.674  |  Rec=0.852  |  LiftPrec=1.357  |  size=377 (62.83%)
+      Regla: f0 ≤ 0.633
+  #2  id=rga092a8a9b2  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.749  |  Prec=0.692  |  Rec=0.815  |  LiftPrec=1.394  |  size=351 (58.50%)
+      Regla: f0 ≤ 0.461
+  #3  id=rg66df447296  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.748  |  Prec=0.650  |  Rec=0.879  |  LiftPrec=1.309  |  size=403 (67.17%)
+      Regla: f0 ≤ 0.869
+
+--- Clase 1 ---
+  #1  id=rgde7eccc043  |  dims=(6, 11)  |  coste=3.000  |  Pareto=sí
+      F1=0.729  |  Prec=0.635  |  Rec=0.854  |  LiftPrec=1.263  |  size=406 (67.67%)
+      Regla: f11 ≤ 3.062  AND  f6 ≤ 0.956
+  #2  id=rgc9554d261b  |  dims=(2, 11)  |  coste=3.000  |  Pareto=sí
+      F1=0.724  |  Prec=0.668  |  Rec=0.791  |  LiftPrec=1.326  |  size=358 (59.67%)
+      Regla: f2 ≤ 1.851  AND  f11 ≤ 2.218
+  #3  id=rgfd329d6656  |  dims=(2, 11)  |  coste=3.000  |  Pareto=sí
+      F1=0.724  |  Prec=0.668  |  Rec=0.791  |  LiftPrec=1.326  |  size=358 (59.67%)
+      Regla: f11 ≤ 2.218  AND  f2 ≤ 1.851
