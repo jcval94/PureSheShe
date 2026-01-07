@@ -528,57 +528,111 @@ def _pareto_front(cands: List[RuleCandidate]) -> List[bool]:
 # =========================
 
 
-def _extract_planes_from_sel(sel: Dict[str, Any]) -> List[Plane]:
+def _extract_planes_from_sel(sel: Dict[str, Any], d: int) -> List[Plane]:
     """
-    Usa sel['winning_planes'] (global) y deduplica por oriented_plane_id.
-    Espera que cada entry tenga: oriented_plane_id, plane_id, origin_pair, side, dims, n_norm, b_norm, inequality, metrics_by_class, family_id.
+    Recolecta planos desde la estructura de `sel` (como find_low_dim_spaces):
+      - by_pair_augmented[*].winning_planes (pares A/B)
+      - regions_global.per_plane (globales)
+      - winning_planes (fallback)
+
+    Deduplica por oriented_plane_id y normaliza campos clave.
     """
-    raw = sel.get("winning_planes", [])
     seen = set()
     planes: List[Plane] = []
 
-    for pl in raw:
-        opid = pl["oriented_plane_id"]
-        if opid in seen:
-            continue
-        seen.add(opid)
+    def _normalize_dims(n_norm: np.ndarray, dims_raw: Iterable[int]) -> Tuple[Tuple[int, ...], np.ndarray]:
+        dims = tuple(int(dd) for dd in dims_raw)
+        if not dims:
+            if n_norm.size == d:
+                dims = tuple(range(d))
+            else:
+                dims = tuple(int(i) for i in np.flatnonzero(n_norm))
+        if not dims:
+            dims = tuple(range(min(d, n_norm.size)))
+        if n_norm.size == d and len(dims) <= d:
+            return dims, np.asarray(n_norm, float)[list(dims)]
+        if n_norm.size == len(dims):
+            return dims, np.asarray(n_norm, float)
+        return dims, np.asarray(n_norm, float)[list(dims)]
 
-        dims = tuple(int(d) for d in pl.get("dims", []))
-        n_norm = np.asarray(pl["n_norm"], dtype=float)
-        b_norm = float(pl["b_norm"])
-        origin_pair = pl.get("origin_pair")
+    def _origin_pair_from(entry: Dict[str, Any]) -> Tuple[int, int]:
+        origin_pair = entry.get("origin_pair")
         if isinstance(origin_pair, (list, tuple)) and len(origin_pair) == 2:
-            origin_pair = (int(origin_pair[0]), int(origin_pair[1]))
-        else:
-            origin_pair = (
-                int(pl.get("origin_pair_a", 0)),
-                int(pl.get("origin_pair_b", 0)),
-            )
+            return (int(origin_pair[0]), int(origin_pair[1]))
+        return (
+            int(entry.get("origin_pair_a", 0)),
+            int(entry.get("origin_pair_b", 0)),
+        )
 
-        # metrics_by_class keys can be strings
-        mbc_raw = pl.get("metrics_by_class", {})
+    def _metrics_by_class_from(entry: Dict[str, Any]) -> Dict[int, Dict[str, float]]:
+        mbc_raw = entry.get("metrics_by_class", {})
         mbc: Dict[int, Dict[str, float]] = {}
         for k, v in mbc_raw.items():
             kk = int(k)
             mbc[kk] = {str(mn): float(mv) for mn, mv in v.items()}
+        return mbc
 
-        ineq = pl.get("inequality", {}) or {}
+    def _plane_from_entry(entry: Dict[str, Any]) -> Optional[Plane]:
+        geom = entry.get("geometry", {}) or {}
+        n_raw = entry.get("n_norm") or entry.get("n") or geom.get("n")
+        b_raw = entry.get("b_norm") or entry.get("b") or geom.get("b")
+        if n_raw is None or b_raw is None:
+            return None
+
+        n_norm = np.asarray(n_raw, dtype=float).reshape(-1)
+        b_norm = float(b_raw)
+        dims_raw = entry.get("dims", [])
+        dims, n_norm = _normalize_dims(n_norm, dims_raw)
+
+        side = int(entry.get("side", geom.get("side", 1)))
+        plane_id = entry.get("plane_id")
+        opid = entry.get("oriented_plane_id")
+        if not opid:
+            if plane_id is not None:
+                opid = f"{plane_id}:{'≤' if side >= 0 else '≥'}"
+            else:
+                payload = np.hstack([n_norm.astype(float), np.array([b_norm, side], float)])
+                opid = _md5_short(payload.tobytes())
+
+        if opid in seen:
+            return None
+        seen.add(opid)
+
+        ineq = entry.get("inequality", {}) or {}
         ineq_general = str(ineq.get("general", opid))
+        metrics_src = entry.get("stats", {}).get("metrics_by_class", {})
+        mbc = _metrics_by_class_from(entry) or _metrics_by_class_from({"metrics_by_class": metrics_src})
 
-        planes.append(
-            Plane(
-                oriented_plane_id=str(opid),
-                plane_id=str(pl.get("plane_id", opid.split(":")[0])),
-                origin_pair=origin_pair,
-                side=int(pl.get("side", 1)),
-                dims=dims,
-                n_norm=n_norm,
-                b_norm=b_norm,
-                inequality_general=ineq_general,
-                family_id=pl.get("family_id", None),
-                metrics_by_class=mbc,
-            )
+        return Plane(
+            oriented_plane_id=str(opid),
+            plane_id=str(plane_id or str(opid).split(":")[0]),
+            origin_pair=_origin_pair_from(entry),
+            side=side,
+            dims=dims,
+            n_norm=n_norm,
+            b_norm=b_norm,
+            inequality_general=ineq_general,
+            family_id=entry.get("family_id", None),
+            metrics_by_class=mbc,
         )
+
+    by_pair = sel.get("by_pair_augmented", {}) or {}
+    for _, payload in by_pair.items():
+        for entry in (payload.get("winning_planes", []) or []):
+            plane = _plane_from_entry(entry)
+            if plane is not None:
+                planes.append(plane)
+
+    regs = sel.get("regions_global", {}).get("per_plane", []) or []
+    for entry in regs:
+        plane = _plane_from_entry(entry)
+        if plane is not None:
+            planes.append(plane)
+
+    for entry in (sel.get("winning_planes", []) or []):
+        plane = _plane_from_entry(entry)
+        if plane is not None:
+            planes.append(plane)
 
     return planes
 
@@ -623,7 +677,7 @@ def find_comb_dim_spaces(
     N, d = X.shape
     classes = sorted(int(c) for c in np.unique(y).tolist())
 
-    planes = _extract_planes_from_sel(sel)
+    planes = _extract_planes_from_sel(sel, d)
     if not planes:
         return {}
 
