@@ -459,6 +459,8 @@ def _eval_combos_fast_on_dims_bitset(
             rec  = float(pos_c/max(1,total_pos_c))
             f1   = (2*prec*rec)/(prec+rec+1e-12)
             lift = (prec/base) if base>0 else (math.inf if prec>0 else 0.0)
+            if lift < 1.0:
+                continue
 
             ok_f1   = (f1 >= max(base*(1.0+float(min_rel_gain_f1)), base + float(min_abs_gain_f1)))
             ok_prec = (prec >= max(base*float(min_lift_prec),   base + float(min_abs_gain_prec)))
@@ -877,6 +879,8 @@ def find_low_dim_spaces(
                     rid_payload = repr(("U", int(cls), dims_use, A["region_id"], B["region_id"], rule_text)).encode("utf-8")
                     rid = f"rg_{len(dims_use)}d_c{int(cls)}_U{hashlib.md5(rid_payload).hexdigest()[:8]}"
                     lift_prec = (Mu["precision"]/base) if base>0 else (math.inf if Mu["precision"]>0 else 0.0)
+                    if lift_prec < 1.0:
+                        continue
 
                     recU = dict(
                         region_id=rid,
