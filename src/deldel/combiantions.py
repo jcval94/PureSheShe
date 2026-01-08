@@ -574,8 +574,16 @@ def _extract_planes_from_sel(sel: Dict[str, Any], d: int) -> List[Plane]:
 
     def _plane_from_entry(entry: Dict[str, Any]) -> Optional[Plane]:
         geom = entry.get("geometry", {}) or {}
-        n_raw = entry.get("n_norm") or entry.get("n") or geom.get("n")
-        b_raw = entry.get("b_norm") or entry.get("b") or geom.get("b")
+        n_raw = entry.get("n_norm")
+        if n_raw is None:
+            n_raw = entry.get("n")
+        if n_raw is None:
+            n_raw = geom.get("n")
+        b_raw = entry.get("b_norm")
+        if b_raw is None:
+            b_raw = entry.get("b")
+        if b_raw is None:
+            b_raw = geom.get("b")
         if n_raw is None or b_raw is None:
             return None
 

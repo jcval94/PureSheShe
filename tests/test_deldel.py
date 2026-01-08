@@ -21,6 +21,7 @@ from deldel import (
     build_weighted_frontier,
     compute_frontier_planes_all_modes,
     compute_frontier_planes_weighted,
+    find_comb_dim_spaces,
     find_low_dim_spaces,
     fit_cubic_from_records_weighted,
     fit_quadric_svd_weighted,
@@ -650,6 +651,46 @@ def test_full_pipeline(dataset):
     )
     if not planes:
         pytest.skip("no weighted planes produced for this configuration")
+
+
+def test_find_comb_dim_spaces_accepts_numpy_entries():
+    X = np.array(
+        [
+            [-1.0, -1.0],
+            [1.0, 1.0],
+            [-2.0, 2.0],
+            [2.0, -2.0],
+        ]
+    )
+    y = np.array([0, 1, 0, 1])
+    sel = {
+        "winning_planes": [
+            {
+                "n_norm": np.array([1.0, 1.0]),
+                "b_norm": 0.0,
+                "dims": [0, 1],
+                "side": 1,
+                "metrics_by_class": {
+                    "0": {"precision": 1.0, "lift": 1.0, "region_frac": 0.5},
+                    "1": {"precision": 1.0, "lift": 1.0, "region_frac": 0.5},
+                },
+            }
+        ]
+    }
+
+    valuable = find_comb_dim_spaces(
+        sel,
+        X,
+        y,
+        min_size=1,
+        lift_min=0.0,
+        max_planes=1,
+        beam_width=1,
+        max_candidates_per_class=1,
+        max_rules_per_class=1,
+    )
+
+    assert valuable
 
 
 def test_run_corner_pipeline_experiments(tmp_path):
