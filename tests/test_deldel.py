@@ -667,7 +667,7 @@ def test_find_comb_dim_spaces_accepts_numpy_entries():
         "winning_planes": [
             {
                 "n_norm": np.array([1.0, 1.0]),
-                "b_norm": 0.0,
+                "b_norm": np.array([0.0]),
                 "dims": [0, 1],
                 "side": 1,
                 "metrics_by_class": {
