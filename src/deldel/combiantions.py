@@ -573,7 +573,9 @@ def _extract_planes_from_sel(sel: Dict[str, Any], d: int) -> List[Plane]:
         return mbc
 
     def _plane_from_entry(entry: Dict[str, Any]) -> Optional[Plane]:
-        geom = entry.get("geometry", {}) or {}
+        geom = entry.get("geometry", {})
+        if geom is None:
+            geom = {}
         n_raw = entry.get("n_norm")
         if n_raw is None:
             n_raw = entry.get("n")
@@ -588,14 +590,17 @@ def _extract_planes_from_sel(sel: Dict[str, Any], d: int) -> List[Plane]:
             return None
 
         n_norm = np.asarray(n_raw, dtype=float).reshape(-1)
-        b_norm = float(b_raw)
+        b_arr = np.asarray(b_raw, dtype=float).reshape(-1)
+        if b_arr.size == 0:
+            return None
+        b_norm = float(b_arr[0])
         dims_raw = entry.get("dims", [])
         dims, n_norm = _normalize_dims(n_norm, dims_raw)
 
         side = int(entry.get("side", geom.get("side", 1)))
         plane_id = entry.get("plane_id")
         opid = entry.get("oriented_plane_id")
-        if not opid:
+        if opid is None or (isinstance(opid, str) and opid == ""):
             if plane_id is not None:
                 opid = f"{plane_id}:{'≤' if side >= 0 else '≥'}"
             else:
@@ -606,7 +611,9 @@ def _extract_planes_from_sel(sel: Dict[str, Any], d: int) -> List[Plane]:
             return None
         seen.add(opid)
 
-        ineq = entry.get("inequality", {}) or {}
+        ineq = entry.get("inequality", {})
+        if ineq is None:
+            ineq = {}
         ineq_general = str(ineq.get("general", opid))
         metrics_src = entry.get("stats", {}).get("metrics_by_class", {})
         mbc = _metrics_by_class_from(entry) or _metrics_by_class_from({"metrics_by_class": metrics_src})
