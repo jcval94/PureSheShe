@@ -135,8 +135,8 @@ def _refine_plane_irls(
     return nn, float(bb)
 
 
-def _stats(P: np.ndarray, n: np.ndarray, b: float) -> Dict[str, float]:
-    r = np.abs(_residuals(P, n, b)).reshape(-1)
+def _stats_from_residuals(r: np.ndarray) -> Dict[str, float]:
+    r = np.abs(r).reshape(-1)
     mad = np.median(np.abs(r - np.median(r)))
     return dict(
         mean=float(np.mean(r)),
@@ -144,6 +144,11 @@ def _stats(P: np.ndarray, n: np.ndarray, b: float) -> Dict[str, float]:
         mad=float(mad),
         rmse=float(np.sqrt(np.mean(r**2))),
     )
+
+
+def _stats(P: np.ndarray, n: np.ndarray, b: float) -> Dict[str, float]:
+    r = np.abs(_residuals(P, n, b)).reshape(-1)
+    return _stats_from_residuals(r)
 
 
 def _planarity(P: np.ndarray) -> float:
@@ -296,19 +301,25 @@ def _merge_near_parallel(
     return out
 
 
-def _score_plane_full(P: np.ndarray, n: np.ndarray, b: float, tau: float) -> Dict[str, float]:
-    r = np.abs(_residuals(P, n, b)).reshape(-1)
+def _score_plane_full(
+    P: np.ndarray,
+    n: np.ndarray,
+    b: float,
+    tau: float,
+    residuals: Optional[np.ndarray] = None,
+) -> Dict[str, float]:
+    r = np.abs(_residuals(P, n, b)).reshape(-1) if residuals is None else np.abs(residuals).reshape(-1)
     inliers = r <= float(tau)
     plan = _planarity(P[inliers]) if inliers.any() else 0.0
 
-    def _stats_dict(Q: np.ndarray) -> Dict[str, float]:
-        if Q.shape[0] == 0:
+    def _stats_dict(res: np.ndarray) -> Dict[str, float]:
+        if res.size == 0:
             return dict(mean=np.inf, rmse=np.inf)
-        rr = np.abs(_residuals(Q, n, b)).reshape(-1)
+        rr = np.abs(res).reshape(-1)
         return dict(mean=float(np.mean(rr)), rmse=float(np.sqrt(np.mean(rr**2))))
 
-    stg = _stats_dict(P)
-    sti = _stats_dict(P[inliers] if inliers.any() else P)
+    stg = _stats_dict(r)
+    sti = _stats_dict(r[inliers] if inliers.any() else r)
     score = 1.0 * float(inliers.sum()) + 0.35 * plan - 0.35 * sti["mean"]
     return dict(
         score=float(score),
@@ -326,13 +337,19 @@ def _plane_report(
     label_id: int,
     dims: Optional[Tuple[int, ...]] = None,
     dim_names: Optional[Tuple[str, ...]] = None,
+    residuals: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     n, b = plane["n"], plane["b"]
     inl = plane["inliers"]
     tau = float(plane.get("tau", 0.0))
     mu_inl = P[inl].mean(axis=0) if len(inl) > 0 else P.mean(axis=0)
-    stat_g = _stats(P, n, b)
-    stat_i = _stats(P[inl], n, b) if len(inl) > 0 else stat_g
+    if residuals is None:
+        stat_g = _stats(P, n, b)
+        stat_i = _stats(P[inl], n, b) if len(inl) > 0 else stat_g
+    else:
+        r = np.abs(residuals).reshape(-1)
+        stat_g = _stats_from_residuals(r)
+        stat_i = _stats_from_residuals(r[inl]) if len(inl) > 0 else stat_g
     dims = tuple(range(P.shape[1])) if dims is None else tuple(int(i) for i in dims)
     dim_names = tuple(dim_names) if dim_names is not None else None
     rep = dict(
@@ -351,7 +368,7 @@ def _plane_report(
             inlier_rmse=stat_i["rmse"],
         ),
     )
-    rep.update(_score_plane_full(P, n, b, tau))
+    rep.update(_score_plane_full(P, n, b, tau, residuals=residuals))
     return rep
 
 
@@ -661,8 +678,6 @@ def _process_cluster(
     )
     if not planes:
         return [], asg, res
-
-    reports = [_plane_report(P, pl, label_id, dims=dims, dim_names=dim_names) for pl in planes]
     mask_assigned = np.zeros(P.shape[0], bool)
     for pl in planes:
         mask_assigned[pl["inliers"]] = True
@@ -702,15 +717,6 @@ def _process_cluster(
                 continue
             for pl in pl2:
                 pl["inliers"] = disc_idx[pl["inliers"]]
-                reports.append(
-                    _plane_report(
-                        P,
-                        pl,
-                        label_id,
-                        dims=dims,
-                        dim_names=dim_names,
-                    )
-                )
                 mask_assigned[pl["inliers"]] = True
                 planes.append(pl)
 
@@ -718,9 +724,21 @@ def _process_cluster(
         H = np.column_stack(
             [np.abs(_residuals(P, pl["n"], float(pl["b"]))).reshape(-1) for pl in planes]
         )
+        reports = [
+            _plane_report(
+                P,
+                pl,
+                label_id,
+                dims=dims,
+                dim_names=dim_names,
+                residuals=H[:, idx],
+            )
+            for idx, pl in enumerate(planes)
+        ]
         asg_final = np.argmin(H, axis=1).astype(int)
         res_final = H[np.arange(P.shape[0]), asg_final]
     else:
+        reports = []
         asg_final = asg
         res_final = res
 
