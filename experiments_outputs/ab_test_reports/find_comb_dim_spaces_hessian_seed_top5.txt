@@ -1,0 +1,35 @@
+====== TOP REGIONES POR CLASE ======
+
+--- Clase 0 ---
+  #1  id=rg467d2f42ba  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.753  |  Prec=0.674  |  Rec=0.852  |  LiftPrec=1.357  |  size=377 (62.83%)
+      Regla: f0 ≤ 0.633
+  #2  id=rga092a8a9b2  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.749  |  Prec=0.692  |  Rec=0.815  |  LiftPrec=1.394  |  size=351 (58.50%)
+      Regla: f0 ≤ 0.461
+  #3  id=rg66df447296  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.748  |  Prec=0.650  |  Rec=0.879  |  LiftPrec=1.309  |  size=403 (67.17%)
+      Regla: f0 ≤ 0.869
+  #4  id=rgeda17e320d  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.744  |  Prec=0.712  |  Rec=0.779  |  LiftPrec=1.433  |  size=326 (54.33%)
+      Regla: f0 ≤ 0.321
+  #5  id=rg5327d2cd7a  |  dims=(0,)  |  coste=1.500  |  Pareto=sí
+      F1=0.739  |  Prec=0.737  |  Rec=0.742  |  LiftPrec=1.483  |  size=300 (50.00%)
+      Regla: x0 ≤ 0.1210
+
+--- Clase 1 ---
+  #1  id=rg2dacd5043a  |  dims=(11,)  |  coste=1.500  |  Pareto=sí
+      F1=0.716  |  Prec=0.645  |  Rec=0.805  |  LiftPrec=1.281  |  size=377 (62.83%)
+      Regla: f11 ≤ 1.918
+  #2  id=rg926b06bf60  |  dims=(11,)  |  coste=1.500  |  Pareto=sí
+      F1=0.712  |  Prec=0.623  |  Rec=0.831  |  LiftPrec=1.237  |  size=403 (67.17%)
+      Regla: f11 ≤ 2.218
+  #3  id=rg4a57ef7393  |  dims=(11,)  |  coste=1.500  |  Pareto=sí
+      F1=0.711  |  Prec=0.661  |  Rec=0.768  |  LiftPrec=1.313  |  size=351 (58.50%)
+      Regla: f11 ≤ 1.641
+  #4  id=rgfdaf431492  |  dims=(11,)  |  coste=1.500  |  Pareto=sí
+      F1=0.704  |  Prec=0.600  |  Rec=0.851  |  LiftPrec=1.193  |  size=428 (71.33%)
+      Regla: f11 ≤ 2.495
+  #5  id=rg82d9f1b1ee  |  dims=(11,)  |  coste=1.500  |  Pareto=sí
+      F1=0.704  |  Prec=0.678  |  Rec=0.732  |  LiftPrec=1.347  |  size=326 (54.33%)
+      Regla: f11 ≤ 1.393

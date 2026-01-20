@@ -166,6 +166,34 @@ for dim_k in sorted(valuable.keys()):
     print(f"Total: {len(valuable[dim_k])} reglas válidas")
 ```
 
+## Ejemplo de uso de `find_comb_dim_spaces` con `mode`
+
+El buscador `find_comb_dim_spaces` permite activar variantes Hessianas mediante el
+parámetro `mode`. Por defecto usa `mode="base"`, pero también puedes usar
+`"hessian_rank"` o `"hessian_filter"`.
+
+```python
+from deldel import find_comb_dim_spaces
+
+valuable_base = find_comb_dim_spaces(
+    sel,
+    X,
+    y,
+    mode="base",
+    max_planes=7,
+    beam_width=128,
+)
+
+valuable_hessian = find_comb_dim_spaces(
+    sel,
+    X,
+    y,
+    mode="hessian_rank",
+    max_planes=7,
+    beam_width=128,
+)
+```
+
 ### Informe textual de regiones
 
 `describe_regions_report` genera un informe compacto en español a partir de las regiones descubiertas. Internamente:
