@@ -1,0 +1,35 @@
+====== TOP REGIONES POR CLASE ======
+
+--- Clase 0 ---
+  #1  id=rgd2ad50d328  |  dims=(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)  |  coste=12.500  |  Pareto=sí
+      F1=0.664  |  Prec=0.497  |  Rec=1.000  |  LiftPrec=1.000  |  size=600 (100.00%)
+      Regla: 0.0317384·f0 + 0.59121·f1 - 0.554173·f2 - 0.0573531·f4 + 0.144743·f6 + 0.309261·f7 - 0.438965·f9 - 0.172577·f11 ≤ 0
+  #2  id=rg16ce602c7d  |  dims=(5,)  |  coste=1.500  |  Pareto=sí
+      F1=0.640  |  Prec=0.519  |  Rec=0.836  |  LiftPrec=1.044  |  size=480 (80.00%)
+      Regla: f5 ≤ 0.903
+  #3  id=rg394a788d87  |  dims=(5,)  |  coste=1.500  |  Pareto=sí
+      F1=0.630  |  Prec=0.522  |  Rec=0.795  |  LiftPrec=1.051  |  size=454 (75.67%)
+      Regla: f5 ≤ 0.777
+  #4  id=rg4b654f16c3  |  dims=(4,)  |  coste=1.500  |  Pareto=sí
+      F1=0.528  |  Prec=0.527  |  Rec=0.530  |  LiftPrec=1.060  |  size=300 (50.00%)
+      Regla: f4 ≤ 0.968
+  #5  id=rg69c3a3dbb0  |  dims=(4,)  |  coste=1.500  |  Pareto=sí
+      F1=0.507  |  Prec=0.529  |  Rec=0.487  |  LiftPrec=1.065  |  size=274 (45.67%)
+      Regla: f4 ≤ 0.828
+
+--- Clase 1 ---
+  #1  id=rgee8e52cfcd  |  dims=(6,)  |  coste=1.500  |  Pareto=sí
+      F1=0.696  |  Prec=0.567  |  Rec=0.901  |  LiftPrec=1.126  |  size=480 (80.00%)
+      Regla: f6 ≤ 0.956
+  #2  id=rgc766e216eb  |  dims=(6,)  |  coste=1.500  |  Pareto=sí
+      F1=0.688  |  Prec=0.573  |  Rec=0.861  |  LiftPrec=1.138  |  size=454 (75.67%)
+      Regla: f6 ≤ 0.695
+  #3  id=rgfd7b924f47  |  dims=(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)  |  coste=12.500  |  Pareto=sí
+      F1=0.670  |  Prec=0.503  |  Rec=1.000  |  LiftPrec=1.000  |  size=600 (100.00%)
+      Regla: 0.0317384·f0 + 0.59121·f1 - 0.554173·f2 - 0.0573531·f4 + 0.144743·f6 + 0.309261·f7 - 0.438965·f9 - 0.172577·f11 ≤ 0
+  #4  id=rg98761eed13  |  dims=(6,)  |  coste=1.500  |  Pareto=sí
+      F1=0.658  |  Prec=0.576  |  Rec=0.768  |  LiftPrec=1.144  |  size=403 (67.17%)
+      Regla: f6 ≤ 0.191
+  #5  id=rgea8ae0bf0f  |  dims=(2,)  |  coste=1.500  |  Pareto=sí
+      F1=0.658  |  Prec=0.576  |  Rec=0.768  |  LiftPrec=1.144  |  size=403 (67.17%)
+      Regla: f2 ≤ 1.029

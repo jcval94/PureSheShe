@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import hashlib
 import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 
 
 # =========================
@@ -327,6 +329,22 @@ def _rank_tuple(metrics: Dict[str, float], metric: str) -> Tuple[float, float, f
     )
 
 
+def _rank_tuple_hessian(
+    metrics: Dict[str, float],
+    metric: str,
+    hessian_score: float,
+    *,
+    weight: float,
+) -> Tuple[float, float, float, float]:
+    primary = _primary_value(metrics, metric) + weight * float(hessian_score)
+    return (
+        primary,
+        float(_wracc(metrics)),
+        float(metrics["region_frac"]),
+        float(metrics["lift_precision"]),
+    )
+
+
 # =========================
 # Core: Beam search (AND rules)
 # =========================
@@ -474,6 +492,173 @@ def _beam_search_and_rules(
     # Return all rules found, sorted
     out = list(all_rules.values())
     out.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+    return out
+
+
+def _beam_search_and_rules_hessian(
+    planes: List[Plane],
+    plane_bits: List[np.ndarray],
+    plane_scores: List[float],
+    y: np.ndarray,
+    classes: List[int],
+    target_class: int,
+    packed_class_masks: Dict[int, np.ndarray],
+    class_sizes: Dict[int, int],
+    *,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 16,
+    max_planes: int = 7,
+    min_size: int = 5,
+    max_candidates: int = 150,
+    hessian_weight: float = 0.2,
+) -> List[RuleCandidate]:
+    N = int(y.shape[0])
+    tmask = packed_class_masks[target_class]
+    total_pos = class_sizes[target_class]
+
+    scored_planes = []
+    for i, pl in enumerate(planes):
+        mbc = pl.metrics_by_class.get(target_class, {})
+        if not mbc:
+            continue
+        pl_primary = float(mbc.get(metric, mbc.get("precision", 0.0)))
+        pl_lift = float(mbc.get("lift", mbc.get("lift_precision", 0.0)))
+        pl_frac = float(mbc.get("region_frac", mbc.get("region_frac_eval", 0.0)))
+        scored_planes.append((pl_primary, pl_lift, pl_frac, i))
+
+    scored_planes.sort(reverse=True)
+    cand_plane_indices = [i for *_rest, i in scored_planes[:max_candidates]]
+    if not cand_plane_indices:
+        return []
+
+    def _candidate_hessian(indices: Tuple[int, ...]) -> float:
+        scores = [plane_scores[i] for i in indices if i < len(plane_scores)]
+        return float(sum(scores) / len(scores)) if scores else 0.0
+
+    single_rules: List[RuleCandidate] = []
+    for idx in cand_plane_indices:
+        bits = plane_bits[idx]
+        size = _countbits(bits)
+        if size < min_size:
+            continue
+
+        dims = tuple(sorted(set(planes[idx].dims)))
+        tp = _countbits(_and_bits(bits, tmask))
+        metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+        single_rules.append(
+            RuleCandidate(
+                target_class=target_class,
+                plane_indices=(idx,),
+                dims=dims,
+                mask_bits=bits,
+                size=size,
+                tp=tp,
+                metrics=metrics_t,
+            )
+        )
+
+    if not single_rules:
+        return []
+
+    good = [r for r in single_rules if r.metrics["lift_precision"] > lift_min]
+    seed_pool = good if good else single_rules
+
+    seed_pool.sort(
+        key=lambda r: _rank_tuple_hessian(
+            r.metrics,
+            metric,
+            _candidate_hessian(r.plane_indices),
+            weight=hessian_weight,
+        ),
+        reverse=True,
+    )
+    beam = seed_pool[:beam_width]
+
+    all_rules: Dict[Tuple[int, ...], RuleCandidate] = {r.plane_indices: r for r in beam}
+    pos_in_cand = {pidx: j for j, pidx in enumerate(cand_plane_indices)}
+
+    for depth in range(2, max_planes + 1):
+        expansions: Dict[Tuple[int, ...], RuleCandidate] = {}
+
+        for r in beam:
+            last_pos = pos_in_cand.get(r.plane_indices[-1], -1)
+            if last_pos < 0:
+                continue
+
+            for next_pos in range(last_pos + 1, len(cand_plane_indices)):
+                nxt = cand_plane_indices[next_pos]
+                if nxt in r.plane_indices:
+                    continue
+
+                new_planes = r.plane_indices + (nxt,)
+                new_bits = _and_bits(r.mask_bits, plane_bits[nxt])
+                size = _countbits(new_bits)
+                if size < min_size:
+                    continue
+
+                new_dims = tuple(sorted(set(r.dims).union(planes[nxt].dims)))
+
+                tp = _countbits(_and_bits(new_bits, tmask))
+                metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+                cand = RuleCandidate(
+                    target_class=target_class,
+                    plane_indices=new_planes,
+                    dims=new_dims,
+                    mask_bits=new_bits,
+                    size=size,
+                    tp=tp,
+                    metrics=metrics_t,
+                )
+
+                expansions[new_planes] = cand
+
+        if not expansions:
+            break
+
+        exp_list = list(expansions.values())
+        exp_good = [x for x in exp_list if x.metrics["lift_precision"] > lift_min]
+        exp_pool = exp_good if exp_good else exp_list
+
+        exp_pool.sort(
+            key=lambda r: _rank_tuple_hessian(
+                r.metrics,
+                metric,
+                _candidate_hessian(r.plane_indices),
+                weight=hessian_weight,
+            ),
+            reverse=True,
+        )
+        beam = exp_pool[:beam_width]
+
+        for r in beam:
+            prev = all_rules.get(r.plane_indices)
+            if prev is None:
+                all_rules[r.plane_indices] = r
+                continue
+            if _rank_tuple_hessian(
+                r.metrics,
+                metric,
+                _candidate_hessian(r.plane_indices),
+                weight=hessian_weight,
+            ) > _rank_tuple_hessian(
+                prev.metrics,
+                metric,
+                _candidate_hessian(prev.plane_indices),
+                weight=hessian_weight,
+            ):
+                all_rules[r.plane_indices] = r
+
+    out = list(all_rules.values())
+    out.sort(
+        key=lambda r: _rank_tuple_hessian(
+            r.metrics,
+            metric,
+            _candidate_hessian(r.plane_indices),
+            weight=hessian_weight,
+        ),
+        reverse=True,
+    )
     return out
 
 
@@ -652,13 +837,105 @@ def _extract_planes_from_sel(sel: Dict[str, Any], d: int) -> List[Plane]:
     return planes
 
 
-# =========================
-# Public API: find_comb_dim_spaces
-# =========================
+def _compute_plane_metrics_by_class(mask: np.ndarray, y: np.ndarray) -> Dict[int, Dict[str, float]]:
+    classes = sorted(int(c) for c in np.unique(y).tolist())
+    size = int(mask.sum())
+    metrics_by_class: Dict[int, Dict[str, float]] = {}
+    for c in classes:
+        c_mask = y == c
+        c_in = int(np.logical_and(mask, c_mask).sum())
+        total_c = int(c_mask.sum())
+        prec = (c_in / size) if size > 0 else 0.0
+        rec = (c_in / total_c) if total_c > 0 else 0.0
+        f1 = _f1(prec, rec) if (prec + rec) > 0 else 0.0
+        baseline = (total_c / len(y)) if len(y) > 0 else 0.0
+        lift = (prec / baseline) if baseline > 0 else 0.0
+        metrics_by_class[c] = {
+            "precision": prec,
+            "recall": rec,
+            "f1": f1,
+            "lift": lift,
+            "lift_precision": lift,
+            "region_frac": (size / len(y)) if len(y) > 0 else 0.0,
+        }
+    return metrics_by_class
 
 
-def find_comb_dim_spaces(
-    sel: Dict[str, Any],
+def _build_axis_plane(
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    dim: int,
+    threshold: float,
+    plane_id: str,
+    family_id: str,
+) -> Plane:
+    mask = X[:, dim] <= threshold
+    metrics_by_class = _compute_plane_metrics_by_class(mask, y)
+    return Plane(
+        oriented_plane_id=f"{plane_id}:≤",
+        plane_id=plane_id,
+        origin_pair=(-1, -1),
+        side=-1,
+        dims=(int(dim),),
+        n_norm=np.array([1.0]),
+        b_norm=-float(threshold),
+        inequality_general=f"x{dim} ≤ {threshold:.4f}",
+        family_id=family_id,
+        metrics_by_class=metrics_by_class,
+    )
+
+
+def _compute_grad_hessian_matrices(X: np.ndarray, y: np.ndarray) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    if X.size == 0:
+        return None
+    scaler = StandardScaler()
+    Xs = scaler.fit_transform(X)
+    clf = LogisticRegression(
+        penalty="l2",
+        C=0.8,
+        solver="lbfgs",
+        max_iter=200,
+    )
+    try:
+        y_arr = np.asarray(y)
+        clf.fit(Xs, y_arr)
+    except Exception:
+        return None
+    probs = clf.predict_proba(Xs)
+    y_onehot = np.zeros_like(probs)
+    y_onehot[np.arange(y_onehot.shape[0]), y_arr] = 1.0
+    grad = probs - y_onehot
+    grad_weights = np.linalg.norm(grad, axis=1)
+    WX = Xs * grad_weights[:, None]
+    G = Xs.T @ WX
+    h_weights = np.sum(probs * (1 - probs), axis=1)
+    HX = Xs * h_weights[:, None]
+    H = Xs.T @ HX
+    return G, H
+
+
+def _plane_hessian_score(
+    dims: Tuple[int, ...],
+    G: np.ndarray,
+    H: np.ndarray,
+) -> float:
+    if not dims:
+        return 0.0
+    if len(dims) == 1:
+        idx = int(dims[0])
+        return float(abs(H[idx, idx]))
+    best = 0.0
+    for i, di in enumerate(dims):
+        for dj in dims[i + 1 :]:
+            score = abs(G[di, dj]) + 0.35 * abs(H[di, dj])
+            if score > best:
+                best = score
+    return float(best)
+
+
+def _find_comb_dim_spaces_from_planes(
+    planes: List[Plane],
     X: np.ndarray,
     y: np.ndarray,
     *,
@@ -674,13 +951,6 @@ def find_comb_dim_spaces(
     projection_ref: str = "model_space",
     include_planes_used: bool = False,
 ) -> Dict[int, List[Dict[str, Any]]]:
-    """
-    Construye `valuable` agrupado por num_dims (k):
-      valuable[k] = [rule_dict, ...]
-    Cada rule_dict sigue tu estructura (campos que no aplican se dejan None o vacíos).
-
-    OR se maneja como "múltiples reglas AND": la lista de reglas por clase actúa como OR implícito.
-    """
     X = np.asarray(X)
     y = np.asarray(y)
 
@@ -692,11 +962,9 @@ def find_comb_dim_spaces(
     N, d = X.shape
     classes = sorted(int(c) for c in np.unique(y).tolist())
 
-    planes = _extract_planes_from_sel(sel, d)
     if not planes:
         return {}
 
-    # Precompute plane masks (packed)
     plane_bits: List[np.ndarray] = []
     dims_cache: Dict[Tuple[int, ...], np.ndarray] = {}
     for pl in planes:
@@ -712,11 +980,9 @@ def find_comb_dim_spaces(
             m = expr >= -1e-12
         plane_bits.append(_packbits(m))
 
-    # Precompute class packed masks once
     packed_class_masks = {c: _packbits(y == c) for c in classes}
     class_sizes = {c: _countbits(mask) for c, mask in packed_class_masks.items()}
 
-    # Collect candidates per class via beam search
     all_rule_dicts: List[Dict[str, Any]] = []
 
     for target_class in classes:
@@ -736,19 +1002,15 @@ def find_comb_dim_spaces(
             max_candidates=max_candidates_per_class,
         )
 
-        # Keep top rules per class
         cands = cands[:max_rules_per_class]
         if not cands:
             continue
 
-        # Pareto labels
         pareto_flags = _pareto_front(cands)
 
-        # Build region_ids first (stable)
         region_ids: List[str] = []
         mask_sigs: List[str] = []
         for rc in cands:
-            # signature based on target + oriented_plane_ids + dims
             opids = tuple(planes[i].oriented_plane_id for i in rc.plane_indices)
             sig_str = f"c={target_class}|dims={rc.dims}|planes={','.join(opids)}|seed=beam_and"
             rid = "rg" + hashlib.md5(sig_str.encode("utf-8")).hexdigest()[:10]
@@ -759,7 +1021,6 @@ def find_comb_dim_spaces(
             )
             mask_sigs.append(msig)
 
-        # Dedup by mask_signature (keep best ranked)
         best_by_sig: Dict[str, int] = {}
         for i, rc in enumerate(cands):
             s = mask_sigs[i]
@@ -778,7 +1039,6 @@ def find_comb_dim_spaces(
         region_ids = [region_ids[i] for i in keep_indices]
         mask_sigs = [mask_sigs[i] for i in keep_indices]
 
-        # Rebuild inclusion relations based on plane-set inclusion (aprox jerárquico)
         plane_sets = [set(rc.plane_indices) for rc in cands]
         generalizes = [[] for _ in cands]
         specializes = [[] for _ in cands]
@@ -793,11 +1053,9 @@ def find_comb_dim_spaces(
                     generalizes[i].append(region_ids[j])
                     specializes[j].append(region_ids[i])
 
-        # Choose parent_id as the "closest" generalizing rule with max |planes|
         parent_id: List[Optional[str]] = [None] * len(cands)
         deltas_to_parent: List[Optional[Dict[str, float]]] = [None] * len(cands)
         for j in range(len(cands)):
-            # candidates i that generalize j => plane_sets[i] subset of plane_sets[j]
             parents = [
                 i
                 for i in range(len(cands))
@@ -805,7 +1063,6 @@ def find_comb_dim_spaces(
             ]
             if not parents:
                 continue
-            # pick the largest subset (closest parent), tie-break by rank
             parents.sort(key=lambda i: (len(plane_sets[i]), _rank_tuple(cands[i].metrics, metric)), reverse=True)
             i = parents[0]
             parent_id[j] = region_ids[i]
@@ -815,11 +1072,7 @@ def find_comb_dim_spaces(
                 "dRecall": float(cands[j].metrics["recall"] - cands[i].metrics["recall"]),
             }
 
-        # Mark floors: top-k per (class, num_dims)
-        # We'll do later globally; but we can compute here as well.
-        # For now, we store and finalize floors after grouping.
         for idx, rc in enumerate(cands):
-            # compute full metrics and summaries now (auditable)
             metrics_t = rc.metrics
             region_frac = float(metrics_t["region_frac"])
             metrics_per_class = _compute_per_class_metrics(
@@ -838,7 +1091,6 @@ def find_comb_dim_spaces(
             pieces = [planes[i].inequality_general for i in rc.plane_indices]
             rule_text = " AND ".join(pieces)
 
-            # sources: references to original planes
             sources = []
             fams = []
             for pi in rc.plane_indices:
@@ -889,40 +1141,36 @@ def find_comb_dim_spaces(
                     "num_dims": num_dims,
                     "num_planes": num_planes,
                 },
-                "is_floor": False,  # se setea al final por (class, dim)
+                "is_floor": False,
                 "generalizes": generalizes[idx],
                 "specializes": specializes[idx],
                 "is_pareto": bool(pareto_flags[idx]),
                 "family_id": family_id_val,
                 "parent_id": parent_id[idx],
                 "deltas_to_parent": deltas_to_parent[idx],
-                "planes_used": (sources if include_planes_used else []),  # opcional
+                "planes_used": (sources if include_planes_used else []),
                 "seed_type": "beam_and",
                 "mask_signature": mask_sigs[idx],
                 "_mask_bits": rc.mask_bits,
             }
 
             if include_masks:
-                # expand boolean mask
-                # unpackbits returns multiple of 8; truncate to N
                 expanded = np.unpackbits(rc.mask_bits, bitorder="big")[:N].astype(bool)
                 rule_dict["_mask"] = expanded
 
             all_rule_dicts.append(rule_dict)
 
-    # ---- Group into valuable[k]
     valuable: Dict[int, List[Dict[str, Any]]] = {}
     for rd in all_rule_dicts:
         k = int(rd["complexity"]["num_dims"])
         valuable.setdefault(k, []).append(rd)
 
-    # ---- Mark floors: top-k per (target_class, k)
     for k, rules in valuable.items():
         by_class: Dict[int, List[Dict[str, Any]]] = {}
         for r in rules:
             by_class.setdefault(int(r["target_class"]), []).append(r)
 
-        for c, rr in by_class.items():
+        for rr in by_class.values():
             rr.sort(
                 key=lambda r: (
                     float(r["metrics"].get(metric, r["metrics"]["precision"])),
@@ -934,7 +1182,6 @@ def find_comb_dim_spaces(
             for r in rr[:top_k_floor_per_dim]:
                 r["is_floor"] = True
 
-    # Optional: sort each k bucket for readability
     for k in list(valuable.keys()):
         valuable[k].sort(
             key=lambda r: (
@@ -954,6 +1201,608 @@ def find_comb_dim_spaces(
                     del r["_mask_bits"]
 
     return valuable
+
+
+# =========================
+# Public API: find_comb_dim_spaces
+# =========================
+
+
+def find_comb_dim_spaces(
+    sel: Dict[str, Any],
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    mode: str = "base",
+    max_planes: int = 7,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 16,
+    min_size: int = 5,
+    max_candidates_per_class: int = 150,
+    max_rules_per_class: int = 60,
+    top_k_floor_per_dim: int = 12,
+    include_masks: bool = False,
+    projection_ref: str = "model_space",
+    include_planes_used: bool = False,
+) -> Dict[int, List[Dict[str, Any]]]:
+    """
+    Construye `valuable` agrupado por num_dims (k):
+      valuable[k] = [rule_dict, ...]
+    Cada rule_dict sigue tu estructura (campos que no aplican se dejan None o vacíos).
+
+    OR se maneja como "múltiples reglas AND": la lista de reglas por clase actúa como OR implícito.
+    Modos soportados: "base", "hessian_rank", "hessian_filter".
+    """
+    X = np.asarray(X)
+    y = np.asarray(y)
+    if X.ndim != 2:
+        raise ValueError("X debe ser 2D: (N, d)")
+    if y.ndim != 1 or y.shape[0] != X.shape[0]:
+        raise ValueError("y debe ser 1D y del mismo N que X")
+
+    mode_normalized = (mode or "base").strip().lower()
+    if mode_normalized == "hessian_rank":
+        return find_comb_dim_spaces_hessian_rank(
+            sel,
+            X,
+            y,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+    if mode_normalized == "hessian_filter":
+        return find_comb_dim_spaces_hessian_filter(
+            sel,
+            X,
+            y,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+    if mode_normalized not in {"base", "default"}:
+        raise ValueError(
+            "mode debe ser 'base', 'hessian_rank' o 'hessian_filter'. "
+            f"Recibido: {mode}"
+        )
+
+    d = X.shape[1]
+    planes = _extract_planes_from_sel(sel, d)
+    return _find_comb_dim_spaces_from_planes(
+        planes,
+        X,
+        y,
+        max_planes=max_planes,
+        metric=metric,
+        lift_min=lift_min,
+        beam_width=beam_width,
+        min_size=min_size,
+        max_candidates_per_class=max_candidates_per_class,
+        max_rules_per_class=max_rules_per_class,
+        top_k_floor_per_dim=top_k_floor_per_dim,
+        include_masks=include_masks,
+        projection_ref=projection_ref,
+        include_planes_used=include_planes_used,
+    )
+
+
+def find_comb_dim_spaces_hessian_seed(
+    sel: Dict[str, Any],
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    max_planes: int = 7,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 16,
+    min_size: int = 5,
+    max_candidates_per_class: int = 150,
+    max_rules_per_class: int = 60,
+    top_k_floor_per_dim: int = 12,
+    include_masks: bool = False,
+    projection_ref: str = "model_space",
+    include_planes_used: bool = False,
+    top_pairs: int = 12,
+    seed_quantiles: Tuple[float, ...] = (0.25, 0.5, 0.75),
+) -> Dict[int, List[Dict[str, Any]]]:
+    X = np.asarray(X)
+    y = np.asarray(y)
+    if X.ndim != 2:
+        raise ValueError("X debe ser 2D: (N, d)")
+    if y.ndim != 1 or y.shape[0] != X.shape[0]:
+        raise ValueError("y debe ser 1D y del mismo N que X")
+
+    d = X.shape[1]
+    planes = _extract_planes_from_sel(sel, d)
+    gh = _compute_grad_hessian_matrices(X, y)
+    if gh is None:
+        return _find_comb_dim_spaces_from_planes(
+            planes,
+            X,
+            y,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+    G, H = gh
+    pair_scores: List[Tuple[float, Tuple[int, int]]] = []
+    for i in range(d):
+        for j in range(i + 1, d):
+            score = abs(G[i, j]) + 0.35 * abs(H[i, j])
+            pair_scores.append((score, (i, j)))
+    pair_scores.sort(reverse=True)
+    top_pairs = max(1, int(top_pairs))
+    selected_dims = sorted({idx for _, pair in pair_scores[:top_pairs] for idx in pair})
+    extra_planes: List[Plane] = []
+    for dim in selected_dims:
+        values = X[:, dim]
+        for q in seed_quantiles:
+            threshold = float(np.quantile(values, q))
+            plane_id = f"hess_seed_f{dim}_q{int(q * 100):02d}"
+            extra_planes.append(
+                _build_axis_plane(
+                    X,
+                    y,
+                    dim=dim,
+                    threshold=threshold,
+                    plane_id=plane_id,
+                    family_id="hessian_seed",
+                )
+            )
+    planes = planes + extra_planes
+    return _find_comb_dim_spaces_from_planes(
+        planes,
+        X,
+        y,
+        max_planes=max_planes,
+        metric=metric,
+        lift_min=lift_min,
+        beam_width=beam_width,
+        min_size=min_size,
+        max_candidates_per_class=max_candidates_per_class,
+        max_rules_per_class=max_rules_per_class,
+        top_k_floor_per_dim=top_k_floor_per_dim,
+        include_masks=include_masks,
+        projection_ref=projection_ref,
+        include_planes_used=include_planes_used,
+    )
+
+
+def find_comb_dim_spaces_hessian_rank(
+    sel: Dict[str, Any],
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    max_planes: int = 7,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 16,
+    min_size: int = 5,
+    max_candidates_per_class: int = 150,
+    max_rules_per_class: int = 60,
+    top_k_floor_per_dim: int = 12,
+    include_masks: bool = False,
+    projection_ref: str = "model_space",
+    include_planes_used: bool = False,
+    hessian_weight: float = 0.2,
+) -> Dict[int, List[Dict[str, Any]]]:
+    X = np.asarray(X)
+    y = np.asarray(y)
+    if X.ndim != 2:
+        raise ValueError("X debe ser 2D: (N, d)")
+    if y.ndim != 1 or y.shape[0] != X.shape[0]:
+        raise ValueError("y debe ser 1D y del mismo N que X")
+
+    d = X.shape[1]
+    planes = _extract_planes_from_sel(sel, d)
+    if not planes:
+        return {}
+    gh = _compute_grad_hessian_matrices(X, y)
+    if gh is None:
+        return _find_comb_dim_spaces_from_planes(
+            planes,
+            X,
+            y,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+    G, H = gh
+    plane_scores = [_plane_hessian_score(pl.dims, G, H) for pl in planes]
+    max_score = max(plane_scores) if plane_scores else 0.0
+    if max_score > 0:
+        plane_scores = [score / max_score for score in plane_scores]
+    plane_bits: List[np.ndarray] = []
+    dims_cache: Dict[Tuple[int, ...], np.ndarray] = {}
+    for pl in planes:
+        dims = pl.dims
+        if dims not in dims_cache:
+            dims_cache[dims] = X[:, dims]
+        Xd = dims_cache[dims]
+        expr = Xd @ pl.n_norm + float(pl.b_norm)
+        s = pl.sign()
+        if s == "≤":
+            m = expr <= 1e-12
+        else:
+            m = expr >= -1e-12
+        plane_bits.append(_packbits(m))
+
+    classes = sorted(int(c) for c in np.unique(y).tolist())
+    packed_class_masks = {c: _packbits(y == c) for c in classes}
+    class_sizes = {c: _countbits(mask) for c, mask in packed_class_masks.items()}
+
+    all_rule_dicts: List[Dict[str, Any]] = []
+    for target_class in classes:
+        cands = _beam_search_and_rules_hessian(
+            planes=planes,
+            plane_bits=plane_bits,
+            plane_scores=plane_scores,
+            y=y,
+            classes=classes,
+            target_class=target_class,
+            packed_class_masks=packed_class_masks,
+            class_sizes=class_sizes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            max_planes=max_planes,
+            min_size=min_size,
+            max_candidates=max_candidates_per_class,
+            hessian_weight=hessian_weight,
+        )
+
+        cands = cands[:max_rules_per_class]
+        if not cands:
+            continue
+
+        pareto_flags = _pareto_front(cands)
+
+        region_ids: List[str] = []
+        mask_sigs: List[str] = []
+        for rc in cands:
+            opids = tuple(planes[i].oriented_plane_id for i in rc.plane_indices)
+            sig_str = f"c={target_class}|dims={rc.dims}|planes={','.join(opids)}|seed=beam_and_hessian"
+            rid = "rg" + hashlib.md5(sig_str.encode("utf-8")).hexdigest()[:10]
+            region_ids.append(rid)
+
+            msig = _md5_short(
+                rc.mask_bits.tobytes() + f"|c={target_class}".encode("utf-8"), n=12
+            )
+            mask_sigs.append(msig)
+
+        best_by_sig: Dict[str, int] = {}
+        for i, rc in enumerate(cands):
+            s = mask_sigs[i]
+            if s not in best_by_sig:
+                best_by_sig[s] = i
+            else:
+                j = best_by_sig[s]
+                if _rank_tuple_hessian(
+                    rc.metrics,
+                    metric,
+                    float(sum(plane_scores[idx] for idx in rc.plane_indices)) / len(rc.plane_indices),
+                    weight=hessian_weight,
+                ) > _rank_tuple_hessian(
+                    cands[j].metrics,
+                    metric,
+                    float(sum(plane_scores[idx] for idx in cands[j].plane_indices))
+                    / len(cands[j].plane_indices),
+                    weight=hessian_weight,
+                ):
+                    best_by_sig[s] = i
+
+        keep_indices = sorted(
+            best_by_sig.values(),
+            key=lambda i: _rank_tuple_hessian(
+                cands[i].metrics,
+                metric,
+                float(sum(plane_scores[idx] for idx in cands[i].plane_indices)) / len(cands[i].plane_indices),
+                weight=hessian_weight,
+            ),
+            reverse=True,
+        )
+        cands = [cands[i] for i in keep_indices]
+        pareto_flags = [pareto_flags[i] for i in keep_indices]
+        region_ids = [region_ids[i] for i in keep_indices]
+        mask_sigs = [mask_sigs[i] for i in keep_indices]
+
+        plane_sets = [set(rc.plane_indices) for rc in cands]
+        generalizes = [[] for _ in cands]
+        specializes = [[] for _ in cands]
+
+        for i in range(len(cands)):
+            for j in range(len(cands)):
+                if i == j:
+                    continue
+                if plane_sets[i].issubset(plane_sets[j]) and len(plane_sets[i]) < len(
+                    plane_sets[j]
+                ):
+                    generalizes[i].append(region_ids[j])
+                    specializes[j].append(region_ids[i])
+
+        parent_id: List[Optional[str]] = [None] * len(cands)
+        deltas_to_parent: List[Optional[Dict[str, float]]] = [None] * len(cands)
+        for j in range(len(cands)):
+            parents = [
+                i
+                for i in range(len(cands))
+                if plane_sets[i].issubset(plane_sets[j]) and len(plane_sets[i]) < len(plane_sets[j])
+            ]
+            if not parents:
+                continue
+            parents.sort(
+                key=lambda i: (
+                    len(plane_sets[i]),
+                    _rank_tuple_hessian(
+                        cands[i].metrics,
+                        metric,
+                        float(sum(plane_scores[idx] for idx in cands[i].plane_indices))
+                        / len(cands[i].plane_indices),
+                        weight=hessian_weight,
+                    ),
+                ),
+                reverse=True,
+            )
+            i = parents[0]
+            parent_id[j] = region_ids[i]
+            deltas_to_parent[j] = {
+                "dF1": float(cands[j].metrics["f1"] - cands[i].metrics["f1"]),
+                "dPrecision": float(cands[j].metrics["precision"] - cands[i].metrics["precision"]),
+                "dRecall": float(cands[j].metrics["recall"] - cands[i].metrics["recall"]),
+            }
+
+        for idx, rc in enumerate(cands):
+            metrics_t = rc.metrics
+            region_frac = float(metrics_t["region_frac"])
+            metrics_per_class = _compute_per_class_metrics(
+                rc.mask_bits, packed_class_masks, class_sizes, rc.size, region_frac
+            )
+            region_summary = _compute_region_summary_from_counts(
+                rc.size,
+                rc.tp,
+                class_sizes[target_class],
+                X.shape[0],
+                float(metrics_t["acc"]),
+                region_frac,
+            )
+
+            opids = tuple(planes[i].oriented_plane_id for i in rc.plane_indices)
+            pieces = [planes[i].inequality_general for i in rc.plane_indices]
+            rule_text = " AND ".join(pieces)
+
+            sources = []
+            fams = []
+            for pi in rc.plane_indices:
+                pl = planes[pi]
+                fams.append(pl.family_id)
+                sources.append(
+                    {
+                        "oriented_plane_id": pl.oriented_plane_id,
+                        "plane_id": pl.plane_id,
+                        "origin_pair": tuple(pl.origin_pair),
+                        "family_id": pl.family_id,
+                        "side": int(pl.side),
+                        "dims": tuple(pl.dims),
+                    }
+                )
+
+            fam_unique = sorted({str(f) for f in fams if f is not None})
+            if len(fam_unique) == 1:
+                family_id_val: Any = fam_unique[0]
+            elif len(fam_unique) == 0:
+                family_id_val = None
+            else:
+                family_id_val = ",".join(fam_unique)
+
+            num_dims = int(len(rc.dims))
+            num_planes = int(len(rc.plane_indices))
+
+            rule_dict: Dict[str, Any] = {
+                "region_id": region_ids[idx],
+                "target_class": int(target_class),
+                "dims": tuple(int(x) for x in rc.dims),
+                "plane_ids": tuple(opids),
+                "sources": sources,
+                "rule_text": rule_text,
+                "rule_pieces": pieces,
+                "metrics": {
+                    "size": int(metrics_t["size"]),
+                    "precision": float(metrics_t["precision"]),
+                    "recall": float(metrics_t["recall"]),
+                    "f1": float(metrics_t["f1"]),
+                    "baseline": float(metrics_t["baseline"]),
+                    "lift_precision": float(metrics_t["lift_precision"]),
+                },
+                "metrics_per_class": metrics_per_class,
+                "region_summary": region_summary,
+                "projection_ref": str(projection_ref),
+                "complexity": {
+                    "num_dims": num_dims,
+                    "num_planes": num_planes,
+                },
+                "is_floor": False,
+                "generalizes": generalizes[idx],
+                "specializes": specializes[idx],
+                "is_pareto": bool(pareto_flags[idx]),
+                "family_id": family_id_val,
+                "parent_id": parent_id[idx],
+                "deltas_to_parent": deltas_to_parent[idx],
+                "planes_used": (sources if include_planes_used else []),
+                "seed_type": "beam_and_hessian",
+                "mask_signature": mask_sigs[idx],
+                "_mask_bits": rc.mask_bits,
+            }
+
+            if include_masks:
+                expanded = np.unpackbits(rc.mask_bits, bitorder="big")[: X.shape[0]].astype(bool)
+                rule_dict["_mask"] = expanded
+
+            all_rule_dicts.append(rule_dict)
+
+    valuable: Dict[int, List[Dict[str, Any]]] = {}
+    for rd in all_rule_dicts:
+        k = int(rd["complexity"]["num_dims"])
+        valuable.setdefault(k, []).append(rd)
+
+    for k, rules in valuable.items():
+        by_class: Dict[int, List[Dict[str, Any]]] = {}
+        for r in rules:
+            by_class.setdefault(int(r["target_class"]), []).append(r)
+
+        for rr in by_class.values():
+            rr.sort(
+                key=lambda r: (
+                    float(r["metrics"].get(metric, r["metrics"]["precision"])),
+                    float(r["metrics"]["lift_precision"]),
+                    float(r["metrics"]["size"]),
+                ),
+                reverse=True,
+            )
+            for r in rr[:top_k_floor_per_dim]:
+                r["is_floor"] = True
+
+    for k in list(valuable.keys()):
+        valuable[k].sort(
+            key=lambda r: (
+                float(r["metrics"].get(metric, r["metrics"]["precision"])),
+                float(r["metrics"]["lift_precision"]),
+                float(r["metrics"]["size"]),
+            ),
+            reverse=True,
+        )
+
+    if not include_masks:
+        for rules in valuable.values():
+            for r in rules:
+                if "_mask" in r:
+                    del r["_mask"]
+                if "_mask_bits" in r:
+                    del r["_mask_bits"]
+
+    return valuable
+
+
+def find_comb_dim_spaces_hessian_filter(
+    sel: Dict[str, Any],
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    max_planes: int = 7,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 16,
+    min_size: int = 5,
+    max_candidates_per_class: int = 150,
+    max_rules_per_class: int = 60,
+    top_k_floor_per_dim: int = 12,
+    include_masks: bool = False,
+    projection_ref: str = "model_space",
+    include_planes_used: bool = False,
+    keep_frac: float = 0.7,
+    min_keep: int = 30,
+) -> Dict[int, List[Dict[str, Any]]]:
+    X = np.asarray(X)
+    y = np.asarray(y)
+    if X.ndim != 2:
+        raise ValueError("X debe ser 2D: (N, d)")
+    if y.ndim != 1 or y.shape[0] != X.shape[0]:
+        raise ValueError("y debe ser 1D y del mismo N que X")
+
+    d = X.shape[1]
+    planes = _extract_planes_from_sel(sel, d)
+    if not planes:
+        return {}
+    gh = _compute_grad_hessian_matrices(X, y)
+    if gh is None:
+        return _find_comb_dim_spaces_from_planes(
+            planes,
+            X,
+            y,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+    G, H = gh
+    plane_scores = [_plane_hessian_score(pl.dims, G, H) for pl in planes]
+    if not plane_scores:
+        return _find_comb_dim_spaces_from_planes(
+            planes,
+            X,
+            y,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+    scores = np.array(plane_scores, dtype=float)
+    threshold = float(np.quantile(scores, max(0.0, min(1.0, 1.0 - keep_frac))))
+    keep_indices = [i for i, s in enumerate(scores) if s >= threshold]
+    if len(keep_indices) < min_keep:
+        keep_indices = list(np.argsort(-scores)[: min_keep])
+    filtered_planes = [planes[i] for i in keep_indices]
+    return _find_comb_dim_spaces_from_planes(
+        filtered_planes,
+        X,
+        y,
+        max_planes=max_planes,
+        metric=metric,
+        lift_min=lift_min,
+        beam_width=beam_width,
+        min_size=min_size,
+        max_candidates_per_class=max_candidates_per_class,
+        max_rules_per_class=max_rules_per_class,
+        top_k_floor_per_dim=top_k_floor_per_dim,
+        include_masks=include_masks,
+        projection_ref=projection_ref,
+        include_planes_used=include_planes_used,
+    )
 
 
 # =========================
