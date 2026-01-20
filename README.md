@@ -671,6 +671,143 @@ El barrido `experiments_outputs/core_bundle_preset_matrix.csv` ya no recorta los
 `ultra_fast` sigue respondiendo en ~0.07–0.11 s con los 20 candidatos generados, pero el F1 se queda cerca del baseline, útil
 solo para inspecciones relámpago.
 
+## A/B testing de rendimiento (_process_cluster)
+
+Se comparó la versión previa vs la actual con varios tamaños/dimensiones, múltiples semillas y repeticiones para reducir
+sesgo. Se usa `max_depth=0` para aislar el costo de `_process_cluster` sin el reclustering adicional, y se reportan medias y
+medianas por configuración.
+
+**Comando usado (más robusto)**
+
+```bash
+python - <<'PY'
+import subprocess
+import types
+from pathlib import Path
+import numpy as np
+import time
+import sys
+import statistics
+
+sys.path.insert(0, str(Path("src").resolve()))
+
+def load_module(source: str, name: str, package: str):
+    module = types.ModuleType(name)
+    module.__package__ = package
+    code = compile(source, name, "exec")
+    exec(code, module.__dict__)
+    return module
+
+old_source = subprocess.check_output(
+    ["git", "show", "HEAD^:src/deldel/frontier_planes_all_modes.py"],
+    text=True,
+)
+new_source = Path("src/deldel/frontier_planes_all_modes.py").read_text()
+
+old = load_module(old_source, "deldel.frontier_planes_all_modes_old", "deldel")
+new = load_module(new_source, "deldel.frontier_planes_all_modes_new", "deldel")
+
+rng = np.random.default_rng(123)
+
+configs = [
+    dict(n=400, d=3, max_depth=0, max_models_per_round=2),
+    dict(n=800, d=3, max_depth=0, max_models_per_round=3),
+    dict(n=1200, d=4, max_depth=0, max_models_per_round=2),
+]
+
+reps_per_trial = 5
+trials = 3
+seeds = [11, 29, 41]
+
+results = []
+
+for cfg in configs:
+    n = cfg["n"]
+    d = cfg["d"]
+    max_depth = cfg["max_depth"]
+    max_models_per_round = cfg["max_models_per_round"]
+
+    P = rng.normal(size=(n, d))
+    A = rng.normal(size=(n, d))
+    B = rng.normal(size=(n, d))
+    U = rng.normal(size=(n, d))
+    M = rng.normal(size=(n, d))
+    F = rng.normal(size=(n, d))
+
+    def run(mod, seed):
+        return mod._process_cluster(
+            P,
+            0,
+            "C",
+            A,
+            B,
+            U,
+            M,
+            F,
+            max_depth=max_depth,
+            max_models_per_round=max_models_per_round,
+            seed=seed,
+        )
+
+    for seed in seeds:
+        run(old, seed)
+        run(new, seed)
+
+    old_times = []
+    new_times = []
+    for seed in seeds:
+        for _ in range(trials):
+            for _ in range(reps_per_trial):
+                start = time.perf_counter()
+                run(old, seed)
+                old_times.append(time.perf_counter() - start)
+            for _ in range(reps_per_trial):
+                start = time.perf_counter()
+                run(new, seed)
+                new_times.append(time.perf_counter() - start)
+
+    old_mean = float(statistics.mean(old_times))
+    new_mean = float(statistics.mean(new_times))
+    old_med = float(statistics.median(old_times))
+    new_med = float(statistics.median(new_times))
+    speedup = old_mean / new_mean if new_mean else float("inf")
+
+    results.append(
+        {
+            "n": n,
+            "d": d,
+            "max_depth": max_depth,
+            "max_models_per_round": max_models_per_round,
+            "old_mean": old_mean,
+            "new_mean": new_mean,
+            "old_median": old_med,
+            "new_median": new_med,
+            "speedup": speedup,
+        }
+    )
+
+print("Benchmark results:")
+for row in results:
+    print(
+        "n={n} d={d} depth={max_depth} models={max_models_per_round} "
+        "old_mean={old_mean:.6f} new_mean={new_mean:.6f} "
+        "old_med={old_median:.6f} new_med={new_median:.6f} "
+        "speedup_x={speedup:.2f}".format(**row)
+    )
+PY
+```
+
+**Resultados**
+
+| Configuración | Mean anterior (s) | Mean actual (s) | Mediana anterior (s) | Mediana actual (s) | Speedup |
+| --- | --- | --- | --- | --- | --- |
+| n=400, d=3, depth=0, models=2 | 0.124128 | 0.124232 | 0.123079 | 0.122088 | 1.00x |
+| n=800, d=3, depth=0, models=3 | 0.195444 | 0.187934 | 0.189989 | 0.186230 | **1.04x** |
+| n=1200, d=4, depth=0, models=2 | 0.148987 | 0.148827 | 0.147926 | 0.145858 | 1.00x |
+
+En estas condiciones la mejora es leve y no uniforme; se recomienda repetir con `max_depth>0` si se quiere medir el efecto
+completo con reclustering habilitado.
+
 ## Recursos adicionales
 
 - `subspaces/scripts/run_multi_dataset_method_analysis.py`: produce los rankings históricos por dataset y el top 5 global.
