@@ -5,11 +5,47 @@ from typing import Iterable, Tuple, List, Dict, Optional, Any, Sequence
 import logging
 from time import perf_counter
 import warnings
+import importlib.util
 
 import numpy as np
 
 from ._logging_utils import verbosity_to_level
 from .engine import DeltaRecord
+
+_NUMBA_AVAILABLE = importlib.util.find_spec("numba") is not None
+if _NUMBA_AVAILABLE:
+    import numba as nb
+
+    @nb.njit(cache=True, fastmath=True)
+    def _residuals_numba(P: np.ndarray, n: np.ndarray, b: float, out: np.ndarray) -> None:
+        for i in range(P.shape[0]):
+            acc = 0.0
+            for j in range(P.shape[1]):
+                acc += P[i, j] * n[j]
+            out[i] = acc + b
+
+    @nb.njit(cache=True, fastmath=True)
+    def _weights_huber_numba(r: np.ndarray, c: float, out: np.ndarray) -> None:
+        for i in range(r.shape[0]):
+            ar = abs(r[i])
+            if ar <= c:
+                out[i] = 1.0
+            else:
+                out[i] = c / (ar + 1e-12)
+
+    @nb.njit(cache=True, fastmath=True)
+    def _weights_tukey_numba(r: np.ndarray, c: float, out: np.ndarray) -> None:
+        for i in range(r.shape[0]):
+            u = r[i] / (c + 1e-12)
+            if u < -1.0:
+                u = -1.0
+            elif u > 1.0:
+                u = 1.0
+            val = 1.0 - u * u
+            out[i] = val * val
+
+else:
+    nb = None
 
 
 # ===================== compute_frontier_planes_all_modes — Modo C (mejorado) =====================
@@ -82,11 +118,19 @@ def _segment_arrays(
 # Ajuste robusto de planos (TLS + LO + LTS + IRLS SAFE)
 # -----------------------------------------------------------------------------------------------
 
-def _fit_plane_tls(P: np.ndarray) -> Tuple[np.ndarray, float]:
+def _profile_add(profile: Optional[Dict[str, float]], key: str, dt: float) -> None:
+    if profile is None:
+        return
+    profile[key] = float(profile.get(key, 0.0) + dt)
+
+
+def _fit_plane_tls(P: np.ndarray, profile: Optional[Dict[str, float]] = None) -> Tuple[np.ndarray, float]:
     P = np.asarray(P, float)
     mu = P.mean(axis=0, keepdims=True)
     Z = P - mu
+    t0 = perf_counter()
     _, _, Vt = np.linalg.svd(Z, full_matrices=False)
+    _profile_add(profile, "svd_s", perf_counter() - t0)
     n = Vt[-1]
     n = n / (np.linalg.norm(n) + 1e-12)
     b = -float(n @ mu.reshape(-1))
@@ -95,6 +139,21 @@ def _fit_plane_tls(P: np.ndarray) -> Tuple[np.ndarray, float]:
 
 def _residuals(P: np.ndarray, n: np.ndarray, b: float) -> np.ndarray:
     return (P @ n.reshape(-1)) + float(b)
+
+
+def _residuals_abs_inplace(
+    P: np.ndarray,
+    n: np.ndarray,
+    b: float,
+    out: np.ndarray,
+    profile: Optional[Dict[str, float]] = None,
+) -> np.ndarray:
+    t0 = perf_counter()
+    np.dot(P, n.reshape(-1), out=out)
+    out += float(b)
+    np.abs(out, out=out)
+    _profile_add(profile, "residuals_s", perf_counter() - t0)
+    return out
 
 
 def _weights_robust(r: np.ndarray, loss: str = "huber", c: float = 1.345) -> np.ndarray:
@@ -108,6 +167,36 @@ def _weights_robust(r: np.ndarray, loss: str = "huber", c: float = 1.345) -> np.
     return w.astype(float)
 
 
+def _weights_robust_inplace(
+    r: np.ndarray,
+    out: np.ndarray,
+    loss: str = "huber",
+    c: float = 1.345,
+    profile: Optional[Dict[str, float]] = None,
+) -> np.ndarray:
+    t0 = perf_counter()
+    if _NUMBA_AVAILABLE:
+        if loss == "huber":
+            _weights_huber_numba(r, float(c), out)
+        else:
+            _weights_tukey_numba(r, float(c), out)
+    else:
+        if loss == "huber":
+            np.abs(r, out=out)
+            mask = out <= float(c)
+            out[mask] = 1.0
+            out[~mask] = float(c) / (out[~mask] + 1e-12)
+        else:
+            np.divide(r, float(c) + 1e-12, out=out)
+            np.clip(out, -1.0, 1.0, out=out)
+            out *= out
+            out *= -1.0
+            out += 1.0
+            out *= out
+    _profile_add(profile, "weights_s", perf_counter() - t0)
+    return out
+
+
 def _refine_plane_irls(
     P: np.ndarray,
     n: np.ndarray,
@@ -115,19 +204,39 @@ def _refine_plane_irls(
     iters: int = 15,
     loss: str = "huber",
     c: float = 1.345,
+    use_float32: bool = False,
+    profile: Optional[Dict[str, float]] = None,
 ) -> Tuple[np.ndarray, float]:
-    """Refina un plano mediante IRLS robusto."""
+    """Refina un plano mediante IRLS robusto.
+
+    use_float32 reduce temporales en r/w, con impacto típico mínimo en estabilidad
+    (r/w no afectan directamente al cálculo de Cw en float64).
+    """
 
     P = np.asarray(P, float)
     nn = np.asarray(n, float).reshape(-1).copy()
     bb = float(b)
+    w_dtype = np.float32 if use_float32 else np.float64
+    r = np.empty(P.shape[0], dtype=float)
+    w = np.empty(P.shape[0], dtype=w_dtype)
+    Z = np.empty_like(P, dtype=float)
+    Zw = np.empty_like(P, dtype=float)
     for _ in range(int(iters)):
-        r = _residuals(P, nn, bb).reshape(-1)
-        w = _weights_robust(r, loss=loss, c=c).reshape(-1)
+        t0 = perf_counter()
+        if _NUMBA_AVAILABLE:
+            _residuals_numba(P, nn, bb, r)
+        else:
+            np.dot(P, nn.reshape(-1), out=r)
+            r += bb
+        _profile_add(profile, "residuals_s", perf_counter() - t0)
+
+        _weights_robust_inplace(r, w, loss=loss, c=c, profile=profile)
         sw = float(w.sum()) + 1e-12
-        muw = (w[:, None] * P).sum(axis=0) / sw
-        Z = P - muw[None, :]
-        Cw = (Z.T * w) @ Z / sw
+        np.multiply(P, w[:, None], out=Zw)
+        muw = Zw.sum(axis=0) / sw
+        np.subtract(P, muw[None, :], out=Z)
+        np.multiply(Z, w[:, None], out=Zw)
+        Cw = (Z.T @ Zw) / sw
         evals, evecs = np.linalg.eigh(Cw)
         nn = evecs[:, int(np.argmin(evals))]
         nn = nn / (np.linalg.norm(nn) + 1e-12)
@@ -185,6 +294,8 @@ def _multi_ransac_lo_lts(
     seed: int = 0,
     trim_frac: float = 0.2,
     dplus1: Optional[int] = None,
+    use_float32: bool = False,
+    profile: Optional[Dict[str, float]] = None,
 ) -> Tuple[List[Dict[str, Any]], float]:
     """RANSAC multi-modelos + LO + LTS + IRLS para planos."""
 
@@ -193,10 +304,12 @@ def _multi_ransac_lo_lts(
     s = d + 1 if dplus1 is None else int(dplus1)
     remain = np.arange(P.shape[0])
     cands: List[Dict[str, Any]] = []
+    r_buf = np.empty(P.shape[0], dtype=float)
+    mask_buf = np.empty(P.shape[0], dtype=bool)
 
     if tau is None:
-        n0, b0 = _fit_plane_tls(P)
-        r0 = np.abs(_residuals(P, n0, b0)).reshape(-1)
+        n0, b0 = _fit_plane_tls(P, profile=profile)
+        r0 = _residuals_abs_inplace(P, n0, b0, r_buf, profile=profile).copy()
         mad = float(np.median(np.abs(r0 - np.median(r0)))) + 1e-12
         tau = 2.5 * mad if mad > 0 else (1.5 * float(np.std(r0)) + 1e-9)
 
@@ -207,32 +320,34 @@ def _multi_ransac_lo_lts(
         for _ in range(int(max_iter)):
             idx = rng.choice(remain, size=s, replace=False)
             try:
-                n, b = _fit_plane_tls(P[idx])
+                n, b = _fit_plane_tls(P[idx], profile=profile)
             except Exception:
                 continue
-            r = np.abs(_residuals(P, n, b)).reshape(-1)
-            mask = r <= float(tau)
-            cnt = int(mask.sum())
+            _residuals_abs_inplace(P, n, b, r_buf, profile=profile)
+            np.less_equal(r_buf, float(tau), out=mask_buf)
+            cnt = int(mask_buf.sum())
             if cnt > best_cnt:
-                best_cnt, best_n, best_b, best_mask = cnt, n, b, mask
+                best_cnt, best_n, best_b, best_mask = cnt, n, b, mask_buf.copy()
 
         if best_cnt < s:
             break
 
-        n, b = _fit_plane_tls(P[best_mask])
+        n, b = _fit_plane_tls(P[best_mask], profile=profile)
         for _ in range(2):
-            r_in = np.abs(_residuals(P, n, b)).reshape(-1)
+            _residuals_abs_inplace(P, n, b, r_buf, profile=profile)
+            r_in = r_buf
             mad = float(np.median(np.abs(r_in[best_mask] - np.median(r_in[best_mask])))) + 1e-12
             tau_lo = max(float(tau), 2.5 * mad)
-            best_mask = r_in <= tau_lo
+            np.less_equal(r_in, tau_lo, out=mask_buf)
+            best_mask = mask_buf.copy()
             if int(best_mask.sum()) < s:
                 break
-            n, b = _fit_plane_tls(P[best_mask])
+            n, b = _fit_plane_tls(P[best_mask], profile=profile)
 
         it_lts = 0
         while True:
             it_lts += 1
-            r_all = np.abs(_residuals(P, n, b)).reshape(-1)
+            r_all = _residuals_abs_inplace(P, n, b, r_buf, profile=profile)
             med = float(np.median(r_all[best_mask])) if best_mask.any() else float(np.median(r_all))
             if med <= float(tau) or it_lts > 3 or int(best_mask.sum()) < s:
                 break
@@ -241,9 +356,18 @@ def _multi_ransac_lo_lts(
             mask_idx = np.flatnonzero(best_mask)[keep_idx]
             mask_keep[mask_idx] = True
             best_mask = mask_keep
-            n, b = _fit_plane_tls(P[best_mask])
+            n, b = _fit_plane_tls(P[best_mask], profile=profile)
 
-        n, b = _refine_plane_irls(P[best_mask], n, b, iters=12, loss="huber", c=1.345)
+        n, b = _refine_plane_irls(
+            P[best_mask],
+            n,
+            b,
+            iters=12,
+            loss="huber",
+            c=1.345,
+            use_float32=use_float32,
+            profile=profile,
+        )
 
         cands.append(
             {
