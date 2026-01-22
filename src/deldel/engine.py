@@ -149,8 +149,7 @@ def _midpoint_flip_gate_simple(model, x0, x1, y0, y1, iters=3):
     usando SOLO midpoints (3-5 predicciones típicamente).
     """
     tL, tR = 0.0, 1.0
-    yL = _predict_labels(model, x0[None,:])[0]
-    yR = _predict_labels(model, x1[None,:])[0]
+    yL, yR = _predict_labels(model, np.vstack([x0, x1]))
     for _ in range(max(1, int(iters))):
         tm = 0.5*(tL+tR)
         xm = (1.0-tm)*x0 + tm*x1
