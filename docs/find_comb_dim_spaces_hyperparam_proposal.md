@@ -1,5 +1,20 @@
 # Propuesta de hiperparametrización agresiva para `find_comb_dim_spaces`
 
+## Punto de entrada unificado
+
+Además de `find_comb_dim_spaces`, existe `find_comb_dim_spaces_full` que reúne todos
+los modos disponibles:
+
+- **AND clásicos**: `base`, `default`, `hessian_rank`, `hessian_filter`, `and`.
+- **OR explícito**: `or`.
+- **DNF (OR de ANDs)**: `dnf`, `and_or_greedy`, `and_or_beam`, `and_or_random`, `and_or_diverse`.
+
+```python
+from deldel import find_comb_dim_spaces_full
+
+valuable = find_comb_dim_spaces_full(sel, X, y, mode="dnf", max_planes=5)
+```
+
 ## Objetivo
 Maximizar la **cantidad de combinaciones de espacios** devueltas en `valuable` **por unidad de tiempo**, manteniendo el coste de cómputo controlado. La idea es explotar los hiperparámetros que más influyen en el crecimiento combinatorio sin disparar el tiempo de búsqueda.
 

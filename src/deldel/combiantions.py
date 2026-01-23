@@ -100,6 +100,17 @@ class RuleCandidate:
     metrics: Dict[str, float]  # includes precision/recall/f1/... + baseline + lift_precision + size + region_frac
 
 
+@dataclass
+class DnfCandidate:
+    target_class: int
+    clause_indices: Tuple[int, ...]  # indices into AND rules list
+    dims: Tuple[int, ...]
+    mask_bits: np.ndarray
+    size: int
+    tp: int
+    metrics: Dict[str, float]
+
+
 # =========================
 # Metrics
 # =========================
@@ -329,6 +340,16 @@ def _rank_tuple(metrics: Dict[str, float], metric: str) -> Tuple[float, float, f
     )
 
 
+def _rank_rule_dict(rule: Dict[str, Any], metric: str) -> Tuple[float, float, float, float]:
+    metrics = dict(rule.get("metrics") or {})
+    region_summary = rule.get("region_summary") or {}
+    if "region_frac" not in metrics:
+        metrics["region_frac"] = float(region_summary.get("region_frac", 0.0))
+    if "lift_precision" not in metrics and "lift" in metrics:
+        metrics["lift_precision"] = float(metrics.get("lift", 0.0))
+    return _rank_tuple(metrics, metric)
+
+
 def _rank_tuple_hessian(
     metrics: Dict[str, float],
     metric: str,
@@ -493,6 +514,412 @@ def _beam_search_and_rules(
     out = list(all_rules.values())
     out.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
     return out
+
+
+def _beam_search_or_rules(
+    planes: List[Plane],
+    plane_bits: List[np.ndarray],
+    y: np.ndarray,
+    classes: List[int],
+    target_class: int,
+    packed_class_masks: Dict[int, np.ndarray],
+    class_sizes: Dict[int, int],
+    *,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 16,
+    max_planes: int = 7,
+    min_size: int = 5,
+    max_candidates: int = 150,
+) -> List[RuleCandidate]:
+    """
+    Devuelve una lista de RuleCandidate (reglas OR) encontradas vía beam search.
+    - Usa ranking lexicográfico: primary metric -> WRAcc -> size -> lift
+    - Prioriza lift_min: filtra candidatos que no cumplen (si hay suficientes que sí cumplen).
+    """
+    N = int(y.shape[0])
+    tmask = packed_class_masks[target_class]
+    total_pos = class_sizes[target_class]
+
+    scored_planes = []
+    for i, pl in enumerate(planes):
+        mbc = pl.metrics_by_class.get(target_class, {})
+        if not mbc:
+            continue
+        pl_primary = float(mbc.get(metric, mbc.get("precision", 0.0)))
+        pl_lift = float(mbc.get("lift", mbc.get("lift_precision", 0.0)))
+        pl_frac = float(mbc.get("region_frac", mbc.get("region_frac_eval", 0.0)))
+        scored_planes.append((pl_primary, pl_lift, pl_frac, i))
+
+    scored_planes.sort(reverse=True)
+    cand_plane_indices = [i for *_rest, i in scored_planes[:max_candidates]]
+    if not cand_plane_indices:
+        return []
+
+    single_rules: List[RuleCandidate] = []
+    for idx in cand_plane_indices:
+        bits = plane_bits[idx]
+        size = _countbits(bits)
+        if size < min_size:
+            continue
+
+        dims = tuple(sorted(set(planes[idx].dims)))
+        tp = _countbits(_and_bits(bits, tmask))
+        metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+        single_rules.append(
+            RuleCandidate(
+                target_class=target_class,
+                plane_indices=(idx,),
+                dims=dims,
+                mask_bits=bits,
+                size=size,
+                tp=tp,
+                metrics=metrics_t,
+            )
+        )
+
+    if not single_rules:
+        return []
+
+    good = [r for r in single_rules if r.metrics["lift_precision"] > lift_min]
+    seed_pool = good if good else single_rules
+
+    seed_pool.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+    beam = seed_pool[:beam_width]
+
+    all_rules: Dict[Tuple[int, ...], RuleCandidate] = {r.plane_indices: r for r in beam}
+    pos_in_cand = {pidx: j for j, pidx in enumerate(cand_plane_indices)}
+
+    for depth in range(2, max_planes + 1):
+        expansions: Dict[Tuple[int, ...], RuleCandidate] = {}
+
+        for r in beam:
+            last_pos = pos_in_cand.get(r.plane_indices[-1], -1)
+            if last_pos < 0:
+                continue
+
+            for next_pos in range(last_pos + 1, len(cand_plane_indices)):
+                nxt = cand_plane_indices[next_pos]
+                if nxt in r.plane_indices:
+                    continue
+
+                new_planes = r.plane_indices + (nxt,)
+                new_bits = _or_bits(r.mask_bits, plane_bits[nxt])
+                size = _countbits(new_bits)
+                if size < min_size:
+                    continue
+
+                new_dims = tuple(sorted(set(r.dims).union(planes[nxt].dims)))
+
+                tp = _countbits(_and_bits(new_bits, tmask))
+                metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+                cand = RuleCandidate(
+                    target_class=target_class,
+                    plane_indices=new_planes,
+                    dims=new_dims,
+                    mask_bits=new_bits,
+                    size=size,
+                    tp=tp,
+                    metrics=metrics_t,
+                )
+
+                expansions[new_planes] = cand
+
+        if not expansions:
+            break
+
+        exp_list = list(expansions.values())
+        exp_good = [x for x in exp_list if x.metrics["lift_precision"] > lift_min]
+        exp_pool = exp_good if exp_good else exp_list
+
+        exp_pool.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+        beam = exp_pool[:beam_width]
+
+        for r in beam:
+            prev = all_rules.get(r.plane_indices)
+            if prev is None or _rank_tuple(r.metrics, metric) > _rank_tuple(
+                prev.metrics, metric
+            ):
+                all_rules[r.plane_indices] = r
+
+    out = list(all_rules.values())
+    out.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+    return out
+
+
+def _greedy_dnf_rules(
+    rules: List[Dict[str, Any]],
+    packed_class_masks: Dict[int, np.ndarray],
+    class_sizes: Dict[int, int],
+    *,
+    N: int,
+    target_class: int,
+    metric: str = "precision",
+    max_clauses: int = 3,
+) -> List[DnfCandidate]:
+    tmask = packed_class_masks[target_class]
+    total_pos = class_sizes[target_class]
+
+    if not rules:
+        return []
+
+    ordered = sorted(rules, key=lambda r: _rank_rule_dict(r, metric), reverse=True)
+    chosen: List[int] = []
+    current_mask: Optional[np.ndarray] = None
+    current_metrics: Optional[Dict[str, float]] = None
+    current_size = 0
+    current_tp = 0
+
+    for idx, r in enumerate(ordered):
+        if len(chosen) >= max_clauses:
+            break
+        r_mask = r.get("_mask_bits")
+        if r_mask is None:
+            continue
+        candidate_mask = r_mask if current_mask is None else _or_bits(current_mask, r_mask)
+        size = _countbits(candidate_mask)
+        tp = _countbits(_and_bits(candidate_mask, tmask))
+        metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+        if current_metrics is None or _rank_tuple(metrics_t, metric) >= _rank_tuple(
+            current_metrics, metric
+        ):
+            chosen.append(idx)
+            current_mask = candidate_mask
+            current_metrics = metrics_t
+            current_size = size
+            current_tp = tp
+
+    if not chosen or current_mask is None or current_metrics is None:
+        return []
+
+    dims = tuple(
+        sorted({int(d) for i in chosen for d in (ordered[i].get("dims") or [])})
+    )
+    return [
+        DnfCandidate(
+            target_class=target_class,
+            clause_indices=tuple(chosen),
+            dims=dims,
+            mask_bits=current_mask,
+            size=int(current_size),
+            tp=int(current_tp),
+            metrics=current_metrics,
+        )
+    ]
+
+
+def _beam_search_dnf_rules(
+    rules: List[Dict[str, Any]],
+    packed_class_masks: Dict[int, np.ndarray],
+    class_sizes: Dict[int, int],
+    *,
+    N: int,
+    target_class: int,
+    metric: str = "precision",
+    max_clauses: int = 3,
+    beam_width: int = 16,
+) -> List[DnfCandidate]:
+    tmask = packed_class_masks[target_class]
+    total_pos = class_sizes[target_class]
+
+    if not rules:
+        return []
+
+    ordered = sorted(rules, key=lambda r: _rank_rule_dict(r, metric), reverse=True)
+    masks = [r.get("_mask_bits") for r in ordered]
+    valid_indices = [i for i, m in enumerate(masks) if m is not None]
+    if not valid_indices:
+        return []
+
+    singletons: List[DnfCandidate] = []
+    for i in valid_indices:
+        mask = masks[i]
+        if mask is None:
+            continue
+        size = _countbits(mask)
+        tp = _countbits(_and_bits(mask, tmask))
+        metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+        dims = tuple(sorted({int(d) for d in (ordered[i].get("dims") or [])}))
+        singletons.append(
+            DnfCandidate(
+                target_class=target_class,
+                clause_indices=(i,),
+                dims=dims,
+                mask_bits=mask,
+                size=size,
+                tp=tp,
+                metrics=metrics_t,
+            )
+        )
+
+    if not singletons:
+        return []
+
+    singletons.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+    beam = singletons[:beam_width]
+    all_rules: Dict[Tuple[int, ...], DnfCandidate] = {r.clause_indices: r for r in beam}
+
+    for depth in range(2, max_clauses + 1):
+        expansions: Dict[Tuple[int, ...], DnfCandidate] = {}
+        for r in beam:
+            last_idx = r.clause_indices[-1]
+            for nxt in range(last_idx + 1, len(ordered)):
+                if nxt in r.clause_indices:
+                    continue
+                mask = masks[nxt]
+                if mask is None:
+                    continue
+                new_indices = r.clause_indices + (nxt,)
+                new_mask = _or_bits(r.mask_bits, mask)
+                size = _countbits(new_mask)
+                tp = _countbits(_and_bits(new_mask, tmask))
+                metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+                dims = tuple(sorted({int(d) for d in r.dims}.union(ordered[nxt].get("dims") or [])))
+                expansions[new_indices] = DnfCandidate(
+                    target_class=target_class,
+                    clause_indices=new_indices,
+                    dims=dims,
+                    mask_bits=new_mask,
+                    size=size,
+                    tp=tp,
+                    metrics=metrics_t,
+                )
+
+        if not expansions:
+            break
+        exp_list = list(expansions.values())
+        exp_list.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+        beam = exp_list[:beam_width]
+        for r in beam:
+            prev = all_rules.get(r.clause_indices)
+            if prev is None or _rank_tuple(r.metrics, metric) > _rank_tuple(
+                prev.metrics, metric
+            ):
+                all_rules[r.clause_indices] = r
+
+    out = list(all_rules.values())
+    out.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+    return out
+
+
+def _random_search_dnf_rules(
+    rules: List[Dict[str, Any]],
+    packed_class_masks: Dict[int, np.ndarray],
+    class_sizes: Dict[int, int],
+    *,
+    N: int,
+    target_class: int,
+    metric: str = "precision",
+    max_clauses: int = 3,
+    iterations: int = 120,
+    seed: int = 0,
+) -> List[DnfCandidate]:
+    tmask = packed_class_masks[target_class]
+    total_pos = class_sizes[target_class]
+
+    if not rules:
+        return []
+
+    ordered = sorted(rules, key=lambda r: _rank_rule_dict(r, metric), reverse=True)
+    masks = [r.get("_mask_bits") for r in ordered]
+    valid_indices = [i for i, m in enumerate(masks) if m is not None]
+    if not valid_indices:
+        return []
+
+    rng = np.random.default_rng(seed)
+    best: Optional[DnfCandidate] = None
+
+    for _ in range(max(1, int(iterations))):
+        k = int(rng.integers(1, max_clauses + 1))
+        sample = rng.choice(valid_indices, size=min(k, len(valid_indices)), replace=False)
+        sample = tuple(sorted(int(x) for x in sample))
+        mask = None
+        dims = set()
+        for idx in sample:
+            dims.update(ordered[idx].get("dims") or [])
+            mask = masks[idx] if mask is None else _or_bits(mask, masks[idx])
+        if mask is None:
+            continue
+        size = _countbits(mask)
+        tp = _countbits(_and_bits(mask, tmask))
+        metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+        cand = DnfCandidate(
+            target_class=target_class,
+            clause_indices=sample,
+            dims=tuple(sorted(int(d) for d in dims)),
+            mask_bits=mask,
+            size=size,
+            tp=tp,
+            metrics=metrics_t,
+        )
+        if best is None or _rank_tuple(cand.metrics, metric) > _rank_tuple(best.metrics, metric):
+            best = cand
+
+    return [best] if best is not None else []
+
+
+def _diverse_topk_dnf_rules(
+    rules: List[Dict[str, Any]],
+    packed_class_masks: Dict[int, np.ndarray],
+    class_sizes: Dict[int, int],
+    *,
+    N: int,
+    target_class: int,
+    metric: str = "precision",
+    max_clauses: int = 3,
+    candidates_per_class: int = 30,
+    overlap_max: float = 0.7,
+) -> List[DnfCandidate]:
+    tmask = packed_class_masks[target_class]
+    total_pos = class_sizes[target_class]
+
+    if not rules:
+        return []
+
+    ordered = sorted(rules, key=lambda r: _rank_rule_dict(r, metric), reverse=True)
+    ordered = ordered[: max(1, int(candidates_per_class))]
+    masks = [r.get("_mask_bits") for r in ordered]
+    valid_indices = [i for i, m in enumerate(masks) if m is not None]
+    if not valid_indices:
+        return []
+
+    selected: List[int] = []
+    current_mask: Optional[np.ndarray] = None
+
+    for idx in valid_indices:
+        mask = masks[idx]
+        if mask is None:
+            continue
+        if current_mask is None:
+            selected.append(idx)
+            current_mask = mask
+        else:
+            overlap = _countbits(_and_bits(current_mask, mask))
+            denom = max(1, _countbits(mask))
+            if (overlap / denom) <= overlap_max:
+                selected.append(idx)
+                current_mask = _or_bits(current_mask, mask)
+        if len(selected) >= max_clauses:
+            break
+
+    if not selected or current_mask is None:
+        return []
+
+    size = _countbits(current_mask)
+    tp = _countbits(_and_bits(current_mask, tmask))
+    metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+    dims = tuple(sorted({int(d) for i in selected for d in (ordered[i].get("dims") or [])}))
+    return [
+        DnfCandidate(
+            target_class=target_class,
+            clause_indices=tuple(selected),
+            dims=dims,
+            mask_bits=current_mask,
+            size=size,
+            tp=tp,
+            metrics=metrics_t,
+        )
+    ]
 
 
 def _beam_search_and_rules_hessian(
@@ -1203,6 +1630,578 @@ def _find_comb_dim_spaces_from_planes(
     return valuable
 
 
+def _find_comb_dim_spaces_or_from_planes(
+    planes: List[Plane],
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    max_planes: int = 7,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 16,
+    min_size: int = 5,
+    max_candidates_per_class: int = 150,
+    max_rules_per_class: int = 60,
+    top_k_floor_per_dim: int = 12,
+    include_masks: bool = False,
+    projection_ref: str = "model_space",
+    include_planes_used: bool = False,
+) -> Dict[int, List[Dict[str, Any]]]:
+    X = np.asarray(X)
+    y = np.asarray(y)
+
+    if X.ndim != 2:
+        raise ValueError("X debe ser 2D: (N, d)")
+    if y.ndim != 1 or y.shape[0] != X.shape[0]:
+        raise ValueError("y debe ser 1D y del mismo N que X")
+
+    N, d = X.shape
+    classes = sorted(int(c) for c in np.unique(y).tolist())
+
+    if not planes:
+        return {}
+
+    plane_bits: List[np.ndarray] = []
+    dims_cache: Dict[Tuple[int, ...], np.ndarray] = {}
+    for pl in planes:
+        dims = pl.dims
+        if dims not in dims_cache:
+            dims_cache[dims] = X[:, dims]
+        Xd = dims_cache[dims]
+        expr = Xd @ pl.n_norm + float(pl.b_norm)
+        s = pl.sign()
+        if s == "≤":
+            m = expr <= 1e-12
+        else:
+            m = expr >= -1e-12
+        plane_bits.append(_packbits(m))
+
+    packed_class_masks = {c: _packbits(y == c) for c in classes}
+    class_sizes = {c: _countbits(mask) for c, mask in packed_class_masks.items()}
+
+    all_rule_dicts: List[Dict[str, Any]] = []
+
+    for target_class in classes:
+        cands = _beam_search_or_rules(
+            planes=planes,
+            plane_bits=plane_bits,
+            y=y,
+            classes=classes,
+            target_class=target_class,
+            packed_class_masks=packed_class_masks,
+            class_sizes=class_sizes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            max_planes=max_planes,
+            min_size=min_size,
+            max_candidates=max_candidates_per_class,
+        )
+
+        cands = cands[:max_rules_per_class]
+        if not cands:
+            continue
+
+        pareto_flags = _pareto_front(cands)
+
+        region_ids: List[str] = []
+        mask_sigs: List[str] = []
+        for rc in cands:
+            opids = tuple(planes[i].oriented_plane_id for i in rc.plane_indices)
+            sig_str = f"c={target_class}|dims={rc.dims}|planes={','.join(opids)}|seed=beam_or"
+            rid = "rg" + hashlib.md5(sig_str.encode("utf-8")).hexdigest()[:10]
+            region_ids.append(rid)
+
+            msig = _md5_short(
+                rc.mask_bits.tobytes() + f"|c={target_class}".encode("utf-8"), n=12
+            )
+            mask_sigs.append(msig)
+
+        best_by_sig: Dict[str, int] = {}
+        for i, rc in enumerate(cands):
+            s = mask_sigs[i]
+            if s not in best_by_sig:
+                best_by_sig[s] = i
+            else:
+                j = best_by_sig[s]
+                if _rank_tuple(rc.metrics, metric) > _rank_tuple(cands[j].metrics, metric):
+                    best_by_sig[s] = i
+
+        keep_indices = sorted(
+            best_by_sig.values(),
+            key=lambda i: _rank_tuple(cands[i].metrics, metric),
+            reverse=True,
+        )
+        cands = [cands[i] for i in keep_indices]
+        pareto_flags = [pareto_flags[i] for i in keep_indices]
+        region_ids = [region_ids[i] for i in keep_indices]
+        mask_sigs = [mask_sigs[i] for i in keep_indices]
+
+        plane_sets = [set(rc.plane_indices) for rc in cands]
+        generalizes = [[] for _ in cands]
+        specializes = [[] for _ in cands]
+
+        for i in range(len(cands)):
+            for j in range(len(cands)):
+                if i == j:
+                    continue
+                if plane_sets[i].issubset(plane_sets[j]) and len(plane_sets[i]) < len(
+                    plane_sets[j]
+                ):
+                    generalizes[j].append(region_ids[i])
+                    specializes[i].append(region_ids[j])
+
+        parent_id: List[Optional[str]] = [None] * len(cands)
+        deltas_to_parent: List[Optional[Dict[str, float]]] = [None] * len(cands)
+        for j in range(len(cands)):
+            parents = [
+                i
+                for i in range(len(cands))
+                if plane_sets[j].issubset(plane_sets[i]) and len(plane_sets[j]) < len(
+                    plane_sets[i]
+                )
+            ]
+            if not parents:
+                continue
+            min_len = min(len(plane_sets[i]) for i in parents)
+            parents_min = [i for i in parents if len(plane_sets[i]) == min_len]
+            parents_min.sort(key=lambda i: _rank_tuple(cands[i].metrics, metric), reverse=True)
+            i = parents_min[0]
+            parent_id[j] = region_ids[i]
+            deltas_to_parent[j] = {
+                "dF1": float(cands[j].metrics["f1"] - cands[i].metrics["f1"]),
+                "dPrecision": float(cands[j].metrics["precision"] - cands[i].metrics["precision"]),
+                "dRecall": float(cands[j].metrics["recall"] - cands[i].metrics["recall"]),
+            }
+
+        for idx, rc in enumerate(cands):
+            metrics_t = rc.metrics
+            region_frac = float(metrics_t["region_frac"])
+            metrics_per_class = _compute_per_class_metrics(
+                rc.mask_bits, packed_class_masks, class_sizes, rc.size, region_frac
+            )
+            region_summary = _compute_region_summary_from_counts(
+                rc.size,
+                rc.tp,
+                class_sizes[target_class],
+                N,
+                float(metrics_t["acc"]),
+                region_frac,
+            )
+
+            opids = tuple(planes[i].oriented_plane_id for i in rc.plane_indices)
+            pieces = [planes[i].inequality_general for i in rc.plane_indices]
+            rule_text = " OR ".join(pieces)
+
+            sources = []
+            fams = []
+            for pi in rc.plane_indices:
+                pl = planes[pi]
+                fams.append(pl.family_id)
+                sources.append(
+                    {
+                        "oriented_plane_id": pl.oriented_plane_id,
+                        "plane_id": pl.plane_id,
+                        "origin_pair": tuple(pl.origin_pair),
+                        "family_id": pl.family_id,
+                        "side": int(pl.side),
+                        "dims": tuple(pl.dims),
+                    }
+                )
+
+            fam_unique = sorted({str(f) for f in fams if f is not None})
+            if len(fam_unique) == 1:
+                family_id_val: Any = fam_unique[0]
+            elif len(fam_unique) == 0:
+                family_id_val = None
+            else:
+                family_id_val = ",".join(fam_unique)
+
+            num_dims = int(len(rc.dims))
+            num_planes = int(len(rc.plane_indices))
+
+            rule_dict: Dict[str, Any] = {
+                "region_id": region_ids[idx],
+                "target_class": int(target_class),
+                "dims": tuple(int(x) for x in rc.dims),
+                "plane_ids": tuple(opids),
+                "sources": sources,
+                "rule_text": rule_text,
+                "rule_pieces": pieces,
+                "metrics": {
+                    "size": int(metrics_t["size"]),
+                    "precision": float(metrics_t["precision"]),
+                    "recall": float(metrics_t["recall"]),
+                    "f1": float(metrics_t["f1"]),
+                    "baseline": float(metrics_t["baseline"]),
+                    "lift_precision": float(metrics_t["lift_precision"]),
+                },
+                "metrics_per_class": metrics_per_class,
+                "region_summary": region_summary,
+                "projection_ref": str(projection_ref),
+                "complexity": {
+                    "num_dims": num_dims,
+                    "num_planes": num_planes,
+                },
+                "is_floor": False,
+                "generalizes": generalizes[idx],
+                "specializes": specializes[idx],
+                "is_pareto": bool(pareto_flags[idx]),
+                "family_id": family_id_val,
+                "parent_id": parent_id[idx],
+                "deltas_to_parent": deltas_to_parent[idx],
+                "planes_used": (sources if include_planes_used else []),
+                "seed_type": "beam_or",
+                "mask_signature": mask_sigs[idx],
+                "_mask_bits": rc.mask_bits,
+            }
+
+            if include_masks:
+                expanded = np.unpackbits(rc.mask_bits, bitorder="big")[:N].astype(bool)
+                rule_dict["_mask"] = expanded
+
+            all_rule_dicts.append(rule_dict)
+
+    valuable: Dict[int, List[Dict[str, Any]]] = {}
+    for rd in all_rule_dicts:
+        k = int(rd["complexity"]["num_dims"])
+        valuable.setdefault(k, []).append(rd)
+
+    for k, rules in valuable.items():
+        by_class: Dict[int, List[Dict[str, Any]]] = {}
+        for r in rules:
+            by_class.setdefault(int(r["target_class"]), []).append(r)
+
+        for rr in by_class.values():
+            rr.sort(
+                key=lambda r: (
+                    float(r["metrics"].get(metric, r["metrics"]["precision"])),
+                    float(r["metrics"]["lift_precision"]),
+                    float(r["metrics"]["size"]),
+                ),
+                reverse=True,
+            )
+            for r in rr[:top_k_floor_per_dim]:
+                r["is_floor"] = True
+
+    for k in list(valuable.keys()):
+        valuable[k].sort(
+            key=lambda r: (
+                float(r["metrics"].get(metric, r["metrics"]["precision"])),
+                float(r["metrics"]["lift_precision"]),
+                float(r["metrics"]["size"]),
+            ),
+            reverse=True,
+        )
+
+    if not include_masks:
+        for rules in valuable.values():
+            for r in rules:
+                if "_mask" in r:
+                    del r["_mask"]
+                if "_mask_bits" in r:
+                    del r["_mask_bits"]
+
+    return valuable
+
+
+def _find_comb_dim_spaces_and_or_from_planes(
+    planes: List[Plane],
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    mode: str,
+    max_planes: int = 7,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 16,
+    min_size: int = 5,
+    max_candidates_per_class: int = 150,
+    max_rules_per_class: int = 60,
+    max_clause_candidates: int = 60,
+    max_clauses: int = 3,
+    clause_beam_width: int = 12,
+    clause_iterations: int = 120,
+    clause_diverse_topk: int = 30,
+    clause_overlap_max: float = 0.7,
+    top_k_floor_per_dim: int = 12,
+    include_masks: bool = False,
+    projection_ref: str = "model_space",
+    include_planes_used: bool = False,
+) -> Dict[int, List[Dict[str, Any]]]:
+    X = np.asarray(X)
+    y = np.asarray(y)
+
+    if X.ndim != 2:
+        raise ValueError("X debe ser 2D: (N, d)")
+    if y.ndim != 1 or y.shape[0] != X.shape[0]:
+        raise ValueError("y debe ser 1D y del mismo N que X")
+
+    mode_normalized = (mode or "and_or_beam").strip().lower()
+    if mode_normalized == "dnf":
+        mode_normalized = "and_or_beam"
+
+    N, d = X.shape
+    classes = sorted(int(c) for c in np.unique(y).tolist())
+
+    if not planes:
+        return {}
+
+    base_and = _find_comb_dim_spaces_from_planes(
+        planes,
+        X,
+        y,
+        max_planes=max_planes,
+        metric=metric,
+        lift_min=lift_min,
+        beam_width=beam_width,
+        min_size=min_size,
+        max_candidates_per_class=max_candidates_per_class,
+        max_rules_per_class=max_rules_per_class,
+        top_k_floor_per_dim=top_k_floor_per_dim,
+        include_masks=True,
+        projection_ref=projection_ref,
+        include_planes_used=True,
+    )
+
+    packed_class_masks = {c: _packbits(y == c) for c in classes}
+    class_sizes = {c: _countbits(mask) for c, mask in packed_class_masks.items()}
+
+    all_rule_dicts: List[Dict[str, Any]] = []
+
+    for target_class in classes:
+        class_rules = [r for rr in base_and.values() for r in rr if int(r["target_class"]) == target_class]
+        if not class_rules:
+            continue
+
+        class_rules.sort(key=lambda r: _rank_rule_dict(r, metric), reverse=True)
+        class_rules = class_rules[: max(1, int(max_clause_candidates))]
+
+        if mode_normalized == "and_or_greedy":
+            dnf_rules = _greedy_dnf_rules(
+                class_rules,
+                packed_class_masks,
+                class_sizes,
+                N=N,
+                target_class=target_class,
+                metric=metric,
+                max_clauses=max_clauses,
+            )
+        elif mode_normalized == "and_or_beam":
+            dnf_rules = _beam_search_dnf_rules(
+                class_rules,
+                packed_class_masks,
+                class_sizes,
+                N=N,
+                target_class=target_class,
+                metric=metric,
+                max_clauses=max_clauses,
+                beam_width=clause_beam_width,
+            )
+        elif mode_normalized == "and_or_random":
+            dnf_rules = _random_search_dnf_rules(
+                class_rules,
+                packed_class_masks,
+                class_sizes,
+                N=N,
+                target_class=target_class,
+                metric=metric,
+                max_clauses=max_clauses,
+                iterations=clause_iterations,
+                seed=int(target_class),
+            )
+        elif mode_normalized == "and_or_diverse":
+            dnf_rules = _diverse_topk_dnf_rules(
+                class_rules,
+                packed_class_masks,
+                class_sizes,
+                N=N,
+                target_class=target_class,
+                metric=metric,
+                max_clauses=max_clauses,
+                candidates_per_class=clause_diverse_topk,
+                overlap_max=clause_overlap_max,
+            )
+        else:
+            raise ValueError(f"Modo AND/OR no soportado: {mode}")
+
+        if not dnf_rules:
+            continue
+
+        region_ids: List[str] = []
+        mask_sigs: List[str] = []
+        clause_id_sets: List[Tuple[str, ...]] = []
+        for rc in dnf_rules:
+            clause_rules = [class_rules[i] for i in rc.clause_indices]
+            clause_ids = tuple(str(r["region_id"]) for r in clause_rules)
+            clause_id_sets.append(clause_ids)
+            sig_str = (
+                f"c={target_class}|dims={rc.dims}|clauses={','.join(clause_ids)}|seed={mode_normalized}"
+            )
+            rid = "rg" + hashlib.md5(sig_str.encode("utf-8")).hexdigest()[:10]
+            region_ids.append(rid)
+
+            msig = _md5_short(
+                rc.mask_bits.tobytes() + f"|c={target_class}".encode("utf-8"), n=12
+            )
+            mask_sigs.append(msig)
+
+        plane_sets = [set(rc.clause_indices) for rc in dnf_rules]
+        generalizes = [[] for _ in dnf_rules]
+        specializes = [[] for _ in dnf_rules]
+
+        for i in range(len(dnf_rules)):
+            for j in range(len(dnf_rules)):
+                if i == j:
+                    continue
+                if plane_sets[i].issubset(plane_sets[j]) and len(plane_sets[i]) < len(
+                    plane_sets[j]
+                ):
+                    generalizes[j].append(region_ids[i])
+                    specializes[i].append(region_ids[j])
+
+        parent_id: List[Optional[str]] = [None] * len(dnf_rules)
+        deltas_to_parent: List[Optional[Dict[str, float]]] = [None] * len(dnf_rules)
+        for j in range(len(dnf_rules)):
+            parents = [
+                i
+                for i in range(len(dnf_rules))
+                if plane_sets[j].issubset(plane_sets[i]) and len(plane_sets[j]) < len(
+                    plane_sets[i]
+                )
+            ]
+            if not parents:
+                continue
+            min_len = min(len(plane_sets[i]) for i in parents)
+            parents_min = [i for i in parents if len(plane_sets[i]) == min_len]
+            parents_min.sort(key=lambda i: _rank_tuple(dnf_rules[i].metrics, metric), reverse=True)
+            i = parents_min[0]
+            parent_id[j] = region_ids[i]
+            deltas_to_parent[j] = {
+                "dF1": float(dnf_rules[j].metrics["f1"] - dnf_rules[i].metrics["f1"]),
+                "dPrecision": float(
+                    dnf_rules[j].metrics["precision"] - dnf_rules[i].metrics["precision"]
+                ),
+                "dRecall": float(dnf_rules[j].metrics["recall"] - dnf_rules[i].metrics["recall"]),
+            }
+
+        for idx, rc in enumerate(dnf_rules):
+            metrics_t = rc.metrics
+            region_frac = float(metrics_t["region_frac"])
+            metrics_per_class = _compute_per_class_metrics(
+                rc.mask_bits, packed_class_masks, class_sizes, rc.size, region_frac
+            )
+            region_summary = _compute_region_summary_from_counts(
+                rc.size,
+                rc.tp,
+                class_sizes[target_class],
+                N,
+                float(metrics_t["acc"]),
+                region_frac,
+            )
+
+            clause_rules = [class_rules[i] for i in rc.clause_indices]
+            clause_texts = [str(r["rule_text"]) for r in clause_rules]
+            clause_texts_wrapped = [
+                f"({txt})" if " AND " in txt else txt for txt in clause_texts
+            ]
+            rule_text = " OR ".join(clause_texts_wrapped)
+
+            sources = []
+            for r in clause_rules:
+                sources.extend(r.get("sources") or [])
+
+            plane_ids = tuple(r.get("plane_ids") for r in clause_rules)
+            num_planes = int(sum(int(r["complexity"]["num_planes"]) for r in clause_rules))
+            num_dims = int(len(rc.dims))
+
+            rule_dict: Dict[str, Any] = {
+                "region_id": region_ids[idx],
+                "target_class": int(target_class),
+                "dims": tuple(int(x) for x in rc.dims),
+                "plane_ids": plane_ids,
+                "sources": sources,
+                "rule_text": rule_text,
+                "rule_pieces": clause_texts,
+                "clauses": clause_id_sets[idx],
+                "metrics": {
+                    "size": int(metrics_t["size"]),
+                    "precision": float(metrics_t["precision"]),
+                    "recall": float(metrics_t["recall"]),
+                    "f1": float(metrics_t["f1"]),
+                    "baseline": float(metrics_t["baseline"]),
+                    "lift_precision": float(metrics_t["lift_precision"]),
+                },
+                "metrics_per_class": metrics_per_class,
+                "region_summary": region_summary,
+                "projection_ref": str(projection_ref),
+                "complexity": {
+                    "num_dims": num_dims,
+                    "num_planes": num_planes,
+                    "num_clauses": int(len(rc.clause_indices)),
+                },
+                "is_floor": False,
+                "generalizes": generalizes[idx],
+                "specializes": specializes[idx],
+                "is_pareto": False,
+                "family_id": None,
+                "parent_id": parent_id[idx],
+                "deltas_to_parent": deltas_to_parent[idx],
+                "planes_used": (sources if include_planes_used else []),
+                "seed_type": mode_normalized,
+                "mask_signature": mask_sigs[idx],
+                "_mask_bits": rc.mask_bits,
+            }
+
+            if include_masks:
+                expanded = np.unpackbits(rc.mask_bits, bitorder="big")[:N].astype(bool)
+                rule_dict["_mask"] = expanded
+
+            all_rule_dicts.append(rule_dict)
+
+    valuable: Dict[int, List[Dict[str, Any]]] = {}
+    for rd in all_rule_dicts:
+        k = int(rd["complexity"]["num_dims"])
+        valuable.setdefault(k, []).append(rd)
+
+    for k, rules in valuable.items():
+        by_class: Dict[int, List[Dict[str, Any]]] = {}
+        for r in rules:
+            by_class.setdefault(int(r["target_class"]), []).append(r)
+
+        for rr in by_class.values():
+            rr.sort(
+                key=lambda r: (
+                    float(r["metrics"].get(metric, r["metrics"]["precision"])),
+                    float(r["metrics"]["lift_precision"]),
+                    float(r["metrics"]["size"]),
+                ),
+                reverse=True,
+            )
+            for r in rr[:top_k_floor_per_dim]:
+                r["is_floor"] = True
+
+    for k in list(valuable.keys()):
+        valuable[k].sort(
+            key=lambda r: (
+                float(r["metrics"].get(metric, r["metrics"]["precision"])),
+                float(r["metrics"]["lift_precision"]),
+                float(r["metrics"]["size"]),
+            ),
+            reverse=True,
+        )
+
+    if not include_masks:
+        for rules in valuable.values():
+            for r in rules:
+                if "_mask" in r:
+                    del r["_mask"]
+                if "_mask_bits" in r:
+                    del r["_mask_bits"]
+
+    return valuable
+
+
 # =========================
 # Public API: find_comb_dim_spaces
 # =========================
@@ -1299,6 +2298,140 @@ def find_comb_dim_spaces(
         include_masks=include_masks,
         projection_ref=projection_ref,
         include_planes_used=include_planes_used,
+    )
+
+
+def find_comb_dim_spaces_full(
+    sel: Dict[str, Any],
+    X: np.ndarray,
+    y: np.ndarray,
+    *,
+    mode: str = "base",
+    max_planes: int = 10,
+    metric: str = "precision",
+    lift_min: float = 1.0,
+    beam_width: int = 36,
+    min_size: int = 5,
+    max_candidates_per_class: int = 150,
+    max_rules_per_class: int = 60,
+    max_clause_candidates: int = 60,
+    max_clauses: int = 3,
+    clause_beam_width: int = 12,
+    clause_iterations: int = 120,
+    clause_diverse_topk: int = 30,
+    clause_overlap_max: float = 0.7,
+    top_k_floor_per_dim: int = 12,
+    include_masks: bool = False,
+    projection_ref: str = "model_space",
+    include_planes_used: bool = False,
+) -> Dict[int, List[Dict[str, Any]]]:
+    """
+    Punto de entrada único con todos los modos disponibles:
+
+    - "base", "default", "hessian_rank", "hessian_filter": variantes AND clásicas.
+    - "and": alias AND clásico (equivalente a "base").
+    - "or": reglas OR (unión de planos).
+    - "dnf": alias de "and_or_beam" (OR de cláusulas AND vía beam search).
+    - "and_or_greedy": OR de cláusulas AND con selección greedy.
+    - "and_or_beam": OR de cláusulas AND con búsqueda beam.
+    - "and_or_random": OR de cláusulas AND con muestreo aleatorio.
+    - "and_or_diverse": OR de cláusulas AND con selección diversa.
+    """
+    mode_normalized = (mode or "base").strip().lower()
+
+    if mode_normalized in {"base", "default", "hessian_rank", "hessian_filter"}:
+        return find_comb_dim_spaces(
+            sel,
+            X,
+            y,
+            mode=mode_normalized,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+
+    d = X.shape[1]
+    planes = _extract_planes_from_sel(sel, d)
+
+    if mode_normalized == "or":
+        return _find_comb_dim_spaces_or_from_planes(
+            planes,
+            X,
+            y,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+
+    if mode_normalized == "and":
+        return _find_comb_dim_spaces_from_planes(
+            planes,
+            X,
+            y,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+
+    if mode_normalized in {
+        "dnf",
+        "and_or_greedy",
+        "and_or_beam",
+        "and_or_random",
+        "and_or_diverse",
+    }:
+        return _find_comb_dim_spaces_and_or_from_planes(
+            planes,
+            X,
+            y,
+            mode=mode_normalized,
+            max_planes=max_planes,
+            metric=metric,
+            lift_min=lift_min,
+            beam_width=beam_width,
+            min_size=min_size,
+            max_candidates_per_class=max_candidates_per_class,
+            max_rules_per_class=max_rules_per_class,
+            max_clause_candidates=max_clause_candidates,
+            max_clauses=max_clauses,
+            clause_beam_width=clause_beam_width,
+            clause_iterations=clause_iterations,
+            clause_diverse_topk=clause_diverse_topk,
+            clause_overlap_max=clause_overlap_max,
+            top_k_floor_per_dim=top_k_floor_per_dim,
+            include_masks=include_masks,
+            projection_ref=projection_ref,
+            include_planes_used=include_planes_used,
+        )
+
+    raise ValueError(
+        "mode debe ser 'base', 'default', 'hessian_rank', 'hessian_filter', 'and', "
+        "'or', 'dnf', 'and_or_greedy', 'and_or_beam', 'and_or_random' o 'and_or_diverse'. "
+        f"Recibido: {mode}"
     )
 
 

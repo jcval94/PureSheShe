@@ -194,6 +194,31 @@ valuable_hessian = find_comb_dim_spaces(
 )
 ```
 
+## Modo unificado con `find_comb_dim_spaces_full`
+
+Si quieres un solo punto de entrada para **todos** los modos (AND, OR, DNF y
+variantes Hessianas), usa `find_comb_dim_spaces_full`:
+
+```python
+from deldel import find_comb_dim_spaces_full
+
+valuable = find_comb_dim_spaces_full(
+    sel,
+    X,
+    y,
+    mode="and_or_diverse",
+    max_planes=5,
+    beam_width=20,
+    max_clauses=3,
+)
+```
+
+Modos disponibles:
+
+- **AND clásicos**: `base`, `default`, `hessian_rank`, `hessian_filter`, `and`.
+- **OR explícito**: `or`.
+- **DNF (OR de ANDs)**: `dnf`, `and_or_greedy`, `and_or_beam`, `and_or_random`, `and_or_diverse`.
+
 ### Informe textual de regiones
 
 `describe_regions_report` genera un informe compacto en español a partir de las regiones descubiertas. Internamente:
