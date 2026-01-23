@@ -37,6 +37,7 @@ from .find_low_dim_spaces_fast import (
 )
 from .combiantions import (
     find_comb_dim_spaces,
+    find_comb_dim_spaces_full,
     find_comb_dim_spaces_hessian_filter,
     find_comb_dim_spaces_hessian_rank,
     find_comb_dim_spaces_hessian_seed,
@@ -85,6 +86,7 @@ __all__ = [
     "find_low_dim_spaces_precision_boost",
     "find_low_dim_spaces_support_first",
     "find_comb_dim_spaces",
+    "find_comb_dim_spaces_full",
     "find_comb_dim_spaces_hessian_filter",
     "find_comb_dim_spaces_hessian_rank",
     "find_comb_dim_spaces_hessian_seed",
