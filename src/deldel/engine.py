@@ -10,6 +10,8 @@ import inspect
 import numpy as _np
 import copy
 
+from .profiling import ProfilingConfig, profile_context
+
 _DELD_STAGE = ContextVar("DELD_STAGE", default=None)
 _DELD_CALL_LOGGER = ContextVar("DELD_CALL_LOGGER", default=None)
 
@@ -1332,25 +1334,226 @@ class DelDel:
 
 
     # ---------- API principal ----------
-    def fit(self, X: np.ndarray, model: Any, verbosity: int = 0) -> "DelDel":
-        with _collect_calls(self.calls_):
+    def fit(self, X: np.ndarray, model: Any, verbosity: int = 0, profiling: Optional[ProfilingConfig] = None) -> "DelDel":
+        with profile_context("DelDel.fit", profiling):
+            with _collect_calls(self.calls_):
 
-            self.calls_.clear()
+                self.calls_.clear()
+                from time import perf_counter
+                from contextlib import contextmanager
+
+                vprint = print if verbosity > 0 else (lambda *args, **kwargs: None)
+                level = verbosity_to_level(verbosity)
+                self.logger.setLevel(level)
+
+                @contextmanager
+                def _tick(name: str):
+                    t = perf_counter()
+                    _tok_stage = _DELD_STAGE.set(name)
+                    try:
+                        yield
+                    finally:
+                        _DELD_STAGE.reset(_tok_stage)
+                        dt = (perf_counter() - t) * 1000.0
+                        timings[name] = timings.get(name, 0.0) + dt
+                        events.append((name, dt))
+
+                timings: Dict[str, float] = {}
+                events: List[Tuple[str, float]] = []
+                counts: Dict[str, Any] = {}
+
+                t_total0 = perf_counter()
+
+                with _tick("00_setup"):
+                    self._X = np.asarray(X, float)
+                    self._adaptor = ScoreAdaptor(model, mode=self.cfg.mode)
+                    self.records_.clear()
+                    counts["n_samples"], counts["n_features"] = self._X.shape
+                    self.logger.info(
+                        "Inicio de fit con %d muestras y %d características", counts["n_samples"], counts["n_features"]
+                    )
+
+                with _tick("01_scores_global"):
+                    try:
+                        self._P = self._adaptor.scores(self._X)
+                    except Exception as exc:
+                        self.logger.error("Error calculando scores globales", exc_info=exc)
+                        raise
+                    self._y = np.argmax(self._P, axis=1)
+                    labels = sorted(np.unique(self._y).tolist())
+                    counts["n_labels"] = len(labels)
+                    self.logger.info("Scores globales listos; labels únicas=%s", labels)
+                    vprint('labels', labels)
+
+                with _tick("02_pair_candidates_round_robin"):
+                    try:
+                        A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbosity=verbosity)
+                    except Exception as exc:
+                        self.logger.error("Error generando pares candidatos", exc_info=exc)
+                        raise
+
+                if not A_batches:
+                    _get_logger("DelDel", logging.WARNING).warning(
+                        "No se pudieron generar pares (verifica configuración y datos)."
+                    )
+                    self.time_stats_ = {
+                        "timings_ms": timings,
+                        "counts": counts,
+                        "per_batch": [],
+                        "per_pair": {},
+                        "notes": "Sin pares candidatos"
+                    }
+                    return self
+
+                all_records: List[DeltaRecord] = []
+                per_batch_stats: List[Dict[str, Any]] = []
+                counts["n_pair_candidates"] = len(yA_list)
+                self.logger.info(
+                    "Generación de pares completada; candidatos=%d", counts["n_pair_candidates"]
+                )
+
+                for b_idx, (A, B) in enumerate(zip(A_batches, B_batches)):
+                    batch_stat = {"batch_index": b_idx}
+                    yA = np.asarray(yA_list, int)
+                    yB = np.asarray(yB_list, int)
+
+                    with _tick("03_batch_false_position_flip"):
+                        t_fp0 = perf_counter()
+                        Xstar, ystar, Sstar = batch_false_position_flip(
+                            self._adaptor, A, B, yA, yB,
+                            iters=self.cfg.secant_iters, final_bisect=self.cfg.final_bisect
+                        )
+                        batch_stat["flip_ms"] = (perf_counter() - t_fp0) * 1000.0
+
+                    with _tick("04_scores_A"):
+                        t_sa0 = perf_counter()
+                        SA = self._adaptor.scores(A)
+                        batch_stat["scoresA_ms"] = (perf_counter() - t_sa0) * 1000.0
+
+                    cfg = self.cfg
+                    w_swing = float(cfg.prob_swing_weight)
+                    use_jsd = bool(cfg.use_jsd)
+                    w_jsd   = float(cfg.jsd_weight) if use_jsd else 0.0
+
+                    t_build0 = perf_counter()
+                    with _tick("05_build_records"):
+                        for k in range(len(A)):
+                            t_rec0 = perf_counter()
+
+                            x0 = A[k]; x1 = Xstar[k]
+                            S0 = SA[k]; S1 = Sstar[k]
+                            y0 = int(np.argmax(S0)); y1 = int(np.argmax(S1))
+                            dvec = x1 - x0
+                            dn2 = float(np.linalg.norm(dvec, 2))
+                            dni = float(np.linalg.norm(dvec, np.inf))
+
+                            m1 = float(S1[y0] - S1[y1])
+                            logit_gain = float(
+                                np.log((S1[y1] + 1e-12) / (S1[y0] + 1e-12))
+                                - np.log((S0[y1] + 1e-12) / (S0[y0] + 1e-12))
+                            )
+                            robust = (y1 != y0) and (m1 <= -self.cfg.min_pair_margin_end) and (logit_gain >= self.cfg.min_logit_gain)
+
+                            drop_a     = max(0.0, float(S0[y0] - S1[y0]))
+                            gain_b     = max(0.0, float(S1[y1] - S0[y1]))
+                            prob_swing = 0.5 * (drop_a + gain_b)
+
+                            m0 = float(S0[y0] - S0[y1])
+                            margin_gain = max(0.0, m0 - m1)
+                            jsd_val = _jsd(S0, S1) if use_jsd else 0.0
+                            strength_final_margin = max(0.0, -m1)
+                            change_mix = (w_swing * prob_swing) + ((1.0 - w_swing) * strength_final_margin) + (w_jsd * jsd_val)
+
+                            rec_time_ms = (perf_counter() - t_rec0) * 1000.0
+
+                            rec = DeltaRecord(
+                                index_a=-1, index_b=-1, method="pair_rr",
+                                success=bool(robust), y0=y0, y1=y1,
+                                delta_norm_l2=dn2, delta_norm_linf=dni,
+                                score_change=float(change_mix), distance_term=0.0, change_term=0.0, final_score=0.0,
+                                time_ms=float(rec_time_ms),
+                                x0=x0, x1=x1, delta=dvec, S0=S0, S1=S1,
+                                prob_swing=float(prob_swing), margin_gain=float(margin_gain), jsd_change=float(jsd_val)
+                            )
+                            all_records.append(rec)
+
+                    batch_stat["build_records_ms"] = (perf_counter() - t_build0) * 1000.0
+                    batch_stat["n_records_in_batch"] = len(A)
+                    per_batch_stats.append(batch_stat)
+
+                counts["n_records_total"] = len(all_records)
+                counts["n_success_total"] = int(sum(1 for r in all_records if r.success))
+
+                with _tick("06_group_by_pair"):
+                    by_pair: Dict[Tuple[int, int], List[int]] = {}
+                    for idx, r in enumerate(all_records):
+                        if r.success:
+                            by_pair.setdefault((r.y0, r.y1), []).append(idx)
+
+                with _tick("07_pairwise_norm_and_score"):
+                    for key, idxs in by_pair.items():
+                        dists = np.array([
+                            all_records[i].delta_norm_l2 if self.cfg.distance_metric == "l2"
+                            else all_records[i].delta_norm_linf
+                            for i in idxs
+                        ], float)
+                        changes = np.array([all_records[i].score_change for i in idxs], float)
+                        d95 = np.percentile(dists, 95) + 1e-12
+                        c95 = np.percentile(changes, 95) + 1e-12
+                        d_term = np.clip(dists / d95, 0, 1)
+                        c_term = np.clip(changes / c95, 0, 1)
+                        alpha = float(self.cfg.alpha_change)
+                        final = alpha * c_term + (1 - alpha) * (1 - d_term)
+                        for ii, dt, ct, fs in zip(idxs, d_term, c_term, final):
+                            all_records[ii].distance_term = float(dt)
+                            all_records[ii].change_term = float(ct)
+                            all_records[ii].final_score = float(fs)
+
+                with _tick("08_sort_records"):
+                    self.records_ = sorted(all_records, key=lambda r: r.final_score, reverse=True)
+
+                if self.cp_cfg.enabled:
+                    with _tick("09_compute_change_points_for_records"):
+                        self._compute_change_points_for_records(model)
+                else:
+                    timings["09_compute_change_points_for_records"] = 0.0
+
+                with _tick("10_logging"):
+                    self.logger.info(
+                        "DelDel listo. Pares=%d | tiempo_total=%.1f ms",
+                        len(self.records_), (perf_counter() - t_total0) * 1000.0
+                    )
+
+                timings["total_ms"] = (perf_counter() - t_total0) * 1000.0
+                self.time_stats_ = {
+                    "timings_ms": timings,
+                    "events_ms": events,
+                    "counts": counts,
+                    "per_batch": per_batch_stats
+                }
+                return self
+
+
+    def fit(self, X: np.ndarray, model: Any, verbosity: int = 0, profiling: Optional[ProfilingConfig] = None) -> "DelDel":
+        """Entrena DelDel con control de verbosidad por niveles enteros.
+
+        El valor predeterminado (0) evita la salida adicional en consola; valores
+        mayores habilitan trazas progresivamente más detalladas.
+        """
+        with profile_context("DelDel.fit", profiling):
             from time import perf_counter
             from contextlib import contextmanager
+            from collections import Counter  # <-- añadido para los conteos
 
             vprint = print if verbosity > 0 else (lambda *args, **kwargs: None)
-            level = verbosity_to_level(verbosity)
-            self.logger.setLevel(level)
+            self.logger.setLevel(verbosity_to_level(verbosity))
 
             @contextmanager
             def _tick(name: str):
                 t = perf_counter()
-                _tok_stage = _DELD_STAGE.set(name)
                 try:
                     yield
                 finally:
-                    _DELD_STAGE.reset(_tok_stage)
                     dt = (perf_counter() - t) * 1000.0
                     timings[name] = timings.get(name, 0.0) + dt
                     events.append((name, dt))
@@ -1388,6 +1591,10 @@ class DelDel:
                 except Exception as exc:
                     self.logger.error("Error generando pares candidatos", exc_info=exc)
                     raise
+                # print("pair_candidates_round_robin", A_batches)
+                # print("pair_candidates_round_robin", B_batches)
+                # print("pair_candidates_round_robin", yA_list)
+                # print("pair_candidates_round_robin", yB_list)
 
             if not A_batches:
                 _get_logger("DelDel", logging.WARNING).warning(
@@ -1408,8 +1615,17 @@ class DelDel:
             self.logger.info(
                 "Generación de pares completada; candidatos=%d", counts["n_pair_candidates"]
             )
+            #--------------------------------------------------------------------------------------------------------------------------------------------
+            #--------------------------------------------------------------------------------------------------------------------------------------------
+
 
             for b_idx, (A, B) in enumerate(zip(A_batches, B_batches)):
+                if b_idx == 0:
+                    vprint("Ver A: ", A)
+                    vprint("Ver B: ", B)
+                    vprint("Ver yA: ", yA_list)
+                    vprint("Ver yB: ", yB_list)
+                vprint(b_idx)
                 batch_stat = {"batch_index": b_idx}
                 yA = np.asarray(yA_list, int)
                 yB = np.asarray(yB_list, int)
@@ -1421,6 +1637,9 @@ class DelDel:
                         iters=self.cfg.secant_iters, final_bisect=self.cfg.final_bisect
                     )
                     batch_stat["flip_ms"] = (perf_counter() - t_fp0) * 1000.0
+                    vprint("Ver Xstar: ", Xstar.shape, type(Xstar), Xstar)
+                    vprint("Ver ystar: ", ystar.shape, type(ystar), ystar)
+                    vprint("Ver Sstar: ", Sstar.shape, type(Sstar), Sstar)
 
                 with _tick("04_scores_A"):
                     t_sa0 = perf_counter()
@@ -1478,6 +1697,11 @@ class DelDel:
                 batch_stat["n_records_in_batch"] = len(A)
                 per_batch_stats.append(batch_stat)
 
+            # === LOG de pares tras 05_build_records (todos los records construidos) ===
+            pairs_after_05 = dict(Counter((r.y0, r.y1) for r in all_records))
+            counts["pair_counts_after_05_build_records"] = pairs_after_05
+            vprint("pair_counts_after_05_build_records", pairs_after_05)
+
             counts["n_records_total"] = len(all_records)
             counts["n_success_total"] = int(sum(1 for r in all_records if r.success))
 
@@ -1486,6 +1710,11 @@ class DelDel:
                 for idx, r in enumerate(all_records):
                     if r.success:
                         by_pair.setdefault((r.y0, r.y1), []).append(idx)
+
+            # === LOG de pares tras 06_group_by_pair (sólo exitosos) ===
+            pairs_after_06 = {k: len(v) for k, v in by_pair.items()}
+            counts["pair_counts_after_06_group_by_pair_success"] = pairs_after_06
+            vprint("pair_counts_after_06_group_by_pair_success", pairs_after_06)
 
             with _tick("07_pairwise_norm_and_score"):
                 for key, idxs in by_pair.items():
@@ -1509,17 +1738,22 @@ class DelDel:
             with _tick("08_sort_records"):
                 self.records_ = sorted(all_records, key=lambda r: r.final_score, reverse=True)
 
+            # === LOG de pares tras 08_sort_records (self.records_ ordenados) ===
+            pairs_after_08 = dict(Counter((r.y0, r.y1) for r in self.records_))
+            counts["pair_counts_after_08_sort_records"] = pairs_after_08
+            vprint("pair_counts_after_08_sort_records", pairs_after_08)
+
             if self.cp_cfg.enabled:
                 with _tick("09_compute_change_points_for_records"):
                     self._compute_change_points_for_records(model)
             else:
                 timings["09_compute_change_points_for_records"] = 0.0
 
-            with _tick("10_logging"):
-                self.logger.info(
-                    "DelDel listo. Pares=%d | tiempo_total=%.1f ms",
-                    len(self.records_), (perf_counter() - t_total0) * 1000.0
-                )
+                with _tick("10_logging"):
+                    self.logger.info(
+                        "DelDel listo. Pares=%d | tiempo_total=%.1f ms",
+                        len(self.records_), (perf_counter() - t_total0) * 1000.0
+                    )
 
             timings["total_ms"] = (perf_counter() - t_total0) * 1000.0
             self.time_stats_ = {
@@ -1529,236 +1763,6 @@ class DelDel:
                 "per_batch": per_batch_stats
             }
             return self
-
-
-    def fit(self, X: np.ndarray, model: Any, verbosity: int = 0) -> "DelDel":
-        """Entrena DelDel con control de verbosidad por niveles enteros.
-
-        El valor predeterminado (0) evita la salida adicional en consola; valores
-        mayores habilitan trazas progresivamente más detalladas.
-        """
-        from time import perf_counter
-        from contextlib import contextmanager
-        from collections import Counter  # <-- añadido para los conteos
-
-        vprint = print if verbosity > 0 else (lambda *args, **kwargs: None)
-        self.logger.setLevel(verbosity_to_level(verbosity))
-
-        @contextmanager
-        def _tick(name: str):
-            t = perf_counter()
-            try:
-                yield
-            finally:
-                dt = (perf_counter() - t) * 1000.0
-                timings[name] = timings.get(name, 0.0) + dt
-                events.append((name, dt))
-
-        timings: Dict[str, float] = {}
-        events: List[Tuple[str, float]] = []
-        counts: Dict[str, Any] = {}
-
-        t_total0 = perf_counter()
-
-        with _tick("00_setup"):
-            self._X = np.asarray(X, float)
-            self._adaptor = ScoreAdaptor(model, mode=self.cfg.mode)
-            self.records_.clear()
-            counts["n_samples"], counts["n_features"] = self._X.shape
-            self.logger.info(
-                "Inicio de fit con %d muestras y %d características", counts["n_samples"], counts["n_features"]
-            )
-
-        with _tick("01_scores_global"):
-            try:
-                self._P = self._adaptor.scores(self._X)
-            except Exception as exc:
-                self.logger.error("Error calculando scores globales", exc_info=exc)
-                raise
-            self._y = np.argmax(self._P, axis=1)
-            labels = sorted(np.unique(self._y).tolist())
-            counts["n_labels"] = len(labels)
-            self.logger.info("Scores globales listos; labels únicas=%s", labels)
-            vprint('labels', labels)
-
-        with _tick("02_pair_candidates_round_robin"):
-            try:
-                A_batches, B_batches, yA_list, yB_list = self._pair_candidates_round_robin(labels, verbosity=verbosity)
-            except Exception as exc:
-                self.logger.error("Error generando pares candidatos", exc_info=exc)
-                raise
-            # print("pair_candidates_round_robin", A_batches)
-            # print("pair_candidates_round_robin", B_batches)
-            # print("pair_candidates_round_robin", yA_list)
-            # print("pair_candidates_round_robin", yB_list)
-
-        if not A_batches:
-            _get_logger("DelDel", logging.WARNING).warning(
-                "No se pudieron generar pares (verifica configuración y datos)."
-            )
-            self.time_stats_ = {
-                "timings_ms": timings,
-                "counts": counts,
-                "per_batch": [],
-                "per_pair": {},
-                "notes": "Sin pares candidatos"
-            }
-            return self
-
-        all_records: List[DeltaRecord] = []
-        per_batch_stats: List[Dict[str, Any]] = []
-        counts["n_pair_candidates"] = len(yA_list)
-        self.logger.info(
-            "Generación de pares completada; candidatos=%d", counts["n_pair_candidates"]
-        )
-        #--------------------------------------------------------------------------------------------------------------------------------------------
-        #--------------------------------------------------------------------------------------------------------------------------------------------
-
-
-        for b_idx, (A, B) in enumerate(zip(A_batches, B_batches)):
-            if b_idx == 0:
-                vprint("Ver A: ", A)
-                vprint("Ver B: ", B)
-                vprint("Ver yA: ", yA_list)
-                vprint("Ver yB: ", yB_list)
-            vprint(b_idx)
-            batch_stat = {"batch_index": b_idx}
-            yA = np.asarray(yA_list, int)
-            yB = np.asarray(yB_list, int)
-
-            with _tick("03_batch_false_position_flip"):
-                t_fp0 = perf_counter()
-                Xstar, ystar, Sstar = batch_false_position_flip(
-                    self._adaptor, A, B, yA, yB,
-                    iters=self.cfg.secant_iters, final_bisect=self.cfg.final_bisect
-                )
-                batch_stat["flip_ms"] = (perf_counter() - t_fp0) * 1000.0
-                vprint("Ver Xstar: ", Xstar.shape, type(Xstar), Xstar)
-                vprint("Ver ystar: ", ystar.shape, type(ystar), ystar)
-                vprint("Ver Sstar: ", Sstar.shape, type(Sstar), Sstar)
-
-            with _tick("04_scores_A"):
-                t_sa0 = perf_counter()
-                SA = self._adaptor.scores(A)
-                batch_stat["scoresA_ms"] = (perf_counter() - t_sa0) * 1000.0
-
-            cfg = self.cfg
-            w_swing = float(cfg.prob_swing_weight)
-            use_jsd = bool(cfg.use_jsd)
-            w_jsd   = float(cfg.jsd_weight) if use_jsd else 0.0
-
-            t_build0 = perf_counter()
-            with _tick("05_build_records"):
-                for k in range(len(A)):
-                    t_rec0 = perf_counter()
-
-                    x0 = A[k]; x1 = Xstar[k]
-                    S0 = SA[k]; S1 = Sstar[k]
-                    y0 = int(np.argmax(S0)); y1 = int(np.argmax(S1))
-                    dvec = x1 - x0
-                    dn2 = float(np.linalg.norm(dvec, 2))
-                    dni = float(np.linalg.norm(dvec, np.inf))
-
-                    m1 = float(S1[y0] - S1[y1])
-                    logit_gain = float(
-                        np.log((S1[y1] + 1e-12) / (S1[y0] + 1e-12))
-                        - np.log((S0[y1] + 1e-12) / (S0[y0] + 1e-12))
-                    )
-                    robust = (y1 != y0) and (m1 <= -self.cfg.min_pair_margin_end) and (logit_gain >= self.cfg.min_logit_gain)
-
-                    drop_a     = max(0.0, float(S0[y0] - S1[y0]))
-                    gain_b     = max(0.0, float(S1[y1] - S0[y1]))
-                    prob_swing = 0.5 * (drop_a + gain_b)
-
-                    m0 = float(S0[y0] - S0[y1])
-                    margin_gain = max(0.0, m0 - m1)
-                    jsd_val = _jsd(S0, S1) if use_jsd else 0.0
-                    strength_final_margin = max(0.0, -m1)
-                    change_mix = (w_swing * prob_swing) + ((1.0 - w_swing) * strength_final_margin) + (w_jsd * jsd_val)
-
-                    rec_time_ms = (perf_counter() - t_rec0) * 1000.0
-
-                    rec = DeltaRecord(
-                        index_a=-1, index_b=-1, method="pair_rr",
-                        success=bool(robust), y0=y0, y1=y1,
-                        delta_norm_l2=dn2, delta_norm_linf=dni,
-                        score_change=float(change_mix), distance_term=0.0, change_term=0.0, final_score=0.0,
-                        time_ms=float(rec_time_ms),
-                        x0=x0, x1=x1, delta=dvec, S0=S0, S1=S1,
-                        prob_swing=float(prob_swing), margin_gain=float(margin_gain), jsd_change=float(jsd_val)
-                    )
-                    all_records.append(rec)
-
-            batch_stat["build_records_ms"] = (perf_counter() - t_build0) * 1000.0
-            batch_stat["n_records_in_batch"] = len(A)
-            per_batch_stats.append(batch_stat)
-
-        # === LOG de pares tras 05_build_records (todos los records construidos) ===
-        pairs_after_05 = dict(Counter((r.y0, r.y1) for r in all_records))
-        counts["pair_counts_after_05_build_records"] = pairs_after_05
-        vprint("pair_counts_after_05_build_records", pairs_after_05)
-
-        counts["n_records_total"] = len(all_records)
-        counts["n_success_total"] = int(sum(1 for r in all_records if r.success))
-
-        with _tick("06_group_by_pair"):
-            by_pair: Dict[Tuple[int, int], List[int]] = {}
-            for idx, r in enumerate(all_records):
-                if r.success:
-                    by_pair.setdefault((r.y0, r.y1), []).append(idx)
-
-        # === LOG de pares tras 06_group_by_pair (sólo exitosos) ===
-        pairs_after_06 = {k: len(v) for k, v in by_pair.items()}
-        counts["pair_counts_after_06_group_by_pair_success"] = pairs_after_06
-        vprint("pair_counts_after_06_group_by_pair_success", pairs_after_06)
-
-        with _tick("07_pairwise_norm_and_score"):
-            for key, idxs in by_pair.items():
-                dists = np.array([
-                    all_records[i].delta_norm_l2 if self.cfg.distance_metric == "l2"
-                    else all_records[i].delta_norm_linf
-                    for i in idxs
-                ], float)
-                changes = np.array([all_records[i].score_change for i in idxs], float)
-                d95 = np.percentile(dists, 95) + 1e-12
-                c95 = np.percentile(changes, 95) + 1e-12
-                d_term = np.clip(dists / d95, 0, 1)
-                c_term = np.clip(changes / c95, 0, 1)
-                alpha = float(self.cfg.alpha_change)
-                final = alpha * c_term + (1 - alpha) * (1 - d_term)
-                for ii, dt, ct, fs in zip(idxs, d_term, c_term, final):
-                    all_records[ii].distance_term = float(dt)
-                    all_records[ii].change_term = float(ct)
-                    all_records[ii].final_score = float(fs)
-
-        with _tick("08_sort_records"):
-            self.records_ = sorted(all_records, key=lambda r: r.final_score, reverse=True)
-
-        # === LOG de pares tras 08_sort_records (self.records_ ordenados) ===
-        pairs_after_08 = dict(Counter((r.y0, r.y1) for r in self.records_))
-        counts["pair_counts_after_08_sort_records"] = pairs_after_08
-        vprint("pair_counts_after_08_sort_records", pairs_after_08)
-
-        if self.cp_cfg.enabled:
-            with _tick("09_compute_change_points_for_records"):
-                self._compute_change_points_for_records(model)
-        else:
-            timings["09_compute_change_points_for_records"] = 0.0
-
-            with _tick("10_logging"):
-                self.logger.info(
-                    "DelDel listo. Pares=%d | tiempo_total=%.1f ms",
-                    len(self.records_), (perf_counter() - t_total0) * 1000.0
-                )
-
-        timings["total_ms"] = (perf_counter() - t_total0) * 1000.0
-        self.time_stats_ = {
-            "timings_ms": timings,
-            "events_ms": events,
-            "counts": counts,
-            "per_batch": per_batch_stats
-        }
-        return self
 
     def _compute_change_points_for_records(self, model: Any) -> None:
         cp = self.cp_cfg
