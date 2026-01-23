@@ -656,6 +656,7 @@ def _greedy_dnf_rules(
     target_class: int,
     metric: str = "precision",
     max_clauses: int = 3,
+    max_dnf_rules: int = 5,
 ) -> List[DnfCandidate]:
     tmask = packed_class_masks[target_class]
     total_pos = class_sizes[target_class]
@@ -664,39 +665,55 @@ def _greedy_dnf_rules(
         return []
 
     ordered = sorted(rules, key=lambda r: _rank_rule_dict(r, metric), reverse=True)
-    chosen: List[int] = []
-    current_mask: Optional[np.ndarray] = None
-    current_metrics: Optional[Dict[str, float]] = None
-    current_size = 0
-    current_tp = 0
+    max_dnf_rules = max(1, int(max_dnf_rules))
 
-    for idx, r in enumerate(ordered):
-        if len(chosen) >= max_clauses:
-            break
-        r_mask = r.get("_mask_bits")
-        if r_mask is None:
-            continue
-        candidate_mask = r_mask if current_mask is None else _or_bits(current_mask, r_mask)
-        size = _countbits(candidate_mask)
-        tp = _countbits(_and_bits(candidate_mask, tmask))
-        metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
-        if current_metrics is None or _rank_tuple(metrics_t, metric) >= _rank_tuple(
-            current_metrics, metric
-        ):
-            chosen.append(idx)
-            current_mask = candidate_mask
-            current_metrics = metrics_t
-            current_size = size
-            current_tp = tp
+    def _build_greedy(start_idx: Optional[int]) -> Optional[DnfCandidate]:
+        chosen: List[int] = []
+        current_mask: Optional[np.ndarray] = None
+        current_metrics: Optional[Dict[str, float]] = None
+        current_size = 0
+        current_tp = 0
 
-    if not chosen or current_mask is None or current_metrics is None:
-        return []
+        if start_idx is not None:
+            r_mask = ordered[start_idx].get("_mask_bits")
+            if r_mask is None:
+                return None
+            current_mask = r_mask
+            current_size = _countbits(current_mask)
+            current_tp = _countbits(_and_bits(current_mask, tmask))
+            current_metrics = _compute_target_metrics_from_counts(
+                current_size, current_tp, total_pos, N
+            )
+            chosen.append(start_idx)
 
-    dims = tuple(
-        sorted({int(d) for i in chosen for d in (ordered[i].get("dims") or [])})
-    )
-    return [
-        DnfCandidate(
+        for idx, r in enumerate(ordered):
+            if len(chosen) >= max_clauses:
+                break
+            if idx in chosen:
+                continue
+            r_mask = r.get("_mask_bits")
+            if r_mask is None:
+                continue
+            candidate_mask = r_mask if current_mask is None else _or_bits(current_mask, r_mask)
+            size = _countbits(candidate_mask)
+            tp = _countbits(_and_bits(candidate_mask, tmask))
+            metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+            if current_metrics is None or _rank_tuple(metrics_t, metric) >= _rank_tuple(
+                current_metrics, metric
+            ):
+                chosen.append(idx)
+                current_mask = candidate_mask
+                current_metrics = metrics_t
+                current_size = size
+                current_tp = tp
+
+        if not chosen or current_mask is None or current_metrics is None:
+            return None
+
+        dims = tuple(
+            sorted({int(d) for i in chosen for d in (ordered[i].get("dims") or [])})
+        )
+        return DnfCandidate(
             target_class=target_class,
             clause_indices=tuple(chosen),
             dims=dims,
@@ -705,7 +722,20 @@ def _greedy_dnf_rules(
             tp=int(current_tp),
             metrics=current_metrics,
         )
-    ]
+
+    starters = [None] + list(range(min(len(ordered), max(3, max_dnf_rules * 2))))
+    candidates: Dict[Tuple[int, ...], DnfCandidate] = {}
+    for start_idx in starters:
+        cand = _build_greedy(start_idx)
+        if cand is None:
+            continue
+        prev = candidates.get(cand.clause_indices)
+        if prev is None or _rank_tuple(cand.metrics, metric) > _rank_tuple(prev.metrics, metric):
+            candidates[cand.clause_indices] = cand
+
+    out = list(candidates.values())
+    out.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+    return out[:max_dnf_rules]
 
 
 def _beam_search_dnf_rules(
@@ -813,6 +843,7 @@ def _random_search_dnf_rules(
     max_clauses: int = 3,
     iterations: int = 120,
     seed: int = 0,
+    max_dnf_rules: int = 5,
 ) -> List[DnfCandidate]:
     tmask = packed_class_masks[target_class]
     total_pos = class_sizes[target_class]
@@ -827,7 +858,8 @@ def _random_search_dnf_rules(
         return []
 
     rng = np.random.default_rng(seed)
-    best: Optional[DnfCandidate] = None
+    max_dnf_rules = max(1, int(max_dnf_rules))
+    best_by_clauses: Dict[Tuple[int, ...], DnfCandidate] = {}
 
     for _ in range(max(1, int(iterations))):
         k = int(rng.integers(1, max_clauses + 1))
@@ -852,10 +884,16 @@ def _random_search_dnf_rules(
             tp=tp,
             metrics=metrics_t,
         )
-        if best is None or _rank_tuple(cand.metrics, metric) > _rank_tuple(best.metrics, metric):
-            best = cand
+        prev = best_by_clauses.get(sample)
+        if prev is None or _rank_tuple(cand.metrics, metric) > _rank_tuple(prev.metrics, metric):
+            best_by_clauses[sample] = cand
 
-    return [best] if best is not None else []
+    if not best_by_clauses:
+        return []
+
+    out = list(best_by_clauses.values())
+    out.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+    return out[:max_dnf_rules]
 
 
 def _diverse_topk_dnf_rules(
@@ -869,6 +907,7 @@ def _diverse_topk_dnf_rules(
     max_clauses: int = 3,
     candidates_per_class: int = 30,
     overlap_max: float = 0.7,
+    max_dnf_rules: int = 5,
 ) -> List[DnfCandidate]:
     tmask = packed_class_masks[target_class]
     total_pos = class_sizes[target_class]
@@ -905,21 +944,37 @@ def _diverse_topk_dnf_rules(
     if not selected or current_mask is None:
         return []
 
-    size = _countbits(current_mask)
-    tp = _countbits(_and_bits(current_mask, tmask))
-    metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
-    dims = tuple(sorted({int(d) for i in selected for d in (ordered[i].get("dims") or [])}))
-    return [
-        DnfCandidate(
-            target_class=target_class,
-            clause_indices=tuple(selected),
-            dims=dims,
-            mask_bits=current_mask,
-            size=size,
-            tp=tp,
-            metrics=metrics_t,
+    candidates: List[DnfCandidate] = []
+    running_mask: Optional[np.ndarray] = None
+    for i in range(1, min(len(selected), max_clauses) + 1):
+        subset = selected[:i]
+        running_mask = masks[subset[0]] if running_mask is None else running_mask
+        if i > 1:
+            running_mask = _or_bits(running_mask, masks[subset[-1]])
+        if running_mask is None:
+            continue
+        size = _countbits(running_mask)
+        tp = _countbits(_and_bits(running_mask, tmask))
+        metrics_t = _compute_target_metrics_from_counts(size, tp, total_pos, N)
+        dims = tuple(sorted({int(d) for idx in subset for d in (ordered[idx].get("dims") or [])}))
+        candidates.append(
+            DnfCandidate(
+                target_class=target_class,
+                clause_indices=tuple(subset),
+                dims=dims,
+                mask_bits=running_mask,
+                size=size,
+                tp=tp,
+                metrics=metrics_t,
+            )
         )
-    ]
+
+    if not candidates:
+        return []
+
+    candidates.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+    max_dnf_rules = max(1, int(max_dnf_rules))
+    return candidates[:max_dnf_rules]
 
 
 def _beam_search_and_rules_hessian(
@@ -1924,6 +1979,7 @@ def _find_comb_dim_spaces_and_or_from_planes(
     clause_iterations: int = 120,
     clause_diverse_topk: int = 30,
     clause_overlap_max: float = 0.7,
+    max_dnf_rules_per_class: int = 5,
     top_k_floor_per_dim: int = 12,
     include_masks: bool = False,
     projection_ref: str = "model_space",
@@ -1986,6 +2042,7 @@ def _find_comb_dim_spaces_and_or_from_planes(
                 target_class=target_class,
                 metric=metric,
                 max_clauses=max_clauses,
+                max_dnf_rules=max_dnf_rules_per_class,
             )
         elif mode_normalized == "and_or_beam":
             dnf_rules = _beam_search_dnf_rules(
@@ -1998,6 +2055,9 @@ def _find_comb_dim_spaces_and_or_from_planes(
                 max_clauses=max_clauses,
                 beam_width=clause_beam_width,
             )
+            if dnf_rules:
+                dnf_rules.sort(key=lambda r: _rank_tuple(r.metrics, metric), reverse=True)
+                dnf_rules = dnf_rules[: max(1, int(max_dnf_rules_per_class))]
         elif mode_normalized == "and_or_random":
             dnf_rules = _random_search_dnf_rules(
                 class_rules,
@@ -2009,6 +2069,7 @@ def _find_comb_dim_spaces_and_or_from_planes(
                 max_clauses=max_clauses,
                 iterations=clause_iterations,
                 seed=int(target_class),
+                max_dnf_rules=max_dnf_rules_per_class,
             )
         elif mode_normalized == "and_or_diverse":
             dnf_rules = _diverse_topk_dnf_rules(
@@ -2021,6 +2082,7 @@ def _find_comb_dim_spaces_and_or_from_planes(
                 max_clauses=max_clauses,
                 candidates_per_class=clause_diverse_topk,
                 overlap_max=clause_overlap_max,
+                max_dnf_rules=max_dnf_rules_per_class,
             )
         else:
             raise ValueError(f"Modo AND/OR no soportado: {mode}")
@@ -2320,6 +2382,7 @@ def find_comb_dim_spaces_full(
     clause_iterations: int = 120,
     clause_diverse_topk: int = 30,
     clause_overlap_max: float = 0.7,
+    max_dnf_rules_per_class: int = 5,
     top_k_floor_per_dim: int = 12,
     include_masks: bool = False,
     projection_ref: str = "model_space",
@@ -2422,6 +2485,7 @@ def find_comb_dim_spaces_full(
             clause_iterations=clause_iterations,
             clause_diverse_topk=clause_diverse_topk,
             clause_overlap_max=clause_overlap_max,
+            max_dnf_rules_per_class=max_dnf_rules_per_class,
             top_k_floor_per_dim=top_k_floor_per_dim,
             include_masks=include_masks,
             projection_ref=projection_ref,
