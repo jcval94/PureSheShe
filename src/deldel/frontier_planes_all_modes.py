@@ -11,6 +11,7 @@ import numpy as np
 
 from ._logging_utils import verbosity_to_level
 from .engine import DeltaRecord
+from .profiling import ProfilingConfig, profile_context
 
 _NUMBA_AVAILABLE = importlib.util.find_spec("numba") is not None
 if _NUMBA_AVAILABLE:
@@ -1058,6 +1059,7 @@ def compute_frontier_planes_all_modes(
     explorer_feature_names: Optional[Sequence[str]] = None,
     explorer_top_k: int = 5,
     verbosity: int = 0,
+    profiling: Optional[ProfilingConfig] = None,
 ) -> Dict[Tuple[int, int], Dict[str, Any]]:
     """Encuentra planos frontera por par de clases usando exclusivamente el modo C mejorado.
 
@@ -1065,96 +1067,38 @@ def compute_frontier_planes_all_modes(
     mantiene la salida en consola al mínimo.
     """
 
-    logger = logging.getLogger(__name__)
-    log_level = verbosity_to_level(verbosity)
-    logger.setLevel(log_level)
-    progress_level = logging.INFO
-    explorer_top_k = int(explorer_top_k)
+    with profile_context("compute_frontier_planes_all_modes", profiling):
+        logger = logging.getLogger(__name__)
+        log_level = verbosity_to_level(verbosity)
+        logger.setLevel(log_level)
+        progress_level = logging.INFO
+        explorer_top_k = int(explorer_top_k)
 
-    if pairs is None:
-        seen = set()
-        for r in records:
-            if not getattr(r, "success", True):
-                continue
-            a, b = int(r.y0), int(r.y1)
-            if a == b:
-                continue
-            seen.add(tuple(sorted((a, b))))
-        pairs = sorted(seen)
+        if pairs is None:
+            seen = set()
+            for r in records:
+                if not getattr(r, "success", True):
+                    continue
+                a, b = int(r.y0), int(r.y1)
+                if a == b:
+                    continue
+                seen.add(tuple(sorted((a, b))))
+            pairs = sorted(seen)
 
-    out: Dict[Tuple[int, int], Dict[str, Any]] = {}
-    logger.log(
-        progress_level,
-        "Inicio compute_frontier_planes_all_modes | mode=%s prefer_cp=%s min_cluster_size=%d total_pairs=%d",
-        mode,
-        prefer_cp,
-        min_cluster_size,
-        len(pairs),
-    )
-    for pair in pairs:
-        pair_start = perf_counter()
-        logger.log(progress_level, "Procesando par %s", pair)
-        try:
-            base_block = _fit_for_pair_all(
-                records,
-                pair,
-                mode=mode,
-                prefer_cp=prefer_cp,
-                min_cluster_size=min_cluster_size,
-                seed=seed,
-                max_models_per_round=max_models_per_round,
-                max_depth=max_depth,
-                angle_merge_deg=angle_merge_deg,
-                offset_merge_tau=offset_merge_tau,
-                feature_names=explorer_feature_names,
-            )
-        except Exception as exc:  # pragma: no cover - mantiene robustez de API
-            dim_guess = None
-            dim_names_guess: Optional[Tuple[str, ...]] = None
+        out: Dict[Tuple[int, int], Dict[str, Any]] = {}
+        logger.log(
+            progress_level,
+            "Inicio compute_frontier_planes_all_modes | mode=%s prefer_cp=%s min_cluster_size=%d total_pairs=%d",
+            mode,
+            prefer_cp,
+            min_cluster_size,
+            len(pairs),
+        )
+        for pair in pairs:
+            pair_start = perf_counter()
+            logger.log(progress_level, "Procesando par %s", pair)
             try:
-                first = next(iter(records))
-                dim_guess = int(np.asarray(getattr(first, "x0", [])).reshape(-1).size)
-                if explorer_feature_names:
-                    dim_names_guess = tuple(explorer_feature_names[:dim_guess])
-            except Exception:
-                dim_guess = None
-                dim_names_guess = None
-
-            out[pair] = dict(
-                error=str(exc),
-                planes_by_label={},
-                labels_cluster_init=np.array([], int),
-                assignment=dict(
-                    rec_indices=np.array([], int),
-                    assigned_label=np.array([], int),
-                    assigned_plane=np.array([], int),
-                    residual=np.array([], float),
-                ),
-                meta=dict(
-                    mode=mode,
-                    dimension=dim_guess,
-                    dims=None if dim_guess is None else tuple(range(dim_guess)),
-                    dim_names=dim_names_guess,
-                    subspace_error=str(exc),
-                ),
-            )
-            logger.exception("Error al ajustar base para par %s", pair)
-            continue
-
-        try:
-            base_dim = int(base_block.get("meta", {}).get("dimension") or 0)
-            dims_list = _extract_dims_from_explorer(
-                explorer_reports,
-                feature_names=explorer_feature_names,
-                default_dim=base_dim,
-                top_k=explorer_top_k,
-            )
-
-            subspace_blocks: Dict[Tuple[int, ...], Dict[str, Any]] = {}
-            for dims in dims_list:
-                dims_start = perf_counter()
-                logger.log(progress_level, "Ajustando subespacio %s para par %s", dims, pair)
-                subspace_blocks[dims] = _fit_for_pair_all(
+                base_block = _fit_for_pair_all(
                     records,
                     pair,
                     mode=mode,
@@ -1165,40 +1109,99 @@ def compute_frontier_planes_all_modes(
                     max_depth=max_depth,
                     angle_merge_deg=angle_merge_deg,
                     offset_merge_tau=offset_merge_tau,
-                    dims=dims,
                     feature_names=explorer_feature_names,
                 )
-                logger.log(
-                    progress_level,
-                    "Subespacio %s completado en %.6f s",
-                    dims,
-                    perf_counter() - dims_start,
+            except Exception as exc:  # pragma: no cover - mantiene robustez de API
+                dim_guess = None
+                dim_names_guess: Optional[Tuple[str, ...]] = None
+                try:
+                    first = next(iter(records))
+                    dim_guess = int(np.asarray(getattr(first, "x0", [])).reshape(-1).size)
+                    if explorer_feature_names:
+                        dim_names_guess = tuple(explorer_feature_names[:dim_guess])
+                except Exception:
+                    dim_guess = None
+                    dim_names_guess = None
+
+                out[pair] = dict(
+                    error=str(exc),
+                    planes_by_label={},
+                    labels_cluster_init=np.array([], int),
+                    assignment=dict(
+                        rec_indices=np.array([], int),
+                        assigned_label=np.array([], int),
+                        assigned_plane=np.array([], int),
+                        residual=np.array([], float),
+                    ),
+                    meta=dict(
+                        mode=mode,
+                        dimension=dim_guess,
+                        dims=None if dim_guess is None else tuple(range(dim_guess)),
+                        dim_names=dim_names_guess,
+                        subspace_error=str(exc),
+                    ),
+                )
+                logger.exception("Error al ajustar base para par %s", pair)
+                continue
+
+            try:
+                base_dim = int(base_block.get("meta", {}).get("dimension") or 0)
+                dims_list = _extract_dims_from_explorer(
+                    explorer_reports,
+                    feature_names=explorer_feature_names,
+                    default_dim=base_dim,
+                    top_k=explorer_top_k,
                 )
 
-            if subspace_blocks:
-                base_block["subspace_variants"] = subspace_blocks
-                base_block.setdefault("meta", {})["subspace_dims"] = list(subspace_blocks.keys())
-                base_block["meta"]["n_planes_subspaces"] = int(
-                    sum(
-                        sum(len(v) for v in blk.get("planes_by_label", {}).values())
-                        for blk in subspace_blocks.values()
+                subspace_blocks: Dict[Tuple[int, ...], Dict[str, Any]] = {}
+                for dims in dims_list:
+                    dims_start = perf_counter()
+                    logger.log(progress_level, "Ajustando subespacio %s para par %s", dims, pair)
+                    subspace_blocks[dims] = _fit_for_pair_all(
+                        records,
+                        pair,
+                        mode=mode,
+                        prefer_cp=prefer_cp,
+                        min_cluster_size=min_cluster_size,
+                        seed=seed,
+                        max_models_per_round=max_models_per_round,
+                        max_depth=max_depth,
+                        angle_merge_deg=angle_merge_deg,
+                        offset_merge_tau=offset_merge_tau,
+                        dims=dims,
+                        feature_names=explorer_feature_names,
                     )
-                )
-        except Exception as exc:  # pragma: no cover - robustez opcional
-            base_block.setdefault("meta", {})["subspace_error"] = str(exc)
-            base_block.setdefault("meta", {})["subspace_error_type"] = exc.__class__.__name__
-            logger.exception("Error en subespacios para par %s", pair)
+                    logger.log(
+                        progress_level,
+                        "Subespacio %s completado en %.6f s",
+                        dims,
+                        perf_counter() - dims_start,
+                    )
 
-        out[pair] = base_block
-        logger.log(
-            progress_level,
-            "Par %s finalizado en %.6f s (bloques=%d)",
-            pair,
-            perf_counter() - pair_start,
-            1 + len(base_block.get("subspace_variants", {})),
-        )
-    logger.log(progress_level, "compute_frontier_planes_all_modes completado | pares=%d", len(out))
-    return out
+                if subspace_blocks:
+                    base_block["subspace_variants"] = subspace_blocks
+                    base_block.setdefault("meta", {})["subspace_dims"] = list(subspace_blocks.keys())
+                    base_block["meta"]["n_planes_subspaces"] = int(
+                        sum(
+                            sum(len(v) for v in blk.get("planes_by_label", {}).values())
+                            for blk in subspace_blocks.values()
+                        )
+                    )
+            except Exception as exc:  # pragma: no cover - robustez opcional
+                base_block.setdefault("meta", {})["subspace_error"] = str(exc)
+                base_block.setdefault("meta", {})["subspace_error_type"] = exc.__class__.__name__
+                logger.exception("Error en subespacios para par %s", pair)
+
+            out[pair] = base_block
+            logger.log(
+                progress_level,
+                "Par %s finalizado en %.6f s (bloques=%d)",
+                pair,
+                perf_counter() - pair_start,
+                1 + len(base_block.get("subspace_variants", {})),
+            )
+        logger.log(progress_level, "compute_frontier_planes_all_modes completado | pares=%d", len(out))
+        return out
 
 
 # -----------------------------------------------------------------------------------------------

@@ -29,6 +29,7 @@ from time import perf_counter
 import numpy as np, itertools, hashlib, time, math, random
 
 from ._logging_utils import verbosity_to_level
+from .profiling import ProfilingConfig, profile_context
 
 # ========================= Aceleradores bitset / popcount =========================
 
@@ -535,6 +536,7 @@ def find_low_dim_spaces(
     max_log_records: int = 10000,
     return_logs: bool = False,
     verbosity: int = 0,
+    profiling: Optional[ProfilingConfig] = None,
     # ---- extras ----
     include_masks: bool = False,        # si True, devuelve _mask por regla
     compute_relations: bool = True,     # generaliza/especializa + Pareto (usa bitsets internos)
@@ -556,502 +558,503 @@ def find_low_dim_spaces(
     # ---- límite candidato por clase ----
     max_planes_per_class_cap: int = 120,       # recorte aleatorio si supera
 ) -> Union[Dict[int, List[Dict[str,Any]]], Tuple[Dict[int, List[Dict[str,Any]]], List[Dict[str,Any]]]]:
+    with profile_context("find_low_dim_spaces", profiling):
 
-    t0 = time.time()
-    logs: List[Dict[str,Any]] = []
-    def _log(event: str, **kw):
-        if enable_logs and len(logs) < int(max_log_records):
-            logs.append({"t": round(time.time()-t0, 6), "event": event, **kw})
+        t0 = time.time()
+        logs: List[Dict[str,Any]] = []
+        def _log(event: str, **kw):
+            if enable_logs and len(logs) < int(max_log_records):
+                logs.append({"t": round(time.time()-t0, 6), "event": event, **kw})
 
-    # Necesitamos máscaras internas si haremos relaciones o uniones
-    _include_masks_internal = bool(include_masks or compute_relations or enable_unions)
+        # Necesitamos máscaras internas si haremos relaciones o uniones
+        _include_masks_internal = bool(include_masks or compute_relations or enable_unions)
 
-    rng = np.random.RandomState(int(rng_seed))
-    random.seed(int(rng_seed))
-    X = np.asarray(X, float); y = np.asarray(y, int).ravel()
-    N, D = X.shape
-    if consider_dims_up_to is None: consider_dims_up_to = D
-    consider_dims_up_to = int(min(max(1, consider_dims_up_to), D))
+        rng = np.random.RandomState(int(rng_seed))
+        random.seed(int(rng_seed))
+        X = np.asarray(X, float); y = np.asarray(y, int).ravel()
+        N, D = X.shape
+        if consider_dims_up_to is None: consider_dims_up_to = D
+        consider_dims_up_to = int(min(max(1, consider_dims_up_to), D))
 
-    logger = logging.getLogger(__name__)
-    level = verbosity_to_level(verbosity)
-    logger.setLevel(level)
-    start_total = perf_counter()
-    logger.log(
-        level,
-        "find_low_dim_spaces inicio | N=%d D=%d max_planes_in_rule=%d min_support=%d", 
-        N,
-        D,
-        max_planes_in_rule,
-        min_support,
-    )
+        logger = logging.getLogger(__name__)
+        level = verbosity_to_level(verbosity)
+        logger.setLevel(level)
+        start_total = perf_counter()
+        logger.log(
+            level,
+            "find_low_dim_spaces inicio | N=%d D=%d max_planes_in_rule=%d min_support=%d", 
+            N,
+            D,
+            max_planes_in_rule,
+            min_support,
+        )
 
-    # Medias para proyección
-    mu_by_class = {int(c): X[y==int(c)].mean(axis=0) if (y==int(c)).any() else X.mean(axis=0)
-                   for c in np.unique(y)}
-    mu_global = X.mean(axis=0)
-    mu_zero = np.zeros(D)
+        # Medias para proyección
+        mu_by_class = {int(c): X[y==int(c)].mean(axis=0) if (y==int(c)).any() else X.mean(axis=0)
+                       for c in np.unique(y)}
+        mu_global = X.mean(axis=0)
+        mu_zero = np.zeros(D)
 
-    def _mu_lookup(cls: int) -> np.ndarray:
-        if isinstance(projection_ref, np.ndarray):
-            return np.asarray(projection_ref, float).reshape(-1)
-        if projection_ref == "global_mean": return mu_global
-        if projection_ref == "zero": return mu_zero
-        return mu_by_class[int(cls)]
+        def _mu_lookup(cls: int) -> np.ndarray:
+            if isinstance(projection_ref, np.ndarray):
+                return np.asarray(projection_ref, float).reshape(-1)
+            if projection_ref == "global_mean": return mu_global
+            if projection_ref == "zero": return mu_zero
+            return mu_by_class[int(cls)]
 
-    baseline = _class_baseline(y)
-    labels = sorted(baseline.keys())
+        baseline = _class_baseline(y)
+        labels = sorted(baseline.keys())
 
-    # One-hot y bitsets por clase
-    Y_onehot = _onehot_y(y, labels)
-    packed_Y_by_class: Dict[int, np.ndarray] = {}
-    for j, c in enumerate(labels):
-        packed_Y_by_class[int(c)] = _pack_bits_cols(Y_onehot[:, [j]])[:, 0]  # (NB,)
+        # One-hot y bitsets por clase
+        Y_onehot = _onehot_y(y, labels)
+        packed_Y_by_class: Dict[int, np.ndarray] = {}
+        for j, c in enumerate(labels):
+            packed_Y_by_class[int(c)] = _pack_bits_cols(Y_onehot[:, [j]])[:, 0]  # (NB,)
 
-    _log("init", N=N, D=D, labels=list(map(int, labels)), consider_dims_up_to=int(consider_dims_up_to),
-         max_planes_in_rule=int(max_planes_in_rule), sample_limit_per_r=int(sample_limit_per_r))
+        _log("init", N=N, D=D, labels=list(map(int, labels)), consider_dims_up_to=int(consider_dims_up_to),
+             max_planes_in_rule=int(max_planes_in_rule), sample_limit_per_r=int(sample_limit_per_r))
 
-    # Acumuladores
-    valuable: Dict[int, List[Dict[str,Any]]] = {k: [] for k in range(1, consider_dims_up_to+1)}
-    all_candidates_by_dim_cls: Dict[Tuple[int,int], List[Dict[str,Any]]] = {}
+        # Acumuladores
+        valuable: Dict[int, List[Dict[str,Any]]] = {k: [] for k in range(1, consider_dims_up_to+1)}
+        all_candidates_by_dim_cls: Dict[Tuple[int,int], List[Dict[str,Any]]] = {}
 
-    # Helpers texto y registros
-    def _pieces_for_rule(ns, bs, sides, dims, mu, check_vacuous=True):
-        kept = []
-        for (n, b0, sd) in zip(ns, bs, sides):
-            n_eff, b_eff, sd_eff = _project_plane_to_dims(np.asarray(n, float), float(b0), int(sd), dims, mu)
-            if np.linalg.norm(n_eff[list(dims)]) < float(min_norm_in_dims):
-                continue
-            if check_vacuous and drop_vacuous_in_legend:
-                h = X @ n_eff + float(b_eff)
-                mask_plane = (h <= 0.0) if sd_eff >= 0 else (h >= 0.0)
-                if mask_plane.all():
+        # Helpers texto y registros
+        def _pieces_for_rule(ns, bs, sides, dims, mu, check_vacuous=True):
+            kept = []
+            for (n, b0, sd) in zip(ns, bs, sides):
+                n_eff, b_eff, sd_eff = _project_plane_to_dims(np.asarray(n, float), float(b0), int(sd), dims, mu)
+                if np.linalg.norm(n_eff[list(dims)]) < float(min_norm_in_dims):
                     continue
-            kept.append((n_eff, b_eff, sd_eff))
-        rule_text, pieces_txt = _canonize_rule_text_from_kept(kept, dims, feature_names)
-        return rule_text, pieces_txt, kept
+                if check_vacuous and drop_vacuous_in_legend:
+                    h = X @ n_eff + float(b_eff)
+                    mask_plane = (h <= 0.0) if sd_eff >= 0 else (h >= 0.0)
+                    if mask_plane.all():
+                        continue
+                kept.append((n_eff, b_eff, sd_eff))
+            rule_text, pieces_txt = _canonize_rule_text_from_kept(kept, dims, feature_names)
+            return rule_text, pieces_txt, kept
 
-    def _region_id(cls: int, dims: Tuple[int, ...], plane_ids: Tuple[Any, ...], rule_text: str) -> str:
-        payload = repr((int(cls), tuple(map(int, dims)), tuple(map(str, plane_ids)), str(rule_text))).encode("utf-8")
-        h = hashlib.md5(payload).hexdigest()[:10]
-        return f"rg_{len(dims)}d_c{int(cls)}_{h}"
+        def _region_id(cls: int, dims: Tuple[int, ...], plane_ids: Tuple[Any, ...], rule_text: str) -> str:
+            payload = repr((int(cls), tuple(map(int, dims)), tuple(map(str, plane_ids)), str(rule_text))).encode("utf-8")
+            h = hashlib.md5(payload).hexdigest()[:10]
+            return f"rg_{len(dims)}d_c{int(cls)}_{h}"
 
-    def _make_record(cls:int, dims:Tuple[int,...], plane_ids:Tuple[Any,...], plane_refs:Tuple[Dict[str,Any],...],
-                     rule_text:str, pieces_txt:List[str],
-                     M_target:Dict[str,float], per_class:Dict[int,Dict[str,float]], summary:Dict[str,float],
-                     mask_bits:np.ndarray,
-                     projection_ref=projection_ref, planes_used_payload:Optional[List[Dict[str,Any]]]=None,
-                     seed_type:str="pair") -> Dict[str,Any]:
-        rid = _region_id(int(cls), tuple(int(d) for d in dims), plane_ids, rule_text)
-        rec = dict(
-            region_id=rid,
-            target_class=int(cls),
-            dims=tuple(int(d) for d in dims),
-            plane_ids=tuple(plane_ids),
-            sources=plane_refs,
-            rule_text=rule_text,
-            rule_pieces=pieces_txt,
-            metrics=dict(
-                size=int(summary["size"]),
-                precision=float(M_target["precision"]),
-                recall=float(M_target["recall"]),
-                f1=float(M_target["f1"]),
-                baseline=float(M_target["baseline"]),
-                lift_precision=float(M_target["lift_precision"]),
-            ),
-            metrics_per_class=per_class,
-            region_summary=summary,
-            projection_ref=str(projection_ref),
-            complexity=dict(
-                num_dims=len(dims),
-                num_planes=len(plane_ids),
-            ),
-            is_floor=False,
-            generalizes=[],
-            specializes=[],
-            is_pareto=False,
-            family_id=None,
-            parent_id=None,
-            deltas_to_parent=None,
-            planes_used=planes_used_payload if planes_used_payload is not None else [],
-            seed_type=seed_type
-        )
-        sig = hashlib.md5(mask_bits.tobytes()).hexdigest()[:12]
-        rec["mask_signature"] = sig
-        rec["_mask_bits"] = mask_bits.copy()  # interno para uniones/dedup/relaciones
-        if _include_masks_internal:
-            Nloc = X.shape[0]
-            rec["_mask"] = _unpack_bits_col_to_bool(mask_bits, Nloc)
-        return rec
-
-    def _accept_record(rec:Dict[str,Any], dim_k:int, cls:int):
-        valuable.setdefault(dim_k, []).append(rec)
-        _log("accept_rule",
-             cls=int(cls), dims=tuple(int(d) for d in rec["dims"]),
-             region_id=rec["region_id"], planes_in_rule=len(rec["plane_ids"]),
-             size=int(rec["metrics"]["size"]), precision=float(rec["metrics"]["precision"]),
-             recall=float(rec["metrics"]["recall"]), f1=float(rec["metrics"]["f1"]))
-
-    # ---------- bucle principal: candidatos estándar vectorizados/bitset ----------
-    for cls in labels:
-        base_cls = float(baseline[int(cls)])
-        _log("class_start", cls=int(cls), baseline=base_cls)
-
-        cand_all = _gather_candidate_planes_for_class(
-            sel,
-            int(cls),
-            baseline_by_class=baseline,
-            include_opposite_for_perfect=include_opposite_for_perfect,
-            perfect_precision_threshold=perfect_precision_threshold,
-            priority_metric=priority_metric,
-        )
-        _log("candidates_collected", cls=int(cls), total=len(cand_all))
-
-        # limitar por par
-        def _sort_by_priority(lst: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-            return sorted(
-                lst,
-                key=lambda p: (
-                    bool(p.get("priority_perfect", False)),
-                    float(p.get("priority_precision", 0.0)),
-                    float(p.get("priority_lift", 0.0)),
+        def _make_record(cls:int, dims:Tuple[int,...], plane_ids:Tuple[Any,...], plane_refs:Tuple[Dict[str,Any],...],
+                         rule_text:str, pieces_txt:List[str],
+                         M_target:Dict[str,float], per_class:Dict[int,Dict[str,float]], summary:Dict[str,float],
+                         mask_bits:np.ndarray,
+                         projection_ref=projection_ref, planes_used_payload:Optional[List[Dict[str,Any]]]=None,
+                         seed_type:str="pair") -> Dict[str,Any]:
+            rid = _region_id(int(cls), tuple(int(d) for d in dims), plane_ids, rule_text)
+            rec = dict(
+                region_id=rid,
+                target_class=int(cls),
+                dims=tuple(int(d) for d in dims),
+                plane_ids=tuple(plane_ids),
+                sources=plane_refs,
+                rule_text=rule_text,
+                rule_pieces=pieces_txt,
+                metrics=dict(
+                    size=int(summary["size"]),
+                    precision=float(M_target["precision"]),
+                    recall=float(M_target["recall"]),
+                    f1=float(M_target["f1"]),
+                    baseline=float(M_target["baseline"]),
+                    lift_precision=float(M_target["lift_precision"]),
                 ),
-                reverse=True,
-            )
-
-        if enable_priority_sorting:
-            cand_all = _sort_by_priority(cand_all)
-
-        group: Dict[Tuple[int,int], List[Dict[str,Any]]] = {}
-        for p in cand_all:
-            group.setdefault(tuple(p["origin_pair"]), []).append(p)
-        cand_limited: List[Dict[str,Any]] = []
-        for k, lst in group.items():
-            lst_sorted = _sort_by_priority(lst) if enable_priority_sorting else lst
-            cand_limited += lst_sorted[:int(max_planes_per_pair)]
-
-        # recorte global por clase para controlar memoria/tiempo
-        if len(cand_limited) > int(max_planes_per_class_cap):
-            cand_limited = random.sample(cand_limited, int(max_planes_per_class_cap))
-        _log("candidates_limited", cls=int(cls), after_limit=len(cand_limited))
-
-        def _work_on_dims(dims:Tuple[int,...]):
-            mu = _mu_lookup(int(cls))
-            def _pieces_fn(ns, bs, sides, dims_, mu_):
-                return _pieces_for_rule(ns, bs, sides, dims_, mu_, check_vacuous=True)[:2]
-            def _mkrec(**kw):
-                return _make_record(**kw, projection_ref=projection_ref)
-            accepted, pool, all_for_floor = _eval_combos_fast_on_dims_bitset(
-                X, y, labels, baseline,
-                cand_limited, cls, dims, mu,
-                min_support=min_support,
-                min_rel_gain_f1=min_rel_gain_f1, min_abs_gain_f1=min_abs_gain_f1,
-                min_lift_prec=min_lift_prec,   min_abs_gain_prec=min_abs_gain_prec,
-                min_pos_in_region=min_pos_in_region,
-                max_planes_in_rule=max_planes_in_rule,
-                sample_limit_per_r=sample_limit_per_r,
-                per_class_floor_topk=per_class_floor_topk,
-                pieces_fn=_pieces_fn,
-                make_record_fn=lambda cls,dims,plane_ids,plane_refs,rule_text,pieces_txt,M_target,per_class,summary,mask_bits: _mkrec(
-                    cls=cls, dims=dims, plane_ids=plane_ids, plane_refs=plane_refs,
-                    rule_text=rule_text, pieces_txt=pieces_txt,
-                    M_target=M_target, per_class=per_class, summary=summary,
-                    mask_bits=mask_bits,
-                    planes_used_payload=None, seed_type="pair"
+                metrics_per_class=per_class,
+                region_summary=summary,
+                projection_ref=str(projection_ref),
+                complexity=dict(
+                    num_dims=len(dims),
+                    num_planes=len(plane_ids),
                 ),
-                packed_Y_by_class=packed_Y_by_class,
-                include_masks_internal=_include_masks_internal
+                is_floor=False,
+                generalizes=[],
+                specializes=[],
+                is_pareto=False,
+                family_id=None,
+                parent_id=None,
+                deltas_to_parent=None,
+                planes_used=planes_used_payload if planes_used_payload is not None else [],
+                seed_type=seed_type
             )
-            return accepted, pool, all_for_floor
+            sig = hashlib.md5(mask_bits.tobytes()).hexdigest()[:12]
+            rec["mask_signature"] = sig
+            rec["_mask_bits"] = mask_bits.copy()  # interno para uniones/dedup/relaciones
+            if _include_masks_internal:
+                Nloc = X.shape[0]
+                rec["_mask"] = _unpack_bits_col_to_bool(mask_bits, Nloc)
+            return rec
 
-        dims_jobs = []
-        for dim_k in range(1, consider_dims_up_to+1):
-            dims_jobs.extend([(dim_k, dims) for dims in itertools.combinations(range(D), dim_k)])
+        def _accept_record(rec:Dict[str,Any], dim_k:int, cls:int):
+            valuable.setdefault(dim_k, []).append(rec)
+            _log("accept_rule",
+                 cls=int(cls), dims=tuple(int(d) for d in rec["dims"]),
+                 region_id=rec["region_id"], planes_in_rule=len(rec["plane_ids"]),
+                 size=int(rec["metrics"]["size"]), precision=float(rec["metrics"]["precision"]),
+                 recall=float(rec["metrics"]["recall"]), f1=float(rec["metrics"]["f1"]))
 
-        results = []
-        try:
-            from joblib import Parallel, delayed  # opcional
-            results = Parallel(n_jobs=-1, backend="threading", require="sharedmem")(
-                delayed(_work_on_dims)(dims) for (_k, dims) in dims_jobs
-            )
-        except Exception:
-            results = [ _work_on_dims(dims) for (_k, dims) in dims_jobs ]
-
-        # integrar resultados
-        for (accepted, pool, all_for_floor), (_k, dims) in zip(results, dims_jobs):
-            dim_k = len(dims)
-            for rec in accepted:
-                all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
-            for rec in pool:
-                all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
-            for rec in accepted:
-                _accept_record(rec, dim_k, int(cls))
-            for rec in all_for_floor:
-                all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
-
-    # ------- cobertura por clase (floor) ------
-    for dim_k in range(1, consider_dims_up_to+1):
-        present_classes = {r["target_class"] for r in valuable.get(dim_k, [])}
+        # ---------- bucle principal: candidatos estándar vectorizados/bitset ----------
         for cls in labels:
-            if int(cls) in present_classes:
-                continue
-            pool = all_candidates_by_dim_cls.get((dim_k, int(cls)), [])
-            if not pool:
-                continue
-            pool_sorted = sorted(pool, key=lambda r: (r["metrics"]["f1"], r["metrics"]["lift_precision"], r["metrics"]["size"]), reverse=True)
-            take = pool_sorted[:int(per_class_floor_topk)]
-            for r in take:
-                r["is_floor"] = True
-            if take:
-                valuable.setdefault(dim_k, []).extend(take)
+            base_cls = float(baseline[int(cls)])
+            _log("class_start", cls=int(cls), baseline=base_cls)
 
-    # ------- NUEVO: uniones OR de bajo empalme -------
-    if enable_unions:
-        _added_unions = 0
-        UN_MIN_SUP = int(union_min_support or min_support)
+            cand_all = _gather_candidate_planes_for_class(
+                sel,
+                int(cls),
+                baseline_by_class=baseline,
+                include_opposite_for_perfect=include_opposite_for_perfect,
+                perfect_precision_threshold=perfect_precision_threshold,
+                priority_metric=priority_metric,
+            )
+            _log("candidates_collected", cls=int(cls), total=len(cand_all))
+
+            # limitar por par
+            def _sort_by_priority(lst: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                return sorted(
+                    lst,
+                    key=lambda p: (
+                        bool(p.get("priority_perfect", False)),
+                        float(p.get("priority_precision", 0.0)),
+                        float(p.get("priority_lift", 0.0)),
+                    ),
+                    reverse=True,
+                )
+
+            if enable_priority_sorting:
+                cand_all = _sort_by_priority(cand_all)
+
+            group: Dict[Tuple[int,int], List[Dict[str,Any]]] = {}
+            for p in cand_all:
+                group.setdefault(tuple(p["origin_pair"]), []).append(p)
+            cand_limited: List[Dict[str,Any]] = []
+            for k, lst in group.items():
+                lst_sorted = _sort_by_priority(lst) if enable_priority_sorting else lst
+                cand_limited += lst_sorted[:int(max_planes_per_pair)]
+
+            # recorte global por clase para controlar memoria/tiempo
+            if len(cand_limited) > int(max_planes_per_class_cap):
+                cand_limited = random.sample(cand_limited, int(max_planes_per_class_cap))
+            _log("candidates_limited", cls=int(cls), after_limit=len(cand_limited))
+
+            def _work_on_dims(dims:Tuple[int,...]):
+                mu = _mu_lookup(int(cls))
+                def _pieces_fn(ns, bs, sides, dims_, mu_):
+                    return _pieces_for_rule(ns, bs, sides, dims_, mu_, check_vacuous=True)[:2]
+                def _mkrec(**kw):
+                    return _make_record(**kw, projection_ref=projection_ref)
+                accepted, pool, all_for_floor = _eval_combos_fast_on_dims_bitset(
+                    X, y, labels, baseline,
+                    cand_limited, cls, dims, mu,
+                    min_support=min_support,
+                    min_rel_gain_f1=min_rel_gain_f1, min_abs_gain_f1=min_abs_gain_f1,
+                    min_lift_prec=min_lift_prec,   min_abs_gain_prec=min_abs_gain_prec,
+                    min_pos_in_region=min_pos_in_region,
+                    max_planes_in_rule=max_planes_in_rule,
+                    sample_limit_per_r=sample_limit_per_r,
+                    per_class_floor_topk=per_class_floor_topk,
+                    pieces_fn=_pieces_fn,
+                    make_record_fn=lambda cls,dims,plane_ids,plane_refs,rule_text,pieces_txt,M_target,per_class,summary,mask_bits: _mkrec(
+                        cls=cls, dims=dims, plane_ids=plane_ids, plane_refs=plane_refs,
+                        rule_text=rule_text, pieces_txt=pieces_txt,
+                        M_target=M_target, per_class=per_class, summary=summary,
+                        mask_bits=mask_bits,
+                        planes_used_payload=None, seed_type="pair"
+                    ),
+                    packed_Y_by_class=packed_Y_by_class,
+                    include_masks_internal=_include_masks_internal
+                )
+                return accepted, pool, all_for_floor
+
+            dims_jobs = []
+            for dim_k in range(1, consider_dims_up_to+1):
+                dims_jobs.extend([(dim_k, dims) for dims in itertools.combinations(range(D), dim_k)])
+
+            results = []
+            try:
+                from joblib import Parallel, delayed  # opcional
+                results = Parallel(n_jobs=-1, backend="threading", require="sharedmem")(
+                    delayed(_work_on_dims)(dims) for (_k, dims) in dims_jobs
+                )
+            except Exception:
+                results = [ _work_on_dims(dims) for (_k, dims) in dims_jobs ]
+
+            # integrar resultados
+            for (accepted, pool, all_for_floor), (_k, dims) in zip(results, dims_jobs):
+                dim_k = len(dims)
+                for rec in accepted:
+                    all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
+                for rec in pool:
+                    all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
+                for rec in accepted:
+                    _accept_record(rec, dim_k, int(cls))
+                for rec in all_for_floor:
+                    all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
+
+        # ------- cobertura por clase (floor) ------
+        for dim_k in range(1, consider_dims_up_to+1):
+            present_classes = {r["target_class"] for r in valuable.get(dim_k, [])}
+            for cls in labels:
+                if int(cls) in present_classes:
+                    continue
+                pool = all_candidates_by_dim_cls.get((dim_k, int(cls)), [])
+                if not pool:
+                    continue
+                pool_sorted = sorted(pool, key=lambda r: (r["metrics"]["f1"], r["metrics"]["lift_precision"], r["metrics"]["size"]), reverse=True)
+                take = pool_sorted[:int(per_class_floor_topk)]
+                for r in take:
+                    r["is_floor"] = True
+                if take:
+                    valuable.setdefault(dim_k, []).extend(take)
+
+        # ------- NUEVO: uniones OR de bajo empalme -------
+        if enable_unions:
+            _added_unions = 0
+            UN_MIN_SUP = int(union_min_support or min_support)
+            for dim_k, L in list(valuable.items()):
+                if not L:
+                    continue
+                # buckets por (cls,dims)
+                buckets: Dict[Tuple[int, Tuple[int,...]], List[Dict[str,Any]]] = {}
+                for r in L:
+                    key = (int(r["target_class"]), tuple(int(d) for d in r["dims"]))
+                    buckets.setdefault(key, []).append(r)
+
+                for (cls, dims) in buckets.keys():
+                    bucket = buckets[(cls, dims)]
+                    # top-K para pares
+                    bucket_sorted = sorted(
+                        bucket,
+                        key=lambda r: (r["metrics"]["f1"], r["metrics"]["lift_precision"], r["metrics"]["size"]),
+                        reverse=True
+                    )[:int(max(2, union_topk_per_bucket))]
+
+                    idx_pairs = list(itertools.combinations(range(len(bucket_sorted)), 2))
+                    if len(idx_pairs) > int(union_max_pairs_per_bucket):
+                        idx_pairs = idx_pairs[:int(union_max_pairs_per_bucket)]
+
+                    base = float(baseline[int(cls)])
+
+                    for i, j in idx_pairs:
+                        A, B = bucket_sorted[i], bucket_sorted[j]
+                        if union_same_dims_only and tuple(A["dims"]) != tuple(B["dims"]):
+                            continue
+                        dims_use = tuple(A["dims"]) if union_same_dims_only else tuple(sorted(set(A["dims"]) | set(B["dims"])) )
+
+                        ma_bits = A.get("_mask_bits"); mb_bits = B.get("_mask_bits")
+                        if ma_bits is None or mb_bits is None:
+                            continue
+
+                        iou = _iou_packed(ma_bits, mb_bits)
+                        if iou > float(union_max_iou):
+                            continue
+
+                        mu_bits = _bitwise_or_cols(ma_bits, mb_bits)
+                        if not mu_bits.any():
+                            continue
+
+                        per_cls, summary = _metrics_region_multiclass_maskbits(mu_bits, packed_Y_by_class, labels, baseline, N)
+                        Mu = per_cls[int(cls)]
+                        size_ok = summary["size"] >= UN_MIN_SUP
+                        pos_ok  = True if int(min_pos_in_region) <= 0 else (int(Mu["pos"]) >= int(min_pos_in_region))
+                        if not (size_ok and pos_ok):
+                            continue
+
+                        # mejora vs mejor hijo
+                        best_f1  = max(A["metrics"]["f1"],        B["metrics"]["f1"])
+                        best_rec = max(A["metrics"]["recall"],    B["metrics"]["recall"])
+                        lift_ok = (Mu["precision"] >= max(base*float(union_min_lift_precision), base+float(union_min_abs_prec)))
+                        improves = (Mu["f1"] >= best_f1 + float(union_min_gain_f1_vs_best)) or \
+                                   ((Mu["recall"] >= best_rec + float(union_min_gain_rec_vs_best)) and lift_ok)
+                        if not improves:
+                            continue
+
+                        rule_text = f"({A['rule_text']})  OR  ({B['rule_text']})"
+                        pieces_txt = [
+                            f"({ ' AND '.join(A.get('rule_pieces', [])) })",
+                            "OR",
+                            f"({ ' AND '.join(B.get('rule_pieces', [])) })"
+                        ]
+                        plane_ids = tuple([*(A.get("plane_ids", ())), *(B.get("plane_ids", ()))])
+                        sources   = tuple([*(A.get("sources", ())), *(B.get("sources", ()))])
+                        unique_plane_count = len(set([pid for pid in plane_ids if pid is not None]))
+                        rid_payload = repr(("U", int(cls), dims_use, A["region_id"], B["region_id"], rule_text)).encode("utf-8")
+                        rid = f"rg_{len(dims_use)}d_c{int(cls)}_U{hashlib.md5(rid_payload).hexdigest()[:8]}"
+                        lift_prec = (Mu["precision"]/base) if base>0 else (math.inf if Mu["precision"]>0 else 0.0)
+                        if lift_prec < 1.0:
+                            continue
+
+                        recU = dict(
+                            region_id=rid,
+                            target_class=int(cls),
+                            dims=tuple(int(d) for d in dims_use),
+                            plane_ids=plane_ids,
+                            sources=sources,
+                            rule_text=rule_text,
+                            rule_pieces=pieces_txt,
+                            metrics=dict(
+                                size=int(summary["size"]),
+                                precision=float(Mu["precision"]),
+                                recall=float(Mu["recall"]),
+                                f1=float(Mu["f1"]),
+                                baseline=float(base),
+                                lift_precision=float(lift_prec)
+                            ),
+                            metrics_per_class=per_cls,
+                            region_summary=summary,
+                            projection_ref=str(projection_ref),
+                            complexity=dict(
+                                num_dims=len(dims_use),
+                                num_planes=int(unique_plane_count),
+                            ),
+                            is_floor=False,
+                            generalizes=[], specializes=[],
+                            is_pareto=False,
+                            family_id=None, parent_id=None, deltas_to_parent=None,
+                            planes_used=(A.get("planes_used") or []) + (B.get("planes_used") or []),
+                            seed_type="union",
+                            is_union=True,
+                            union_of=(A["region_id"], B["region_id"]),
+                            iou=float(iou)
+                        )
+                        sig = hashlib.md5(mu_bits.tobytes()).hexdigest()[:12]
+                        recU["mask_signature"] = sig
+                        recU["_mask_bits"] = mu_bits.copy()
+                        if _include_masks_internal:
+                            recU["_mask"] = _unpack_bits_col_to_bool(mu_bits, N)
+
+                        # Colocar en el bucket de su dimensionalidad real
+                        valuable.setdefault(len(dims_use), []).append(recU)
+                        _added_unions += 1
+            _log("unions_done", added=int(_added_unions))
+
+        # ------- DEDUP GLOBAL por región idéntica (misma máscara), conservando la más simple -------
+        def _cost_rec(r: Dict[str,Any]) -> float:
+            return r["complexity"]["num_dims"] + 0.5*r["complexity"]["num_planes"]
+        def _better_rec(a: Dict[str,Any], b: Dict[str,Any]) -> bool:
+            ca, cb = _cost_rec(a), _cost_rec(b)
+            if ca != cb: return ca < cb
+            ma, mb = a["metrics"], b["metrics"]
+            key_a = (ma["f1"], ma["lift_precision"], ma["size"], -len(a.get("rule_pieces", [])))
+            key_b = (mb["f1"], mb["lift_precision"], mb["size"], -len(b.get("rule_pieces", [])))
+            return key_a > key_b
+
+        global_best: Dict[Tuple[int, str], Dict[str,Any]] = {}
         for dim_k, L in list(valuable.items()):
-            if not L:
-                continue
-            # buckets por (cls,dims)
-            buckets: Dict[Tuple[int, Tuple[int,...]], List[Dict[str,Any]]] = {}
             for r in L:
-                key = (int(r["target_class"]), tuple(int(d) for d in r["dims"]))
-                buckets.setdefault(key, []).append(r)
+                key = (r["target_class"], r["mask_signature"])
+                best = global_best.get(key)
+                if best is None or _better_rec(r, best):
+                    global_best[key] = r
 
-            for (cls, dims) in buckets.keys():
-                bucket = buckets[(cls, dims)]
-                # top-K para pares
-                bucket_sorted = sorted(
-                    bucket,
-                    key=lambda r: (r["metrics"]["f1"], r["metrics"]["lift_precision"], r["metrics"]["size"]),
-                    reverse=True
-                )[:int(max(2, union_topk_per_bucket))]
-
-                idx_pairs = list(itertools.combinations(range(len(bucket_sorted)), 2))
-                if len(idx_pairs) > int(union_max_pairs_per_bucket):
-                    idx_pairs = idx_pairs[:int(union_max_pairs_per_bucket)]
-
-                base = float(baseline[int(cls)])
-
-                for i, j in idx_pairs:
-                    A, B = bucket_sorted[i], bucket_sorted[j]
-                    if union_same_dims_only and tuple(A["dims"]) != tuple(B["dims"]):
-                        continue
-                    dims_use = tuple(A["dims"]) if union_same_dims_only else tuple(sorted(set(A["dims"]) | set(B["dims"])) )
-
-                    ma_bits = A.get("_mask_bits"); mb_bits = B.get("_mask_bits")
-                    if ma_bits is None or mb_bits is None:
-                        continue
-
-                    iou = _iou_packed(ma_bits, mb_bits)
-                    if iou > float(union_max_iou):
-                        continue
-
-                    mu_bits = _bitwise_or_cols(ma_bits, mb_bits)
-                    if not mu_bits.any():
-                        continue
-
-                    per_cls, summary = _metrics_region_multiclass_maskbits(mu_bits, packed_Y_by_class, labels, baseline, N)
-                    Mu = per_cls[int(cls)]
-                    size_ok = summary["size"] >= UN_MIN_SUP
-                    pos_ok  = True if int(min_pos_in_region) <= 0 else (int(Mu["pos"]) >= int(min_pos_in_region))
-                    if not (size_ok and pos_ok):
-                        continue
-
-                    # mejora vs mejor hijo
-                    best_f1  = max(A["metrics"]["f1"],        B["metrics"]["f1"])
-                    best_rec = max(A["metrics"]["recall"],    B["metrics"]["recall"])
-                    lift_ok = (Mu["precision"] >= max(base*float(union_min_lift_precision), base+float(union_min_abs_prec)))
-                    improves = (Mu["f1"] >= best_f1 + float(union_min_gain_f1_vs_best)) or \
-                               ((Mu["recall"] >= best_rec + float(union_min_gain_rec_vs_best)) and lift_ok)
-                    if not improves:
-                        continue
-
-                    rule_text = f"({A['rule_text']})  OR  ({B['rule_text']})"
-                    pieces_txt = [
-                        f"({ ' AND '.join(A.get('rule_pieces', [])) })",
-                        "OR",
-                        f"({ ' AND '.join(B.get('rule_pieces', [])) })"
-                    ]
-                    plane_ids = tuple([*(A.get("plane_ids", ())), *(B.get("plane_ids", ()))])
-                    sources   = tuple([*(A.get("sources", ())), *(B.get("sources", ()))])
-                    unique_plane_count = len(set([pid for pid in plane_ids if pid is not None]))
-                    rid_payload = repr(("U", int(cls), dims_use, A["region_id"], B["region_id"], rule_text)).encode("utf-8")
-                    rid = f"rg_{len(dims_use)}d_c{int(cls)}_U{hashlib.md5(rid_payload).hexdigest()[:8]}"
-                    lift_prec = (Mu["precision"]/base) if base>0 else (math.inf if Mu["precision"]>0 else 0.0)
-                    if lift_prec < 1.0:
-                        continue
-
-                    recU = dict(
-                        region_id=rid,
-                        target_class=int(cls),
-                        dims=tuple(int(d) for d in dims_use),
-                        plane_ids=plane_ids,
-                        sources=sources,
-                        rule_text=rule_text,
-                        rule_pieces=pieces_txt,
-                        metrics=dict(
-                            size=int(summary["size"]),
-                            precision=float(Mu["precision"]),
-                            recall=float(Mu["recall"]),
-                            f1=float(Mu["f1"]),
-                            baseline=float(base),
-                            lift_precision=float(lift_prec)
-                        ),
-                        metrics_per_class=per_cls,
-                        region_summary=summary,
-                        projection_ref=str(projection_ref),
-                        complexity=dict(
-                            num_dims=len(dims_use),
-                            num_planes=int(unique_plane_count),
-                        ),
-                        is_floor=False,
-                        generalizes=[], specializes=[],
-                        is_pareto=False,
-                        family_id=None, parent_id=None, deltas_to_parent=None,
-                        planes_used=(A.get("planes_used") or []) + (B.get("planes_used") or []),
-                        seed_type="union",
-                        is_union=True,
-                        union_of=(A["region_id"], B["region_id"]),
-                        iou=float(iou)
-                    )
-                    sig = hashlib.md5(mu_bits.tobytes()).hexdigest()[:12]
-                    recU["mask_signature"] = sig
-                    recU["_mask_bits"] = mu_bits.copy()
-                    if _include_masks_internal:
-                        recU["_mask"] = _unpack_bits_col_to_bool(mu_bits, N)
-
-                    # Colocar en el bucket de su dimensionalidad real
-                    valuable.setdefault(len(dims_use), []).append(recU)
-                    _added_unions += 1
-        _log("unions_done", added=int(_added_unions))
-
-    # ------- DEDUP GLOBAL por región idéntica (misma máscara), conservando la más simple -------
-    def _cost_rec(r: Dict[str,Any]) -> float:
-        return r["complexity"]["num_dims"] + 0.5*r["complexity"]["num_planes"]
-    def _better_rec(a: Dict[str,Any], b: Dict[str,Any]) -> bool:
-        ca, cb = _cost_rec(a), _cost_rec(b)
-        if ca != cb: return ca < cb
-        ma, mb = a["metrics"], b["metrics"]
-        key_a = (ma["f1"], ma["lift_precision"], ma["size"], -len(a.get("rule_pieces", [])))
-        key_b = (mb["f1"], mb["lift_precision"], mb["size"], -len(b.get("rule_pieces", [])))
-        return key_a > key_b
-
-    global_best: Dict[Tuple[int, str], Dict[str,Any]] = {}
-    for dim_k, L in list(valuable.items()):
-        for r in L:
-            key = (r["target_class"], r["mask_signature"])
-            best = global_best.get(key)
-            if best is None or _better_rec(r, best):
-                global_best[key] = r
-
-    selected_ids = {r["region_id"] for r in global_best.values()}
-    new_valuable: Dict[int, List[Dict[str,Any]]] = {k: [] for k in valuable.keys()}
-    for dim_k, L in valuable.items():
-        for r in L:
-            if r["region_id"] in selected_ids:
-                new_valuable[dim_k].append(r)
-    valuable = new_valuable
-
-    # ------- ordenar / truncar por dim -------
-    def _cost(r): return r["complexity"]["num_dims"] + 0.5*r["complexity"]["num_planes"]
-    for dim_k in list(valuable.keys()):
-        L = valuable[dim_k]
-        if not L:
-            continue
-        L.sort(key=lambda r: (-r["metrics"]["f1"], -r["metrics"]["lift_precision"], -r["metrics"]["size"], _cost(r)))
-        if len(L) > int(max_rules_per_dim):
-            L = L[:int(max_rules_per_dim)]
-        valuable[dim_k] = L
-
-    # ------- relaciones y familias (por clase y mismas dims) + Pareto -------
-    if compute_relations:
+        selected_ids = {r["region_id"] for r in global_best.values()}
+        new_valuable: Dict[int, List[Dict[str,Any]]] = {k: [] for k in valuable.keys()}
         for dim_k, L in valuable.items():
+            for r in L:
+                if r["region_id"] in selected_ids:
+                    new_valuable[dim_k].append(r)
+        valuable = new_valuable
+
+        # ------- ordenar / truncar por dim -------
+        def _cost(r): return r["complexity"]["num_dims"] + 0.5*r["complexity"]["num_planes"]
+        for dim_k in list(valuable.keys()):
+            L = valuable[dim_k]
             if not L:
                 continue
-            by_cls_dims: Dict[Tuple[int,Tuple[int,...]], List[int]] = {}
-            for idx, r in enumerate(L):
-                by_cls_dims.setdefault((r["target_class"], tuple(r["dims"])), []).append(idx)
+            L.sort(key=lambda r: (-r["metrics"]["f1"], -r["metrics"]["lift_precision"], -r["metrics"]["size"], _cost(r)))
+            if len(L) > int(max_rules_per_dim):
+                L = L[:int(max_rules_per_dim)]
+            valuable[dim_k] = L
 
-            for key, idxs in by_cls_dims.items():
-                def cost_i(i):
-                    rr = L[i]
-                    return rr["complexity"]["num_dims"] + 0.5*rr["complexity"]["num_planes"]
+        # ------- relaciones y familias (por clase y mismas dims) + Pareto -------
+        if compute_relations:
+            for dim_k, L in valuable.items():
+                if not L:
+                    continue
+                by_cls_dims: Dict[Tuple[int,Tuple[int,...]], List[int]] = {}
+                for idx, r in enumerate(L):
+                    by_cls_dims.setdefault((r["target_class"], tuple(r["dims"])), []).append(idx)
 
-                # Pareto
-                dominated = set()
-                for i in idxs:
-                    ri = L[i]["metrics"]; ci = cost_i(i)
-                    for j in idxs:
-                        if i == j: continue
-                        rj = L[j]["metrics"]; cj = cost_i(j)
-                        if (cj <= ci and
-                            rj["f1"] >= ri["f1"] and
-                            rj["precision"] >= ri["precision"] and
-                            rj["recall"] >= ri["recall"] and
-                            ((cj < ci) or (rj["f1"] > ri["f1"]) or (rj["precision"] > ri["precision"]) or (rj["recall"] > ri["recall"]))):
-                            dominated.add(i); break
-                for i in idxs:
-                    L[i]["is_pareto"] = (i not in dominated)
+                for key, idxs in by_cls_dims.items():
+                    def cost_i(i):
+                        rr = L[i]
+                        return rr["complexity"]["num_dims"] + 0.5*rr["complexity"]["num_planes"]
 
-                # relaciones por inclusión (¡corregidas!)
-                id2rec = {r["region_id"]: r for r in L}
-                for a,b in itertools.combinations(idxs, 2):
-                    Ra, Rb = L[a], L[b]
-                    ma_bits, mb_bits = Ra.get("_mask_bits"), Rb.get("_mask_bits")
-                    if ma_bits is None or mb_bits is None:
-                        continue
-                    if _is_subset_packed(ma_bits, mb_bits):   # mb ⊆ ma => a generaliza b
-                        Ra["generalizes"].append(Rb["region_id"])
-                        Rb["specializes"].append(Ra["region_id"])
-                    elif _is_subset_packed(mb_bits, ma_bits): # ma ⊆ mb => b generaliza a
-                        Rb["generalizes"].append(Ra["region_id"])
-                        Ra["specializes"].append(Rb["region_id"])
+                    # Pareto
+                    dominated = set()
+                    for i in idxs:
+                        ri = L[i]["metrics"]; ci = cost_i(i)
+                        for j in idxs:
+                            if i == j: continue
+                            rj = L[j]["metrics"]; cj = cost_i(j)
+                            if (cj <= ci and
+                                rj["f1"] >= ri["f1"] and
+                                rj["precision"] >= ri["precision"] and
+                                rj["recall"] >= ri["recall"] and
+                                ((cj < ci) or (rj["f1"] > ri["f1"]) or (rj["precision"] > ri["precision"]) or (rj["recall"] > ri["recall"]))):
+                                dominated.add(i); break
+                    for i in idxs:
+                        L[i]["is_pareto"] = (i not in dominated)
 
-                # familias/parent
-                for i in idxs:
-                    if L[i]["generalizes"]:
-                        cand = [id2rec[rid] for rid in L[i]["generalizes"] if rid in id2rec]
-                        if cand:
-                            parent = sorted(cand, key=lambda r: (r["complexity"]["num_dims"] + 0.5*r["complexity"]["num_planes"]))[0]
-                            L[i]["parent_id"] = parent["region_id"]
-                            L[i]["family_id"] = parent.get("family_id") or parent["region_id"]
-                            mi, mp = L[i]["metrics"], parent["metrics"]
-                            L[i]["deltas_to_parent"] = dict(
-                                dF1=mi["f1"]-mp["f1"],
-                                dPrecision=mi["precision"]-mp["precision"],
-                                dRecall=mi["recall"]-mp["recall"],
-                            )
-                    if L[i]["family_id"] is None:
-                        L[i]["family_id"] = L[i]["region_id"]
+                    # relaciones por inclusión (¡corregidas!)
+                    id2rec = {r["region_id"]: r for r in L}
+                    for a,b in itertools.combinations(idxs, 2):
+                        Ra, Rb = L[a], L[b]
+                        ma_bits, mb_bits = Ra.get("_mask_bits"), Rb.get("_mask_bits")
+                        if ma_bits is None or mb_bits is None:
+                            continue
+                        if _is_subset_packed(ma_bits, mb_bits):   # mb ⊆ ma => a generaliza b
+                            Ra["generalizes"].append(Rb["region_id"])
+                            Rb["specializes"].append(Ra["region_id"])
+                        elif _is_subset_packed(mb_bits, ma_bits): # ma ⊆ mb => b generaliza a
+                            Rb["generalizes"].append(Ra["region_id"])
+                            Ra["specializes"].append(Rb["region_id"])
 
-            def _cost_r(r):
-                return r["complexity"]["num_dims"] + 0.5*r["complexity"]["num_planes"]
-            L.sort(key=lambda r: (not r["is_pareto"], -r["metrics"]["f1"], -r["metrics"]["lift_precision"],
-                                  -r["metrics"]["size"], _cost_r(r)))
+                    # familias/parent
+                    for i in idxs:
+                        if L[i]["generalizes"]:
+                            cand = [id2rec[rid] for rid in L[i]["generalizes"] if rid in id2rec]
+                            if cand:
+                                parent = sorted(cand, key=lambda r: (r["complexity"]["num_dims"] + 0.5*r["complexity"]["num_planes"]))[0]
+                                L[i]["parent_id"] = parent["region_id"]
+                                L[i]["family_id"] = parent.get("family_id") or parent["region_id"]
+                                mi, mp = L[i]["metrics"], parent["metrics"]
+                                L[i]["deltas_to_parent"] = dict(
+                                    dF1=mi["f1"]-mp["f1"],
+                                    dPrecision=mi["precision"]-mp["precision"],
+                                    dRecall=mi["recall"]-mp["recall"],
+                                )
+                        if L[i]["family_id"] is None:
+                            L[i]["family_id"] = L[i]["region_id"]
 
-    # Limpieza de campos internos si no se solicitaron máscaras completas
-    if not include_masks:
-        for L in valuable.values():
-            for r in L:
-                if "_mask" in r:
-                    del r["_mask"]
-                if "_mask_bits" in r:
-                    del r["_mask_bits"]
+                def _cost_r(r):
+                    return r["complexity"]["num_dims"] + 0.5*r["complexity"]["num_planes"]
+                L.sort(key=lambda r: (not r["is_pareto"], -r["metrics"]["f1"], -r["metrics"]["lift_precision"],
+                                      -r["metrics"]["size"], _cost_r(r)))
 
-    total_runtime = perf_counter() - start_total
-    logger.log(
-        level,
-        "find_low_dim_spaces completado | dimensiones=%s tiempo=%.6f s", 
-        {k: len(v) for k, v in valuable.items()},
-        total_runtime,
-    )
-    _log("done", total_time=round(time.time()-t0, 6),
-         totals_by_dim={k: len(v) for k,v in valuable.items()})
+        # Limpieza de campos internos si no se solicitaron máscaras completas
+        if not include_masks:
+            for L in valuable.values():
+                for r in L:
+                    if "_mask" in r:
+                        del r["_mask"]
+                    if "_mask_bits" in r:
+                        del r["_mask_bits"]
 
-    if return_logs:
-        return valuable, logs
-    return valuable
+        total_runtime = perf_counter() - start_total
+        logger.log(
+            level,
+            "find_low_dim_spaces completado | dimensiones=%s tiempo=%.6f s", 
+            {k: len(v) for k, v in valuable.items()},
+            total_runtime,
+        )
+        _log("done", total_time=round(time.time()-t0, 6),
+             totals_by_dim={k: len(v) for k,v in valuable.items()})
+
+        if return_logs:
+            return valuable, logs
+        return valuable
 
 
 def _merge_kwargs(defaults: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
