@@ -927,20 +927,14 @@ def _extract_dims_from_explorer(
 # Ajuste por par con Modo C únicamente
 # -----------------------------------------------------------------------------------------------
 
-def _fit_for_pair_all(
+def _prepare_pair_arrays(
     records: Iterable[DeltaRecord],
     pair: Tuple[int, int],
-    mode: str = "C",
-    prefer_cp: bool = True,
-    min_cluster_size: int = 8,
-    seed: int = 0,
-    max_models_per_round: int = 4,
-    max_depth: int = 2,
-    angle_merge_deg: float = 6.0,
-    offset_merge_tau: float = 0.02,
+    *,
+    prefer_cp: bool,
+    seed: int,
     dims: Optional[Sequence[int]] = None,
-    feature_names: Optional[Sequence[str]] = None,
-) -> Dict[str, Any]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     A, B, U, M, L, W, rec_idx = _segment_arrays(
         records,
         pair,
@@ -954,6 +948,36 @@ def _fit_for_pair_all(
         B = B[:, dims]
         U = U[:, dims]
         M = M[:, dims]
+    eps = 1e-3
+    F = B + eps * U
+    labels = _cluster_vmf_offsets_perp(U, M, F, Kmax=8, random_state=seed, s_min=0.80, t_min=1e-6)
+    return A, B, U, M, labels, rec_idx
+
+
+def _build_planes_for_dims(
+    A: np.ndarray,
+    B: np.ndarray,
+    U: np.ndarray,
+    M: np.ndarray,
+    labels: np.ndarray,
+    rec_idx: np.ndarray,
+    *,
+    dims: Optional[Sequence[int]],
+    feature_names: Optional[Sequence[str]],
+    min_cluster_size: int,
+    seed: int,
+    max_models_per_round: int,
+    max_depth: int,
+    angle_merge_deg: float,
+    offset_merge_tau: float,
+    slice_arrays: bool = True,
+) -> Dict[str, Any]:
+    dims_tuple = tuple(int(i) for i in dims) if dims is not None else None
+    if dims_tuple is not None and slice_arrays:
+        A = A[:, dims_tuple]
+        B = B[:, dims_tuple]
+        U = U[:, dims_tuple]
+        M = M[:, dims_tuple]
     d = A.shape[1]
     eps = 1e-3
     F = B + eps * U
@@ -962,21 +986,15 @@ def _fit_for_pair_all(
         feature_names = [f"x{i}" for i in range(d)]
     fnames = list(feature_names)
     dim_names = None
-    if dims is not None:
+    if dims_tuple is not None:
         try:
-            dim_names = tuple(fnames[i] for i in dims)
+            dim_names = tuple(fnames[i] for i in dims_tuple)
         except Exception:
             dim_names = None
     elif fnames:
         dim_names = tuple(fnames[:d])
 
-    mode = str(mode).upper()
-    if mode not in ("C", "VMF", "OFFSETS"):
-        raise ValueError("Esta versión solo soporta mode in {'C','VMF','OFFSETS'}")
-
-    labels = _cluster_vmf_offsets_perp(U, M, F, Kmax=8, random_state=seed, s_min=0.80, t_min=1e-6)
     mode_key = "C"
-
     planes_by_label: Dict[int, List[Dict[str, Any]]] = {}
     assigned_label = -np.ones(F.shape[0], int)
     assigned_plane = -np.ones(F.shape[0], int)
@@ -1002,7 +1020,7 @@ def _fit_for_pair_all(
             max_models_per_round=max_models_per_round,
             angle_merge_deg=angle_merge_deg,
             offset_merge_tau=offset_merge_tau,
-            dims=dims,
+            dims=dims_tuple,
             dim_names=dim_names,
         )
         planes_by_label[int(lab)] = reports
@@ -1021,7 +1039,7 @@ def _fit_for_pair_all(
         n_labels_init=int(np.unique(labels).size),
         n_planes_total=int(sum(len(v) for v in planes_by_label.values())),
         dimension=int(d),
-        dims=None if dims is None else tuple(int(i) for i in dims),
+        dims=None if dims_tuple is None else dims_tuple,
         dim_names=dim_names,
         mode=mode_key,
     )
@@ -1039,6 +1057,49 @@ def _fit_for_pair_all(
     )
 
 
+def _fit_for_pair_all(
+    records: Iterable[DeltaRecord],
+    pair: Tuple[int, int],
+    mode: str = "C",
+    prefer_cp: bool = True,
+    min_cluster_size: int = 8,
+    seed: int = 0,
+    max_models_per_round: int = 4,
+    max_depth: int = 2,
+    angle_merge_deg: float = 6.0,
+    offset_merge_tau: float = 0.02,
+    dims: Optional[Sequence[int]] = None,
+    feature_names: Optional[Sequence[str]] = None,
+) -> Dict[str, Any]:
+    mode = str(mode).upper()
+    if mode not in ("C", "VMF", "OFFSETS"):
+        raise ValueError("Esta versión solo soporta mode in {'C','VMF','OFFSETS'}")
+    A, B, U, M, labels, rec_idx = _prepare_pair_arrays(
+        records,
+        pair,
+        prefer_cp=prefer_cp,
+        seed=seed,
+        dims=dims,
+    )
+    return _build_planes_for_dims(
+        A,
+        B,
+        U,
+        M,
+        labels,
+        rec_idx,
+        dims=dims,
+        feature_names=feature_names,
+        min_cluster_size=min_cluster_size,
+        seed=seed,
+        max_models_per_round=max_models_per_round,
+        max_depth=max_depth,
+        angle_merge_deg=angle_merge_deg,
+        offset_merge_tau=offset_merge_tau,
+        slice_arrays=dims is None,
+    )
+
+
 # -----------------------------------------------------------------------------------------------
 # API principal — SOLO Modo C
 # -----------------------------------------------------------------------------------------------
@@ -1047,7 +1108,7 @@ def compute_frontier_planes_all_modes(
     records: Iterable[DeltaRecord],
     pairs: Optional[Iterable[Tuple[int, int]]] = None,
     *,
-    mode: str = "C",
+    mode: str = "C2",
     prefer_cp: bool = True,
     min_cluster_size: int = 8,
     seed: int = 0,
@@ -1061,11 +1122,33 @@ def compute_frontier_planes_all_modes(
     verbosity: int = 0,
     profiling: Optional[ProfilingConfig] = None,
 ) -> Dict[Tuple[int, int], Dict[str, Any]]:
-    """Encuentra planos frontera por par de clases usando exclusivamente el modo C mejorado.
+    """Encuentra planos frontera por par de clases usando el modo C mejorado.
 
-    ``verbosity`` controla el nivel de logging; el valor por defecto (0)
-    mantiene la salida en consola al mínimo.
+    Por defecto usa ``mode="C2"`` para reutilizar la segmentación/clustering base
+    en subespacios. ``verbosity`` controla el nivel de logging; el valor por defecto
+    (0) mantiene la salida en consola al mínimo.
     """
+    mode = str(mode).upper()
+    if mode == "C2":
+        return compute_frontier_planes_all_modes2(
+            records,
+            pairs=pairs,
+            mode="C",
+            prefer_cp=prefer_cp,
+            min_cluster_size=min_cluster_size,
+            seed=seed,
+            max_models_per_round=max_models_per_round,
+            max_depth=max_depth,
+            angle_merge_deg=angle_merge_deg,
+            offset_merge_tau=offset_merge_tau,
+            explorer_reports=explorer_reports,
+            explorer_feature_names=explorer_feature_names,
+            explorer_top_k=explorer_top_k,
+            verbosity=verbosity,
+            profiling=profiling,
+        )
+    if mode not in ("C", "VMF", "OFFSETS"):
+        raise ValueError("Esta versión solo soporta mode in {'C','C2','VMF','OFFSETS'}")
 
     with profile_context("compute_frontier_planes_all_modes", profiling):
         logger = logging.getLogger(__name__)
@@ -1201,6 +1284,184 @@ def compute_frontier_planes_all_modes(
                 1 + len(base_block.get("subspace_variants", {})),
             )
         logger.log(progress_level, "compute_frontier_planes_all_modes completado | pares=%d", len(out))
+        return out
+
+
+# -----------------------------------------------------------------------------------------------
+# API principal — SOLO Modo C (reutiliza clustering base para subespacios)
+# -----------------------------------------------------------------------------------------------
+
+def compute_frontier_planes_all_modes2(
+    records: Iterable[DeltaRecord],
+    pairs: Optional[Iterable[Tuple[int, int]]] = None,
+    *,
+    mode: str = "C",
+    prefer_cp: bool = True,
+    min_cluster_size: int = 8,
+    seed: int = 0,
+    max_models_per_round: int = 4,
+    max_depth: int = 2,
+    angle_merge_deg: float = 6.0,
+    offset_merge_tau: float = 0.02,
+    explorer_reports: Optional[Sequence[Any]] = None,
+    explorer_feature_names: Optional[Sequence[str]] = None,
+    explorer_top_k: int = 5,
+    verbosity: int = 0,
+    profiling: Optional[ProfilingConfig] = None,
+) -> Dict[Tuple[int, int], Dict[str, Any]]:
+    """Versión que reutiliza la segmentación y clustering base en subespacios."""
+
+    mode = str(mode).upper()
+    if mode not in ("C", "VMF", "OFFSETS"):
+        raise ValueError("Esta versión solo soporta mode in {'C','VMF','OFFSETS'}")
+
+    with profile_context("compute_frontier_planes_all_modes2", profiling):
+        logger = logging.getLogger(__name__)
+        log_level = verbosity_to_level(verbosity)
+        logger.setLevel(log_level)
+        progress_level = logging.INFO
+        explorer_top_k = int(explorer_top_k)
+
+        if pairs is None:
+            seen = set()
+            for r in records:
+                if not getattr(r, "success", True):
+                    continue
+                a, b = int(r.y0), int(r.y1)
+                if a == b:
+                    continue
+                seen.add(tuple(sorted((a, b))))
+            pairs = sorted(seen)
+
+        out: Dict[Tuple[int, int], Dict[str, Any]] = {}
+        logger.log(
+            progress_level,
+            "Inicio compute_frontier_planes_all_modes2 | mode=%s prefer_cp=%s min_cluster_size=%d total_pairs=%d",
+            mode,
+            prefer_cp,
+            min_cluster_size,
+            len(pairs),
+        )
+        for pair in pairs:
+            pair_start = perf_counter()
+            logger.log(progress_level, "Procesando par %s", pair)
+            try:
+                A, B, U, M, labels, rec_idx = _prepare_pair_arrays(
+                    records,
+                    pair,
+                    prefer_cp=prefer_cp,
+                    seed=seed,
+                )
+                base_block = _build_planes_for_dims(
+                    A,
+                    B,
+                    U,
+                    M,
+                    labels,
+                    rec_idx,
+                    dims=None,
+                    feature_names=explorer_feature_names,
+                    min_cluster_size=min_cluster_size,
+                    seed=seed,
+                    max_models_per_round=max_models_per_round,
+                    max_depth=max_depth,
+                    angle_merge_deg=angle_merge_deg,
+                    offset_merge_tau=offset_merge_tau,
+                    slice_arrays=False,
+                )
+            except Exception as exc:  # pragma: no cover - mantiene robustez de API
+                dim_guess = None
+                dim_names_guess: Optional[Tuple[str, ...]] = None
+                try:
+                    first = next(iter(records))
+                    dim_guess = int(np.asarray(getattr(first, "x0", [])).reshape(-1).size)
+                    if explorer_feature_names:
+                        dim_names_guess = tuple(explorer_feature_names[:dim_guess])
+                except Exception:
+                    dim_guess = None
+                    dim_names_guess = None
+
+                out[pair] = dict(
+                    error=str(exc),
+                    planes_by_label={},
+                    labels_cluster_init=np.array([], int),
+                    assignment=dict(
+                        rec_indices=np.array([], int),
+                        assigned_label=np.array([], int),
+                        assigned_plane=np.array([], int),
+                        residual=np.array([], float),
+                    ),
+                    meta=dict(
+                        mode=mode,
+                        dimension=dim_guess,
+                        dims=None if dim_guess is None else tuple(range(dim_guess)),
+                        dim_names=dim_names_guess,
+                        subspace_error=str(exc),
+                    ),
+                )
+                logger.exception("Error al ajustar base para par %s", pair)
+                continue
+
+            try:
+                base_dim = int(base_block.get("meta", {}).get("dimension") or 0)
+                dims_list = _extract_dims_from_explorer(
+                    explorer_reports,
+                    feature_names=explorer_feature_names,
+                    default_dim=base_dim,
+                    top_k=explorer_top_k,
+                )
+
+                subspace_blocks: Dict[Tuple[int, ...], Dict[str, Any]] = {}
+                for dims in dims_list:
+                    dims_start = perf_counter()
+                    logger.log(progress_level, "Ajustando subespacio %s para par %s", dims, pair)
+                    subspace_blocks[dims] = _build_planes_for_dims(
+                        A,
+                        B,
+                        U,
+                        M,
+                        labels,
+                        rec_idx,
+                        dims=dims,
+                        feature_names=explorer_feature_names,
+                        min_cluster_size=min_cluster_size,
+                        seed=seed,
+                        max_models_per_round=max_models_per_round,
+                        max_depth=max_depth,
+                        angle_merge_deg=angle_merge_deg,
+                        offset_merge_tau=offset_merge_tau,
+                        slice_arrays=True,
+                    )
+                    logger.log(
+                        progress_level,
+                        "Subespacio %s completado en %.6f s",
+                        dims,
+                        perf_counter() - dims_start,
+                    )
+
+                if subspace_blocks:
+                    base_block["subspace_variants"] = subspace_blocks
+                    base_block.setdefault("meta", {})["subspace_dims"] = list(subspace_blocks.keys())
+                    base_block["meta"]["n_planes_subspaces"] = int(
+                        sum(
+                            sum(len(v) for v in blk.get("planes_by_label", {}).values())
+                            for blk in subspace_blocks.values()
+                        )
+                    )
+            except Exception as exc:  # pragma: no cover - robustez opcional
+                base_block.setdefault("meta", {})["subspace_error"] = str(exc)
+                base_block.setdefault("meta", {})["subspace_error_type"] = exc.__class__.__name__
+                logger.exception("Error en subespacios para par %s", pair)
+
+            out[pair] = base_block
+            logger.log(
+                progress_level,
+                "Par %s finalizado en %.6f s (bloques=%d)",
+                pair,
+                perf_counter() - pair_start,
+                1 + len(base_block.get("subspace_variants", {})),
+            )
+        logger.log(progress_level, "compute_frontier_planes_all_modes2 completado | pares=%d", len(out))
         return out
 
 
