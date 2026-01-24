@@ -554,6 +554,61 @@ res_c_topdims = compute_frontier_planes_all_modes(
     explorer_top_k=5,
 )
 
+> **Subespacios más rápidos**<br>
+> La variante `compute_frontier_planes_all_modes2` reutiliza la segmentación y el clustering base
+> (vMF + offsets) para cada subespacio y sólo recalcula el ajuste de planos, evitando repetir
+> `_segment_arrays` y `_cluster_vmf_offsets_perp` en cada `dims`.
+
+### ¿Qué son los subespacios y las variantes en los reportes?
+
+Un **subespacio** es una selección de columnas (features) del espacio original. Si el
+dataset tiene 8 variables, un subespacio de 2D podría ser `(0, 3)`; otro de 3D podría
+ser `(1, 4, 6)`. En `compute_frontier_planes_all_modes` cada subespacio se evalúa
+ajustando planos frontera usando únicamente esas columnas.
+
+Cuando `compute_frontier_planes_all_modes` recibe `explorer_reports`, genera
+**variantes de subespacio** para cada par de clases. En el resultado:
+
+- El bloque base (`res[pair]`) corresponde a **todas las dimensiones** (espacio completo).
+- `res[pair]["subspace_variants"]` contiene un diccionario por subespacio (clave `dims`)
+  con su propio `planes_by_label` y `meta`.
+
+Ejemplo conceptual:
+
+```python
+res = compute_frontier_planes_all_modes(
+    records,
+    mode="C2",  # por defecto: reutiliza clustering base en subespacios
+    explorer_reports=[(0, 1), (0, 2, 3)],
+    explorer_feature_names=[f"f{i}" for i in range(X.shape[1])],
+    explorer_top_k=2,
+)
+
+# Base: usa todas las dimensiones
+full_planes = res[(0, 1)]["planes_by_label"]
+full_meta = res[(0, 1)]["meta"]  # dimension = X.shape[1]
+
+# Variantes: usan subespacios específicos
+sub_2d = res[(0, 1)]["subspace_variants"][(0, 1)]
+sub_3d = res[(0, 1)]["subspace_variants"][(0, 2, 3)]
+
+print(full_meta["dimension"])       # p.ej. 8
+print(sub_2d["meta"]["dimension"])  # 2
+print(sub_3d["meta"]["dimension"])  # 3
+```
+
+¿Qué **representa** cada variante?
+
+- `planes_by_label`: los planos frontera ajustados **en ese subespacio**.
+- `assignment`: asignación de segmentos a planos en ese subespacio.
+- `meta`: métricas agregadas (`n_segments`, `n_labels_init`, `n_planes_total`) y
+  `dims`/`dim_names` que indican las columnas usadas.
+
+**Importante:** en `compute_frontier_planes_all_modes2` las variantes reutilizan la
+segmentación y clustering base, y sólo recalculan el ajuste de planos. Por eso los
+planes base tienden a coincidir con la versión original, pero algunas métricas de
+subespacio pueden diferir respecto a recalcular el clustering en cada `dims`.
+
 explorer_ultra = MultiClassSubspaceExplorer()
 explorer_ultra.fit(
     X,

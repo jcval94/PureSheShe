@@ -27,6 +27,7 @@ from .experiments import (
 from .globalmaj import prune_and_orient_planes_unified_globalmaj
 from .frontier_planes_all_modes import (
     compute_frontier_planes_all_modes,
+    compute_frontier_planes_all_modes2,
     plot_planes_with_point_lines,
 )
 from .find_low_dim_spaces_fast import (
@@ -67,6 +68,7 @@ __all__ = [
     "build_weighted_frontier",
     "compute_frontier_planes_weighted",
     "compute_frontier_planes_all_modes",
+    "compute_frontier_planes_all_modes2",
     "fit_tls_plane_weighted",
     "fit_quadric_svd_weighted",
     "fit_quadrics_from_records_weighted",
