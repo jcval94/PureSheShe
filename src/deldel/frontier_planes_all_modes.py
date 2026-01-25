@@ -755,7 +755,7 @@ def _recluster_discards(
     sub_lab = -np.ones(P.shape[0], int)
     if idx_disc.size < max(3, min_cluster_size):
         return sub_lab
-    if mode == "C":
+    if mode in ("C", "C2"):
         lab = _cluster_vmf_offsets_perp(
             U[idx_disc],
             M[idx_disc],
@@ -766,7 +766,7 @@ def _recluster_discards(
             t_min=1e-6,
         )
     else:
-        raise ValueError("Solo se soporta modo 'C' en esta versión.")
+        raise ValueError("Solo se soporta modo 'C' o 'C2' en esta versión.")
     ref = -np.ones_like(lab)
     vals = np.unique(lab)
     for i, v in enumerate(vals):
@@ -962,6 +962,7 @@ def _build_planes_for_dims(
     labels: np.ndarray,
     rec_idx: np.ndarray,
     *,
+    mode: str,
     dims: Optional[Sequence[int]],
     feature_names: Optional[Sequence[str]],
     min_cluster_size: int,
@@ -994,7 +995,9 @@ def _build_planes_for_dims(
     elif fnames:
         dim_names = tuple(fnames[:d])
 
-    mode_key = "C"
+    mode_key = str(mode).upper()
+    if mode_key not in ("C", "C2"):
+        mode_key = "C"
     planes_by_label: Dict[int, List[Dict[str, Any]]] = {}
     assigned_label = -np.ones(F.shape[0], int)
     assigned_plane = -np.ones(F.shape[0], int)
@@ -1072,6 +1075,8 @@ def _fit_for_pair_all(
     feature_names: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
     mode = str(mode).upper()
+    if mode == "C2":
+        raise ValueError("Use mode='C2' solo en compute_frontier_planes_all_modes; aquí use 'C'.")
     if mode not in ("C", "VMF", "OFFSETS"):
         raise ValueError("Esta versión solo soporta mode in {'C','VMF','OFFSETS'}")
     A, B, U, M, labels, rec_idx = _prepare_pair_arrays(
@@ -1088,6 +1093,7 @@ def _fit_for_pair_all(
         M,
         labels,
         rec_idx,
+        mode=mode,
         dims=dims,
         feature_names=feature_names,
         min_cluster_size=min_cluster_size,
@@ -1133,7 +1139,7 @@ def compute_frontier_planes_all_modes(
         return compute_frontier_planes_all_modes2(
             records,
             pairs=pairs,
-            mode="C",
+            mode=mode,
             prefer_cp=prefer_cp,
             min_cluster_size=min_cluster_size,
             seed=seed,
@@ -1312,8 +1318,8 @@ def compute_frontier_planes_all_modes2(
     """Versión que reutiliza la segmentación y clustering base en subespacios."""
 
     mode = str(mode).upper()
-    if mode not in ("C", "VMF", "OFFSETS"):
-        raise ValueError("Esta versión solo soporta mode in {'C','VMF','OFFSETS'}")
+    if mode not in ("C", "C2", "VMF", "OFFSETS"):
+        raise ValueError("Esta versión solo soporta mode in {'C','C2','VMF','OFFSETS'}")
 
     with profile_context("compute_frontier_planes_all_modes2", profiling):
         logger = logging.getLogger(__name__)
@@ -1359,6 +1365,7 @@ def compute_frontier_planes_all_modes2(
                     M,
                     labels,
                     rec_idx,
+                    mode=mode,
                     dims=None,
                     feature_names=explorer_feature_names,
                     min_cluster_size=min_cluster_size,
@@ -1422,6 +1429,7 @@ def compute_frontier_planes_all_modes2(
                         M,
                         labels,
                         rec_idx,
+                        mode=mode,
                         dims=dims,
                         feature_names=explorer_feature_names,
                         min_cluster_size=min_cluster_size,
