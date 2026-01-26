@@ -326,7 +326,8 @@ def describe_regions_report(
 
     When ``return_average_metrics`` is ``True`` the function returns a dictionary
     with per-class and global means for F1 and lift_precision across the
-    Top-K (``top_per_class``) regions ranked within each class.
+    Top-K (``top_per_class``) regions ranked within each class, plus a
+    ``details`` list ordered by lift_precision (best to worst).
     """
 
     logger = logging.getLogger(__name__)
@@ -387,6 +388,7 @@ def describe_regions_report(
 
     if return_average_metrics:
         per_class: Dict[int, Dict[str, Any]] = {}
+        details: List[Dict[str, Any]] = []
         for class_id, regions in grouped.items():
             top_regions = regions[:k_top]
             f1_vals: List[Optional[float]] = []
@@ -395,6 +397,13 @@ def describe_regions_report(
                 metrics = region.get("metrics", {}) or {}
                 f1_vals.append(_as_float(metrics.get("f1")))
                 lift_vals.append(_as_float(metrics.get("lift_precision")))
+                details.append(
+                    {
+                        "class_id": class_id,
+                        "region_id": region.get("region_id"),
+                        "metrics": metrics,
+                    }
+                )
 
             per_class[class_id] = {
                 "mean_f1": _mean_or_none(f1_vals),
@@ -413,12 +422,18 @@ def describe_regions_report(
             perf_counter() - t0,
             len(grouped),
         )
+        details.sort(
+            key=lambda item: _as_float((item.get("metrics") or {}).get("lift_precision")) or float("-inf"),
+            reverse=True,
+        )
+
         return {
             "per_class": per_class,
             "global_mean": {
                 "f1": _mean_or_none(global_f1_vals),
                 "lift_precision": _mean_or_none(global_lift_vals),
             },
+            "details": details,
         }
 
     lines = ["====== TOP REGIONES POR CLASE ======"]
@@ -1734,4 +1749,3 @@ def plot_selected_regions_interactive(
         return None if not return_fig else fig
     else:
         return fig
-
