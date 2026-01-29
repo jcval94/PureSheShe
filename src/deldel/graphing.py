@@ -1,4 +1,5 @@
 """Funciones de graficación y ajuste de fronteras ponderadas."""
+import itertools
 from collections import defaultdict
 from typing import Any, Callable, Dict, Iterable, Tuple, Optional, List, Union, Sequence
 
@@ -1025,9 +1026,10 @@ def plot_frontiers_implicit_interactive_v3(
     Parameters
     ----------
     sel
-        Salida de :func:`prune_and_orient_planes_unified_globalmaj(...)`. Si el
-        diccionario también contiene ``records`` o ``frontier_records``, esos
-        datos se usarán para construir las fronteras.
+        Salida de :func:`prune_and_orient_planes_unified_globalmaj(...)`. Puede
+        incluir matrices de frontera por par (por ejemplo,
+        ``frontier_by_pair``/``frontier_points``); en caso contrario se usa
+        ``X``/``y`` como fallback para construir puntos y bases de dirección.
     """
     import plotly.graph_objects as go
     import plotly.express as px
@@ -1051,14 +1053,6 @@ def plot_frontiers_implicit_interactive_v3(
         if feature_names and 0 <= idx < len(feature_names):
             return feature_names[idx]
         return f"x{idx}"
-
-    def _coerce_records_from_sel(sel_value: Any) -> Any:
-        if isinstance(sel_value, dict):
-            if "records" in sel_value:
-                return sel_value["records"]
-            if "frontier_records" in sel_value:
-                return sel_value["frontier_records"]
-        return sel_value
 
     def _normalize_pair(pair) -> Optional[Tuple[int, int]]:
         try:
@@ -1121,13 +1115,6 @@ def plot_frontiers_implicit_interactive_v3(
 
     def _pair_means(full_F: np.ndarray) -> np.ndarray:
         return full_F.mean(axis=0)
-
-    def _unique_rows_tol(a: np.ndarray, tol: float = 1e-9) -> np.ndarray:
-        if a.size == 0:
-            return a.reshape(0, a.shape[-1] if a.ndim==2 else 0)
-        q = np.round(a / max(tol, 1e-12), 0).astype(np.int64)
-        _, idx = np.unique(q, axis=0, return_index=True)
-        return a[np.sort(idx)]
 
     def _g_quadric_eval(P: np.ndarray, Q: np.ndarray, r: np.ndarray, c: float) -> np.ndarray:
         return np.einsum("ni,ij,nj->n", P, Q, P) + P @ r + c
@@ -1252,54 +1239,132 @@ def plot_frontiers_implicit_interactive_v3(
         P[:, dims_opt[2]] = Zg.reshape(-1)
         return P
 
-    # === records → fronteras y bases ===
-    def _stack_frontier_sets_from_records(records, prefer_cp=True, success_only=True):
-        from collections import defaultdict
-        F_by, B_by = defaultdict(list), defaultdict(list)
-        d = None
-        for r in records:
-            a, b = int(r.y0), int(r.y1)
-            if a == b:
-                continue
-            if success_only and not bool(getattr(r, "success", True)):
-                continue
-            x0 = np.asarray(r.x0, float).reshape(1, -1)
-            if prefer_cp and getattr(r, "cp_count", 0) and np.asarray(getattr(r, "cp_x")).size > 0:
-                F = np.asarray(r.cp_x, float)
-            else:
-                F = np.asarray(r.x1, float).reshape(1, -1)
-            if d is None: d = F.shape[1]
-            m = F.shape[0]
-            F_by[(a,b)].append(F)
-            B_by[(a,b)].append(np.repeat(x0, m, axis=0))
-        F_by = {k: _unique_rows_tol(np.vstack(v)) for k, v in F_by.items()}
-        B_by = {k: np.vstack(v) for k, v in B_by.items()}
-        return F_by, B_by, (0 if d is None else d)
+    def _frontier_weights_uniform(frontier_by_pair: Dict[Tuple[int, int], np.ndarray]) -> Dict[Tuple[int, int], np.ndarray]:
+        weights: Dict[Tuple[int, int], np.ndarray] = {}
+        for pair, pts in frontier_by_pair.items():
+            n = int(pts.shape[0])
+            weights[pair] = np.ones(n, float) / max(1, n)
+        return weights
 
-    def _frontier_points_and_weights_from_records(records, prefer_cp=True, success_only=True):
-        from collections import defaultdict
-        Ftmp, Stmp = defaultdict(list), defaultdict(list)
-        for r in records:
-            if success_only and not bool(getattr(r, "success", True)):
+    def _pairs_from_sel(sel_value: Any) -> List[Tuple[int, int]]:
+        pairs: List[Tuple[int, int]] = []
+        if isinstance(sel_value, dict):
+            for pair in (sel_value.get("by_pair_augmented") or {}).keys():
+                norm_pair = _normalize_pair(pair)
+                if norm_pair is not None:
+                    pairs.append(norm_pair)
+            for key in ("winning_planes", "planes", "selection"):
+                for plane in (sel_value.get(key) or []):
+                    if not isinstance(plane, dict):
+                        continue
+                    norm_pair = _normalize_pair(plane.get("origin_pair") or plane.get("pair") or ())
+                    if norm_pair is not None:
+                        pairs.append(norm_pair)
+            for key in ("frontier_by_pair", "frontiers_by_pair", "frontier_points_by_pair", "frontier_points", "frontier"):
+                block = sel_value.get(key)
+                if isinstance(block, dict):
+                    for pair in block.keys():
+                        norm_pair = _normalize_pair(pair)
+                        if norm_pair is not None:
+                            pairs.append(norm_pair)
+        elif isinstance(sel_value, Iterable):
+            for plane in sel_value:
+                if isinstance(plane, dict):
+                    norm_pair = _normalize_pair(plane.get("origin_pair") or plane.get("pair") or ())
+                    if norm_pair is not None:
+                        pairs.append(norm_pair)
+        out = []
+        seen = set()
+        for pair in pairs:
+            if pair not in seen:
+                out.append(pair)
+                seen.add(pair)
+        return out
+
+    def _extract_frontier_from_sel(sel_value: Any) -> Tuple[Dict[Tuple[int, int], np.ndarray], Dict[Tuple[int, int], np.ndarray]]:
+        frontier_by_pair: Dict[Tuple[int, int], np.ndarray] = {}
+        bases_by_pair: Dict[Tuple[int, int], np.ndarray] = {}
+        if not isinstance(sel_value, dict):
+            return frontier_by_pair, bases_by_pair
+
+        for key in ("frontier_by_pair", "frontiers_by_pair", "frontier_points_by_pair", "frontier_points", "frontier"):
+            block = sel_value.get(key)
+            if not isinstance(block, dict):
                 continue
-            a, b = int(r.y0), int(r.y1)
-            if a == b:
+            for pair, payload in block.items():
+                norm_pair = _normalize_pair(pair)
+                if norm_pair is None:
+                    continue
+                arr = np.asarray(payload, float)
+                if arr.ndim == 1:
+                    arr = arr.reshape(1, -1)
+                if arr.size == 0:
+                    continue
+                frontier_by_pair[norm_pair] = arr
+
+        for pair, payload in (sel_value.get("by_pair_augmented") or {}).items():
+            if not isinstance(payload, dict):
                 continue
-            score = float(getattr(r, "final_score", 1.0))
-            if prefer_cp and getattr(r, "cp_count", 0) and np.asarray(getattr(r, "cp_x")).size>0:
-                F = np.asarray(r.cp_x, float)
-            else:
-                F = np.asarray(r.x1, float).reshape(1,-1)
-            m = F.shape[0]
-            Ftmp[(a,b)].append(F)
-            Stmp[(a,b)].append(np.full(m, score, float))
-        F_by = {k: np.vstack(v) for k,v in Ftmp.items()}
-        W_by = {}
-        for k in F_by.keys():
-            s = np.concatenate(Stmp[k]).astype(float)
-            w = np.clip(s, 0.0, 1.0)**2
-            W_by[k] = w / (w.sum() + 1e-12)
-        return F_by, W_by
+            norm_pair = _normalize_pair(pair)
+            if norm_pair is None:
+                continue
+            for key in ("frontier_points", "frontier", "frontier_by_pair"):
+                block = payload.get(key)
+                if block is None:
+                    continue
+                arr = np.asarray(block, float)
+                if arr.ndim == 1:
+                    arr = arr.reshape(1, -1)
+                if arr.size == 0:
+                    continue
+                frontier_by_pair[norm_pair] = arr
+
+        for key in ("bases_by_pair", "base_points_by_pair", "bases", "base_points"):
+            block = sel_value.get(key)
+            if not isinstance(block, dict):
+                continue
+            for pair, payload in block.items():
+                norm_pair = _normalize_pair(pair)
+                if norm_pair is None:
+                    continue
+                arr = np.asarray(payload, float)
+                if arr.ndim == 1:
+                    arr = arr.reshape(1, -1)
+                if arr.size == 0:
+                    continue
+                bases_by_pair[norm_pair] = arr
+
+        return frontier_by_pair, bases_by_pair
+
+    def _fallback_frontier_from_xy(pair_keys: Sequence[Tuple[int, int]]) -> Dict[Tuple[int, int], np.ndarray]:
+        fallback: Dict[Tuple[int, int], np.ndarray] = {}
+        for a, b in pair_keys:
+            Xa = X[y == int(a)]
+            Xb = X[y == int(b)]
+            if Xa.size == 0 or Xb.size == 0:
+                continue
+            fallback[(int(a), int(b))] = np.vstack([Xa, Xb])
+        return fallback
+
+    def _bases_from_xy_for_frontier(
+        frontier_by_pair: Dict[Tuple[int, int], np.ndarray],
+        pair_keys: Sequence[Tuple[int, int]],
+        rng_local: np.random.RandomState
+    ) -> Dict[Tuple[int, int], np.ndarray]:
+        bases: Dict[Tuple[int, int], np.ndarray] = {}
+        for a, b in pair_keys:
+            pair = (int(a), int(b))
+            F = frontier_by_pair.get(pair)
+            if F is None or F.size == 0:
+                continue
+            Xa = X[y == int(a)]
+            if Xa.size == 0:
+                continue
+            m = int(F.shape[0])
+            replace = Xa.shape[0] < m
+            idx = rng_local.choice(Xa.shape[0], size=m, replace=replace)
+            bases[pair] = Xa[idx]
+        return bases
 
     def _fit_tls_plane_in_dims(F_full: np.ndarray, w: np.ndarray, dims_sel: Tuple[int,...]):
         P = F_full[:, dims_sel]
@@ -1334,30 +1399,50 @@ def plot_frontiers_implicit_interactive_v3(
         Xp, Yp, Zp = grids[0], grids[1], grids[2]
         return Xp, Yp, Zp
 
-
-    records = _coerce_records_from_sel(sel)
     # ---------- Validaciones dims ----------
     X = np.asarray(X, float)
+    y = np.asarray(y, int).reshape(-1) if y is not None else None
     d_total = X.shape[1]
     assert len(dims) in (2,3), "dims debe tener longitud 2 o 3"
     dims = tuple(int(i) for i in dims)
     for i in dims:
         assert 0 <= i < d_total, f"Índice dims fuera de rango: {i}"
 
-    # ---------- Fronteras desde records ----------
-    frontier_by_pair, bases_by_pair, d_detect = _stack_frontier_sets_from_records(records, prefer_cp, success_only)
-    if d_detect == 0:
-        raise ValueError("No hay puntos de frontera para graficar.")
-    pair_keys = sorted(frontier_by_pair.keys())
+    rng = np.random.RandomState(None if random_state is None else int(random_state))
 
+    # ---------- Fronteras desde sel (o fallback X/y) ----------
+    pair_keys = _pairs_from_sel(sel)
+    if (not pair_keys) and (y is not None):
+        classes = sorted(np.unique(y))
+        pair_keys = [(int(a), int(b)) for a, b in itertools.combinations(classes, 2)]
     if pair_filter:
         pf = set(map(tuple, pair_filter))
         pair_keys = [p for p in pair_keys if p in pf]
         if not pair_keys:
             raise ValueError("pair_filter dejó 0 pares para graficar.")
 
+    frontier_by_pair, bases_by_pair = _extract_frontier_from_sel(sel)
+    if frontier_by_pair:
+        missing_pairs = [p for p in pair_keys if p not in frontier_by_pair]
+        if missing_pairs and y is not None:
+            frontier_by_pair.update(_fallback_frontier_from_xy(missing_pairs))
+    elif y is not None:
+        frontier_by_pair = _fallback_frontier_from_xy(pair_keys)
+
+    if not frontier_by_pair:
+        raise ValueError("No hay puntos de frontera para graficar.")
+
+    pair_keys = sorted(frontier_by_pair.keys()) if frontier_by_pair else pair_keys
+    if pair_filter:
+        pf = set(map(tuple, pair_filter))
+        pair_keys = [p for p in pair_keys if p in pf]
+
+    if not bases_by_pair and y is not None:
+        bases_by_pair = _bases_from_xy_for_frontier(frontier_by_pair, pair_keys, rng)
+
     if plane_mode == "fit_dims":
-        F_for_fit, W_for_fit = _frontier_points_and_weights_from_records(records, prefer_cp, success_only)
+        F_for_fit = {pair: frontier_by_pair[pair] for pair in pair_keys if pair in frontier_by_pair}
+        W_for_fit = _frontier_weights_uniform(F_for_fit)
     else:
         F_for_fit, W_for_fit = {}, {}
 
@@ -1380,23 +1465,6 @@ def plot_frontiers_implicit_interactive_v3(
             for pair, plist in planes_from_sel.items():
                 planes_list_by_pair.setdefault(pair, []).extend(plist)
 
-
-    if (not planes_list_by_pair) and (planes is None):
-        try:
-            base_multi = compute_frontier_planes_weighted_autoK(
-                records,
-                prefer_cp=prefer_cp, success_only=success_only,
-                weight_map="power", gamma=2.0, temp=0.15, density_k=8,
-                max_planes_per_pair=5, plane_p90_tol="auto",
-                split_gain_min=0.25, min_points_per_plane=6,
-                sample_cap=2000, random_state=0
-            )
-            planes_list_by_pair = {
-                k: [ {"n":m["n"], "b":m["b"], "mu":m["mu"]} for m in lst ]
-                for k, lst in base_multi.items()
-            }
-        except Exception:
-            planes_list_by_pair = {}
 
     pair_templates = {p: _pair_means(frontier_by_pair[p]) for p in pair_keys}
 
@@ -1507,8 +1575,6 @@ def plot_frontiers_implicit_interactive_v3(
             idx = np.flatnonzero(y == c)
             sel.append(idx[::step])
         return np.concatenate(sel) if sel else np.arange(y.size)
-
-    rng = np.random.RandomState(None if random_state is None else int(random_state))
 
     # Flags para mostrar un único ítem de leyenda por grupo
     legend_item_lines_done = False
@@ -1814,7 +1880,7 @@ def plot_frontiers_implicit_interactive_v3(
         tr.visible = False
     cnt = 0
     for v in all_vis_masks[0]:
-        fig.data[cnt].visible = bool(v)
+        fig.data[cnt].visible = v
         cnt += 1
 
     ax_titles = [ _axis_label(i) for i in dims_options[0] ]
