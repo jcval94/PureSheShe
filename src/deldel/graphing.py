@@ -718,24 +718,26 @@ def plot_frontiers_implicit_interactive_v2(
                             Xp_s, Yp_s, Zp_s = _plane_surface_mesh_3d(n_sub, b_eff, lo, hi, res=14)
                             op = _plane_opacity_for_idx(idx_pl)
                             col = "rgba(55,55,55,0.95)"
+                            plane_group = f"plane-{p}-{idx_pl}"
                             tr = go.Surface(
                                 x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano {p} #{idx_pl}",
-                                legendgroup=f"pair-{p}", showscale=False, opacity=op,
+                                legendgroup=plane_group, showscale=False, opacity=op,
                                 colorscale=[[0, col],[1, col]]
                             )
                         else:
                             xs = np.linspace(lo[0], hi[0], 300)
                             op = _plane_opacity_for_idx(idx_pl)
                             col = f"rgba(50,50,50,{op})"
+                            plane_group = f"plane-{p}-{idx_pl}"
                             if abs(n_sub[1]) > 1e-12:
                                 ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                                 tr = go.Scatter(x=xs, y=ys, mode="lines",
-                                                name=f"Plano {p} #{idx_pl}", legendgroup=f"pair-{p}",
+                                                name=f"Plano {p} #{idx_pl}", legendgroup=plane_group,
                                                 line=dict(width=2, color=col))
                             else:
                                 x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                                 tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
-                                                name=f"Plano {p} #{idx_pl}", legendgroup=f"pair-{p}",
+                                                name=f"Plano {p} #{idx_pl}", legendgroup=plane_group,
                                                 line=dict(width=2, color=col))
                         all_traces.append(tr); vis_here.append(True)
                 else:
@@ -753,23 +755,25 @@ def plot_frontiers_implicit_interactive_v2(
 
                     if is_3d:
                         Xp_s, Yp_s, Zp_s = _plane_surface_mesh_3d(n_sub, b_eff, lo, hi, res=14)
+                        plane_group = f"plane-{p}-1"
                         tr = go.Surface(
-                            x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano {p}", legendgroup=f"pair-{p}",
+                            x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano {p}", legendgroup=plane_group,
                             showscale=False, opacity=_plane_opacity_for_idx(),
                             colorscale=[[0, "rgba(50,50,50,0.9)"], [1, "rgba(50,50,50,0.9)"]]
                         )
                     else:
                         xs = np.linspace(lo[0], hi[0], 300)
                         col = f"rgba(50,50,50,{_plane_opacity_for_idx()})"
+                        plane_group = f"plane-{p}-1"
                         if abs(n_sub[1]) > 1e-12:
                             ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                             tr = go.Scatter(x=xs, y=ys, mode="lines",
-                                            name=f"Plano {p}", legendgroup=f"pair-{p}",
+                                            name=f"Plano {p}", legendgroup=plane_group,
                                             line=dict(width=2, color=col))
                         else:
                             x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                             tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
-                                            name=f"Plano {p}", legendgroup=f"pair-{p}",
+                                            name=f"Plano {p}", legendgroup=plane_group,
                                             line=dict(width=2, color=col))
                     all_traces.append(tr); vis_here.append(True)
 
