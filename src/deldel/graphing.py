@@ -194,7 +194,7 @@ def plot_frontiers_implicit_interactive_v2(
     arrows_per_pair: Optional[int] = None,
     arrow_scale: float = 1.0,
     direction_opacity: float = 0.5,   # <- NUEVO: opacidad parametrizable para líneas y puntos
-    plane_opacity: float = 0.25,
+    plane_opacity: float = 0.08,
 
     # Detalle
     detail: str = "auto",
@@ -996,7 +996,7 @@ def plot_frontiers_implicit_interactive_v3(
     arrows_per_pair: Optional[int] = None,
     arrow_scale: float = 1.0,
     direction_opacity: float = 0.5,   # <- NUEVO: opacidad parametrizable para líneas y puntos
-    plane_opacity: float = 0.25,
+    plane_opacity: float = 0.08,
 
     # Detalle
     detail: str = "auto",
