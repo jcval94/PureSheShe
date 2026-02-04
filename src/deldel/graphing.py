@@ -321,6 +321,12 @@ def plot_frontiers_implicit_interactive_v2(
                 new_hi[mask] = fix
         return new_lo, new_hi
 
+    def _plane_opacity_for_idx(idx_pl: Optional[int] = None) -> float:
+        base = float(plane_opacity)
+        if idx_pl is None:
+            return base
+        return base * (0.22 + 0.06 * ((idx_pl - 1) % 3)) / 0.25
+
     # --- Cache de grillas ---
     grid2d_cache: Dict[Tuple[Tuple[float,float], Tuple[float,float], int], Tuple[np.ndarray,np.ndarray]] = {}
     grid3d_cache: Dict[Tuple[Tuple[float,float,float], Tuple[float,float,float], Tuple[int,int,int]], Tuple[np.ndarray,np.ndarray,np.ndarray]] = {}
@@ -1732,8 +1738,8 @@ def plot_frontiers_implicit_interactive_v3(
                         legend_name = f"Plano ({p[0]}, {p[1]}) #{idx_pl}"
                         if is_3d:
                             Xp_s, Yp_s, Zp_s = _plane_surface_mesh_3d(n_sub, b_eff, lo, hi, res=14)
-                            op = 0.22 + 0.06*((idx_pl-1) % 3)
-                            col = "rgba(55,55,55,0.95)"
+                            op = _plane_opacity_for_idx(idx_pl)
+                            col = f"rgba(55,55,55,{op})"
                             tr = go.Surface(
                                 x=Xp_s, y=Yp_s, z=Zp_s, name=legend_name,
                                 legendgroup=plane_group, showlegend=True, legend="legend2",
@@ -1742,16 +1748,17 @@ def plot_frontiers_implicit_interactive_v3(
                             )
                         else:
                             xs = np.linspace(lo[0], hi[0], 300)
+                            line_col = f"rgba(50,50,50,{_plane_opacity_for_idx(idx_pl)})"
                             if abs(n_sub[1]) > 1e-12:
                                 ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                                 tr = go.Scatter(x=xs, y=ys, mode="lines",
                                                 name=legend_name, legendgroup=plane_group, showlegend=True, legend="legend2",
-                                                line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
+                                                line=dict(width=2, color=line_col), visible=visible_value)
                             else:
                                 x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                                 tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
                                                 name=legend_name, legendgroup=plane_group, showlegend=True, legend="legend2",
-                                                line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
+                                                line=dict(width=2, color=line_col), visible=visible_value)
                         all_traces.append(tr); vis_here.append(visible_value)
                 else:
                     plane_meta = None
@@ -1799,21 +1806,23 @@ def plot_frontiers_implicit_interactive_v3(
                         tr = go.Surface(
                             x=Xp_s, y=Yp_s, z=Zp_s, name=legend_name,
                             legendgroup=plane_group, showlegend=True, legend="legend2",
-                            showscale=False, opacity=0.25, visible=visible_value,
-                            colorscale=[[0, "rgba(50,50,50,0.9)"], [1, "rgba(50,50,50,0.9)"]]
+                            showscale=False, opacity=_plane_opacity_for_idx(), visible=visible_value,
+                            colorscale=[[0, f"rgba(50,50,50,{_plane_opacity_for_idx()})"],
+                                        [1, f"rgba(50,50,50,{_plane_opacity_for_idx()})"]]
                         )
                     else:
                         xs = np.linspace(lo[0], hi[0], 300)
+                        line_col = f"rgba(50,50,50,{_plane_opacity_for_idx()})"
                         if abs(n_sub[1]) > 1e-12:
                             ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                             tr = go.Scatter(x=xs, y=ys, mode="lines",
                                             name=legend_name, legendgroup=plane_group, showlegend=True, legend="legend2",
-                                            line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
+                                            line=dict(width=2, color=line_col), visible=visible_value)
                         else:
                             x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                             tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
                                             name=legend_name, legendgroup=plane_group, showlegend=True, legend="legend2",
-                                            line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
+                                            line=dict(width=2, color=line_col), visible=visible_value)
                     all_traces.append(tr); vis_here.append(visible_value)
 
         # ---- Cuádricas ----
@@ -2010,7 +2019,7 @@ def plot_frontiers_implicit_interactive_v3(
         legend=dict(itemsizing="constant", groupclick="togglegroup"),
         legend2=dict(
             itemsizing="constant",
-            groupclick="togglegroup",
+            groupclick="toggleitem",
             title_text="Planos individuales",
             x=1.02,
             y=1.0
