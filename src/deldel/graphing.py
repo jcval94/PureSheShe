@@ -1527,6 +1527,14 @@ def plot_frontiers_implicit_interactive_v3(
 
     selected_plane_ids_set = set(selected_plane_ids) if selected_plane_ids else None
 
+    legend_pair_titles_done: set = set()
+
+    def _legend_pair_title(pair: Tuple[int, int]) -> Optional[str]:
+        if pair in legend_pair_titles_done:
+            return None
+        legend_pair_titles_done.add(pair)
+        return f"Par ({pair[0]}, {pair[1]})"
+
     def _plane_visible(meta: Dict[str, Any]) -> bool:
         visible = True
         if selected_plane_ids_set is not None:
@@ -1635,17 +1643,20 @@ def plot_frontiers_implicit_interactive_v3(
                     F_use = F_use[::decimate_frontier]
                 Qp = F_use[:, dims_opt]
                 col = "rgba(30,30,30,0.85)"; outline = "rgba(0,0,0,0.6)"
+                legend_title = _legend_pair_title(p)
                 if is_3d:
                     tr = go.Scatter3d(
                         x=Qp[:,0], y=Qp[:,1], z=Qp[:,2], mode="markers",
-                        name=f"Frontera {p}", legendgroup=f"pair-{p}",
+                        name=f"Frontera ({p[0]}, {p[1]})", legendgroup=f"pair-{p}",
+                        legendgrouptitle_text=legend_title,
                         marker=dict(size=4, color=col, line=dict(width=1, color=outline)),
                         hovertemplate=f"{p}<br>x:%{{x:.3f}}<br>y:%{{y:.3f}}<br>z:%{{z:.3f}}"
                     )
                 else:
                     tr = go.Scatter(
                         x=Qp[:,0], y=Qp[:,1], mode="markers",
-                        name=f"Frontera {p}", legendgroup=f"pair-{p}",
+                        name=f"Frontera ({p[0]}, {p[1]})", legendgroup=f"pair-{p}",
+                        legendgrouptitle_text=legend_title,
                         marker=dict(size=6, color=col, line=dict(width=1, color=outline)),
                         hovertemplate=f"{p}<br>x:%{{x:.3f}}<br>y:%{{y:.3f}}"
                     )
@@ -1672,8 +1683,8 @@ def plot_frontiers_implicit_interactive_v3(
                             op = 0.22 + 0.06*((idx_pl-1) % 3)
                             col = "rgba(55,55,55,0.95)"
                             tr = go.Surface(
-                                x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano {p} #{idx_pl}",
-                                legendgroup=f"pair-{p}", showscale=False, opacity=op, visible=visible_value,
+                                x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano ({p[0]}, {p[1]}) #{idx_pl}",
+                                legendgroup=f"plane-{p}-{idx_pl}", showscale=False, opacity=op, visible=visible_value,
                                 colorscale=[[0, col],[1, col]]
                             )
                         else:
@@ -1681,16 +1692,17 @@ def plot_frontiers_implicit_interactive_v3(
                             if abs(n_sub[1]) > 1e-12:
                                 ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                                 tr = go.Scatter(x=xs, y=ys, mode="lines",
-                                                name=f"Plano {p} #{idx_pl}", legendgroup=f"pair-{p}",
+                                                name=f"Plano ({p[0]}, {p[1]}) #{idx_pl}", legendgroup=f"plane-{p}-{idx_pl}",
                                                 line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
                             else:
                                 x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                                 tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
-                                                name=f"Plano {p} #{idx_pl}", legendgroup=f"pair-{p}",
+                                                name=f"Plano ({p[0]}, {p[1]}) #{idx_pl}", legendgroup=f"plane-{p}-{idx_pl}",
                                                 line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
                         all_traces.append(tr); vis_here.append(visible_value)
                 else:
                     plane_meta = None
+                    idx_pl = 1
                     if plane_mode == "fit_dims":
                         F_full = F_for_fit.get(p, frontier_by_pair[p])
                         w = W_for_fit.get(p, np.ones(F_full.shape[0], float)/max(1, F_full.shape[0]))
@@ -1709,7 +1721,8 @@ def plot_frontiers_implicit_interactive_v3(
                     if is_3d:
                         Xp_s, Yp_s, Zp_s = _plane_surface_mesh_3d(n_sub, b_eff, lo, hi, res=14)
                         tr = go.Surface(
-                            x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano {p}", legendgroup=f"pair-{p}",
+                            x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano ({p[0]}, {p[1]}) #{idx_pl}",
+                            legendgroup=f"plane-{p}-{idx_pl}",
                             showscale=False, opacity=0.25, visible=visible_value,
                             colorscale=[[0, "rgba(50,50,50,0.9)"], [1, "rgba(50,50,50,0.9)"]]
                         )
@@ -1718,12 +1731,12 @@ def plot_frontiers_implicit_interactive_v3(
                         if abs(n_sub[1]) > 1e-12:
                             ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                             tr = go.Scatter(x=xs, y=ys, mode="lines",
-                                            name=f"Plano {p}", legendgroup=f"pair-{p}",
+                                            name=f"Plano ({p[0]}, {p[1]}) #{idx_pl}", legendgroup=f"plane-{p}-{idx_pl}",
                                             line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
                         else:
                             x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                             tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
-                                            name=f"Plano {p}", legendgroup=f"pair-{p}",
+                                            name=f"Plano ({p[0]}, {p[1]}) #{idx_pl}", legendgroup=f"plane-{p}-{idx_pl}",
                                             line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
                     all_traces.append(tr); vis_here.append(visible_value)
 
@@ -1740,6 +1753,7 @@ def plot_frontiers_implicit_interactive_v3(
                 lo, hi = _box_from_points(Fp, pad_ratio=0.06)
                 lo, hi = _apply_extend(lo, hi, dims_len=len(dims_opt), loX=loX, hiX=hiX)
                 template = pair_templates[p]
+                legend_title = _legend_pair_title(p)
                 if is_3d:
                     Xg, Yg, Zg = _grid_points_3d(lo, hi, grid_res_3d)
                     Pfull = _make_full_points_from_3d_grid(Xg, Yg, Zg, template, dims_opt)
@@ -1751,6 +1765,7 @@ def plot_frontiers_implicit_interactive_v3(
                         caps=dict(x_show=False, y_show=False, z_show=False),
                         showscale=False, opacity=quadric_alpha,
                         name=f"Cuádrica {p}", legendgroup=f"pair-{p}",
+                        legendgrouptitle_text=legend_title,
                         colorscale=[[0,"#444"],[1,"#444"]]
                     )
                 else:
@@ -1761,6 +1776,7 @@ def plot_frontiers_implicit_interactive_v3(
                         x=Xg[0,:], y=Yg[:,0], z=G,
                         contours=dict(start=iso_level, end=iso_level, size=1.0),
                         showscale=False, name=f"Cuádrica {p}", legendgroup=f"pair-{p}",
+                        legendgrouptitle_text=legend_title,
                         line=dict(width=3, color="rgba(20,20,20,0.95)")
                     )
                 all_traces.append(tr); vis_here.append(True)
@@ -1777,6 +1793,7 @@ def plot_frontiers_implicit_interactive_v3(
                 lo, hi = _box_from_points(Fp, pad_ratio=0.06)
                 lo, hi = _apply_extend(lo, hi, dims_len=len(dims_opt), loX=loX, hiX=hiX)
                 template = pair_templates[p]
+                legend_title = _legend_pair_title(p)
                 if is_3d:
                     Xg, Yg, Zg = _grid_points_3d(lo, hi, max(16, grid_res_3d//2))
                     Pfull = _make_full_points_from_3d_grid(Xg, Yg, Zg, template, dims_opt)
@@ -1788,6 +1805,7 @@ def plot_frontiers_implicit_interactive_v3(
                         caps=dict(x_show=False, y_show=False, z_show=False),
                         showscale=False, opacity=quadric_alpha,
                         name=f"Cúbica {p}", legendgroup=f"pair-{p}",
+                        legendgrouptitle_text=legend_title,
                         colorscale=[[0,"#777"],[1,"#777"]]
                     )
                 else:
@@ -1798,6 +1816,7 @@ def plot_frontiers_implicit_interactive_v3(
                         x=Xg[0,:], y=Yg[:,0], z=G,
                         contours=dict(start=iso_level, end=iso_level, size=1.0),
                         showscale=False, name=f"Cúbica {p}", legendgroup=f"pair-{p}",
+                        legendgrouptitle_text=legend_title,
                         line=dict(width=2, color="rgba(80,80,80,0.95)")
                     )
                 all_traces.append(tr); vis_here.append(True)
