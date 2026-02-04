@@ -1022,6 +1022,8 @@ def plot_frontiers_implicit_interactive_v3(
     show: bool = True,
     return_fig: bool = False,
     save_html: Optional[str] = None,
+    fig_width: Optional[int] = 1300,
+    fig_height: Optional[int] = 900,
 
     title: str = "DelDel — Interiores, Fronteras y Superficies (v3)"
 ):
@@ -1035,12 +1037,19 @@ def plot_frontiers_implicit_interactive_v3(
         incluir matrices de frontera por par (por ejemplo,
         ``frontier_by_pair``/``frontier_points``); en caso contrario se usa
         ``X``/``y`` como fallback para construir puntos y bases de dirección.
+    fig_width
+        Ancho (en px) del lienzo. Si es ``None`` no se aplica un ancho fijo.
+    fig_height
+        Alto (en px) del lienzo. Si es ``None`` no se aplica un alto fijo.
 
     Notes
     -----
     ``plane_opacity`` controla la transparencia base de los planos. Cuando hay
     múltiples planos por par se mantiene el leve escalonado por índice
     (0.22 + 0.06 * ...), escalando ese patrón sobre ``plane_opacity``.
+
+    ``fig_width`` y ``fig_height`` controlan el tamaño del lienzo (en px). Si
+    son ``None``, se dejan sin tocar.
     """
     import plotly.graph_objects as go
     import plotly.express as px
@@ -1933,6 +1942,8 @@ def plot_frontiers_implicit_interactive_v3(
 
     # Importante: groupclick="togglegroup" para poder ocultar/mostrar TODOS los puntos/líneas de direcciones
     fig.update_layout(title=title, legend=dict(itemsizing="constant", groupclick="togglegroup"))
+    if fig_width is not None or fig_height is not None:
+        fig.update_layout(width=fig_width, height=fig_height)
 
     if len(dims_options) > 1:
         block_sizes = [len(m) for m in all_vis_masks]
