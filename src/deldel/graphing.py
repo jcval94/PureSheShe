@@ -194,6 +194,7 @@ def plot_frontiers_implicit_interactive_v2(
     arrows_per_pair: Optional[int] = None,
     arrow_scale: float = 1.0,
     direction_opacity: float = 0.5,   # <- NUEVO: opacidad parametrizable para líneas y puntos
+    plane_opacity: float = 0.25,
 
     # Detalle
     detail: str = "auto",
@@ -701,7 +702,7 @@ def plot_frontiers_implicit_interactive_v2(
                         n_sub, b_eff = _restrict_plane_to_dims(n, b0, mu, dims_opt)
                         if is_3d:
                             Xp_s, Yp_s, Zp_s = _plane_surface_mesh_3d(n_sub, b_eff, lo, hi, res=14)
-                            op = 0.22 + 0.06*((idx_pl-1) % 3)
+                            op = _plane_opacity_for_idx(idx_pl)
                             col = "rgba(55,55,55,0.95)"
                             tr = go.Surface(
                                 x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano {p} #{idx_pl}",
@@ -710,16 +711,18 @@ def plot_frontiers_implicit_interactive_v2(
                             )
                         else:
                             xs = np.linspace(lo[0], hi[0], 300)
+                            op = _plane_opacity_for_idx(idx_pl)
+                            col = f"rgba(50,50,50,{op})"
                             if abs(n_sub[1]) > 1e-12:
                                 ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                                 tr = go.Scatter(x=xs, y=ys, mode="lines",
                                                 name=f"Plano {p} #{idx_pl}", legendgroup=f"pair-{p}",
-                                                line=dict(width=2, color="rgba(50,50,50,0.9)"))
+                                                line=dict(width=2, color=col))
                             else:
                                 x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                                 tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
                                                 name=f"Plano {p} #{idx_pl}", legendgroup=f"pair-{p}",
-                                                line=dict(width=2, color="rgba(50,50,50,0.9)"))
+                                                line=dict(width=2, color=col))
                         all_traces.append(tr); vis_here.append(True)
                 else:
                     if plane_mode == "fit_dims":
@@ -738,21 +741,22 @@ def plot_frontiers_implicit_interactive_v2(
                         Xp_s, Yp_s, Zp_s = _plane_surface_mesh_3d(n_sub, b_eff, lo, hi, res=14)
                         tr = go.Surface(
                             x=Xp_s, y=Yp_s, z=Zp_s, name=f"Plano {p}", legendgroup=f"pair-{p}",
-                            showscale=False, opacity=0.25,
+                            showscale=False, opacity=_plane_opacity_for_idx(),
                             colorscale=[[0, "rgba(50,50,50,0.9)"], [1, "rgba(50,50,50,0.9)"]]
                         )
                     else:
                         xs = np.linspace(lo[0], hi[0], 300)
+                        col = f"rgba(50,50,50,{_plane_opacity_for_idx()})"
                         if abs(n_sub[1]) > 1e-12:
                             ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                             tr = go.Scatter(x=xs, y=ys, mode="lines",
                                             name=f"Plano {p}", legendgroup=f"pair-{p}",
-                                            line=dict(width=2, color="rgba(50,50,50,0.9)"))
+                                            line=dict(width=2, color=col))
                         else:
                             x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                             tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
                                             name=f"Plano {p}", legendgroup=f"pair-{p}",
-                                            line=dict(width=2, color="rgba(50,50,50,0.9)"))
+                                            line=dict(width=2, color=col))
                     all_traces.append(tr); vis_here.append(True)
 
         # ---- Cuádricas ----
@@ -992,6 +996,7 @@ def plot_frontiers_implicit_interactive_v3(
     arrows_per_pair: Optional[int] = None,
     arrow_scale: float = 1.0,
     direction_opacity: float = 0.5,   # <- NUEVO: opacidad parametrizable para líneas y puntos
+    plane_opacity: float = 0.25,
 
     # Detalle
     detail: str = "auto",
@@ -1030,6 +1035,12 @@ def plot_frontiers_implicit_interactive_v3(
         incluir matrices de frontera por par (por ejemplo,
         ``frontier_by_pair``/``frontier_points``); en caso contrario se usa
         ``X``/``y`` como fallback para construir puntos y bases de dirección.
+
+    Notes
+    -----
+    ``plane_opacity`` controla la transparencia base de los planos. Cuando hay
+    múltiples planos por par se mantiene el leve escalonado por índice
+    (0.22 + 0.06 * ...), escalando ese patrón sobre ``plane_opacity``.
     """
     import plotly.graph_objects as go
     import plotly.express as px
@@ -1077,6 +1088,12 @@ def plot_frontiers_implicit_interactive_v3(
         out["b"] = float(b)
         out["mu"] = mu_arr
         return out
+
+    def _plane_opacity_for_idx(idx_pl: Optional[int] = None) -> float:
+        base = float(plane_opacity)
+        if idx_pl is None:
+            return base
+        return base * (0.22 + 0.06 * ((idx_pl - 1) % 3)) / 0.25
 
     def _extract_planes_from_sel(sel_value: Any, pair_keys: Sequence[Tuple[int, int]]) -> Dict[Tuple[int, int], List[Dict[str, Any]]]:
         planes_by_pair: Dict[Tuple[int, int], List[Dict[str, Any]]] = {}
