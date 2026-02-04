@@ -1014,6 +1014,8 @@ def plot_frontiers_implicit_interactive_v3(
     max_voxels: int = 700_000,
     random_state: Optional[int] = 0,
     renderer: Optional[str] = None,
+    fig_width: Optional[int] = 1300,
+    fig_height: Optional[int] = 900,
     show: bool = True,
     return_fig: bool = False,
     save_html: Optional[str] = None,
@@ -1030,6 +1032,10 @@ def plot_frontiers_implicit_interactive_v3(
         incluir matrices de frontera por par (por ejemplo,
         ``frontier_by_pair``/``frontier_points``); en caso contrario se usa
         ``X``/``y`` como fallback para construir puntos y bases de dirección.
+    fig_width
+        Ancho en píxeles para la figura (``None`` para usar el valor por defecto de Plotly).
+    fig_height
+        Alto en píxeles para la figura (``None`` para usar el valor por defecto de Plotly).
     """
     import plotly.graph_objects as go
     import plotly.express as px
@@ -1897,6 +1903,8 @@ def plot_frontiers_implicit_interactive_v3(
 
     # Importante: groupclick="togglegroup" para poder ocultar/mostrar TODOS los puntos/líneas de direcciones
     fig.update_layout(title=title, legend=dict(itemsizing="constant", groupclick="togglegroup"))
+    if fig_width is not None or fig_height is not None:
+        fig.update_layout(width=fig_width, height=fig_height)
 
     if len(dims_options) > 1:
         block_sizes = [len(m) for m in all_vis_masks]
