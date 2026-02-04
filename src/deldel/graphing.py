@@ -1555,14 +1555,6 @@ def plot_frontiers_implicit_interactive_v3(
 
     selected_plane_ids_set = set(selected_plane_ids) if selected_plane_ids else None
 
-    legend_pair_titles_done: set = set()
-
-    def _legend_pair_title(pair: Tuple[int, int]) -> Optional[str]:
-        if pair in legend_pair_titles_done:
-            return None
-        legend_pair_titles_done.add(pair)
-        return f"Par ({pair[0]}, {pair[1]})"
-
     def _plane_visible(meta: Dict[str, Any]) -> bool:
         visible = True
         if selected_plane_ids_set is not None:
@@ -1672,12 +1664,11 @@ def plot_frontiers_implicit_interactive_v3(
                     F_use = F_use[::decimate_frontier]
                 Qp = F_use[:, dims_opt]
                 col = "rgba(30,30,30,0.85)"; outline = "rgba(0,0,0,0.6)"
-                legend_title = _legend_pair_title(p)
                 if is_3d:
                     tr = go.Scatter3d(
                         x=Qp[:,0], y=Qp[:,1], z=Qp[:,2], mode="markers",
                         name=f"Frontera ({p[0]}, {p[1]})", legendgroup=f"pair-{p}",
-                        legendgrouptitle_text=legend_title,
+                        showlegend=False,
                         marker=dict(size=4, color=col, line=dict(width=1, color=outline)),
                         hovertemplate=f"{p}<br>x:%{{x:.3f}}<br>y:%{{y:.3f}}<br>z:%{{z:.3f}}"
                     )
@@ -1685,7 +1676,7 @@ def plot_frontiers_implicit_interactive_v3(
                     tr = go.Scatter(
                         x=Qp[:,0], y=Qp[:,1], mode="markers",
                         name=f"Frontera ({p[0]}, {p[1]})", legendgroup=f"pair-{p}",
-                        legendgrouptitle_text=legend_title,
+                        showlegend=False,
                         marker=dict(size=6, color=col, line=dict(width=1, color=outline)),
                         hovertemplate=f"{p}<br>x:%{{x:.3f}}<br>y:%{{y:.3f}}"
                     )
@@ -1702,22 +1693,43 @@ def plot_frontiers_implicit_interactive_v3(
 
                 planes_for_p = planes_list_by_pair.get(p, None)
                 if planes_for_p:
+                    if p not in legend_planes_done:
+                        plane_group = f"plane-{p}"
+                        legend_planes_done.add(p)
+                        if is_3d:
+                            dummy = go.Scatter3d(
+                                x=[np.nan], y=[np.nan], z=[np.nan], mode="lines",
+                                name=f"Planos ({p[0]}, {p[1]})",
+                                legendgroup=plane_group,
+                                showlegend=True,
+                                hoverinfo="skip",
+                                line=dict(color="rgba(50,50,50,0.9)", width=2)
+                            )
+                        else:
+                            dummy = go.Scatter(
+                                x=[np.nan], y=[np.nan], mode="lines",
+                                name=f"Planos ({p[0]}, {p[1]})",
+                                legendgroup=plane_group,
+                                showlegend=True,
+                                hoverinfo="skip",
+                                line=dict(color="rgba(50,50,50,0.9)", width=2)
+                            )
+                        all_traces.append(dummy); vis_here.append(True)
+
                     for idx_pl, meta in enumerate(planes_for_p, start=1):
                         n = np.asarray(meta["n"], float); b0 = float(meta["b"]); mu = np.asarray(meta["mu"], float)
                         n_sub, b_eff = _restrict_plane_to_dims(n, b0, mu, dims_opt)
                         plane_visible = _plane_visible(meta)
                         visible_value = True if plane_visible else "legendonly"
                         plane_group = f"plane-{p}"
-                        show_legend = p not in legend_planes_done
-                        legend_name = (f"Planos ({p[0]}, {p[1]})" if show_legend
-                                       else f"Plano ({p[0]}, {p[1]}) #{idx_pl}")
+                        legend_name = f"Plano ({p[0]}, {p[1]}) #{idx_pl}"
                         if is_3d:
                             Xp_s, Yp_s, Zp_s = _plane_surface_mesh_3d(n_sub, b_eff, lo, hi, res=14)
                             op = 0.22 + 0.06*((idx_pl-1) % 3)
                             col = "rgba(55,55,55,0.95)"
                             tr = go.Surface(
                                 x=Xp_s, y=Yp_s, z=Zp_s, name=legend_name,
-                                legendgroup=plane_group, showlegend=show_legend,
+                                legendgroup=plane_group, showlegend=True, legend="legend2",
                                 showscale=False, opacity=op, visible=visible_value,
                                 colorscale=[[0, col],[1, col]]
                             )
@@ -1726,15 +1738,14 @@ def plot_frontiers_implicit_interactive_v3(
                             if abs(n_sub[1]) > 1e-12:
                                 ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                                 tr = go.Scatter(x=xs, y=ys, mode="lines",
-                                                name=legend_name, legendgroup=plane_group, showlegend=show_legend,
+                                                name=legend_name, legendgroup=plane_group, showlegend=True, legend="legend2",
                                                 line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
                             else:
                                 x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                                 tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
-                                                name=legend_name, legendgroup=plane_group, showlegend=show_legend,
+                                                name=legend_name, legendgroup=plane_group, showlegend=True, legend="legend2",
                                                 line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
                         all_traces.append(tr); vis_here.append(visible_value)
-                        legend_planes_done.add(p)
                 else:
                     plane_meta = None
                     idx_pl = 1
@@ -1754,14 +1765,33 @@ def plot_frontiers_implicit_interactive_v3(
                     plane_visible = (_plane_visible(plane_meta) if plane_meta is not None else (selected_plane_ids_set is None and plane_filter is None))
                     visible_value = True if plane_visible else "legendonly"
                     plane_group = f"plane-{p}"
-                    show_legend = p not in legend_planes_done
-                    legend_name = (f"Planos ({p[0]}, {p[1]})" if show_legend
-                                   else f"Plano ({p[0]}, {p[1]}) #{idx_pl}")
+                    if p not in legend_planes_done:
+                        legend_planes_done.add(p)
+                        if is_3d:
+                            dummy = go.Scatter3d(
+                                x=[np.nan], y=[np.nan], z=[np.nan], mode="lines",
+                                name=f"Planos ({p[0]}, {p[1]})",
+                                legendgroup=plane_group,
+                                showlegend=True,
+                                hoverinfo="skip",
+                                line=dict(color="rgba(50,50,50,0.9)", width=2)
+                            )
+                        else:
+                            dummy = go.Scatter(
+                                x=[np.nan], y=[np.nan], mode="lines",
+                                name=f"Planos ({p[0]}, {p[1]})",
+                                legendgroup=plane_group,
+                                showlegend=True,
+                                hoverinfo="skip",
+                                line=dict(color="rgba(50,50,50,0.9)", width=2)
+                            )
+                        all_traces.append(dummy); vis_here.append(True)
+                    legend_name = f"Plano ({p[0]}, {p[1]}) #{idx_pl}"
                     if is_3d:
                         Xp_s, Yp_s, Zp_s = _plane_surface_mesh_3d(n_sub, b_eff, lo, hi, res=14)
                         tr = go.Surface(
                             x=Xp_s, y=Yp_s, z=Zp_s, name=legend_name,
-                            legendgroup=plane_group, showlegend=show_legend,
+                            legendgroup=plane_group, showlegend=True, legend="legend2",
                             showscale=False, opacity=0.25, visible=visible_value,
                             colorscale=[[0, "rgba(50,50,50,0.9)"], [1, "rgba(50,50,50,0.9)"]]
                         )
@@ -1770,15 +1800,14 @@ def plot_frontiers_implicit_interactive_v3(
                         if abs(n_sub[1]) > 1e-12:
                             ys = -(n_sub[0]*xs + b_eff) / n_sub[1]
                             tr = go.Scatter(x=xs, y=ys, mode="lines",
-                                            name=legend_name, legendgroup=plane_group, showlegend=show_legend,
+                                            name=legend_name, legendgroup=plane_group, showlegend=True, legend="legend2",
                                             line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
                         else:
                             x0p = -b_eff / (n_sub[0] if abs(n_sub[0])>1e-12 else 1e-12)
                             tr = go.Scatter(x=[x0p,x0p], y=[lo[1],hi[1]], mode="lines",
-                                            name=legend_name, legendgroup=plane_group, showlegend=show_legend,
+                                            name=legend_name, legendgroup=plane_group, showlegend=True, legend="legend2",
                                             line=dict(width=2, color="rgba(50,50,50,0.9)"), visible=visible_value)
                     all_traces.append(tr); vis_here.append(visible_value)
-                    legend_planes_done.add(p)
 
         # ---- Cuádricas ----
         if show_quadrics and quadrics:
@@ -1793,7 +1822,6 @@ def plot_frontiers_implicit_interactive_v3(
                 lo, hi = _box_from_points(Fp, pad_ratio=0.06)
                 lo, hi = _apply_extend(lo, hi, dims_len=len(dims_opt), loX=loX, hiX=hiX)
                 template = pair_templates[p]
-                legend_title = _legend_pair_title(p)
                 if is_3d:
                     Xg, Yg, Zg = _grid_points_3d(lo, hi, grid_res_3d)
                     Pfull = _make_full_points_from_3d_grid(Xg, Yg, Zg, template, dims_opt)
@@ -1804,8 +1832,7 @@ def plot_frontiers_implicit_interactive_v3(
                         isomin=iso_level - isosurface_epsilon, isomax=iso_level + isosurface_epsilon, surface_count=1,
                         caps=dict(x_show=False, y_show=False, z_show=False),
                         showscale=False, opacity=quadric_alpha,
-                        name=f"Cuádrica {p}", legendgroup=f"pair-{p}",
-                        legendgrouptitle_text=legend_title,
+                        name=f"Cuádrica {p}", legendgroup=f"pair-{p}", showlegend=False,
                         colorscale=[[0,"#444"],[1,"#444"]]
                     )
                 else:
@@ -1815,8 +1842,7 @@ def plot_frontiers_implicit_interactive_v3(
                     tr = go.Contour(
                         x=Xg[0,:], y=Yg[:,0], z=G,
                         contours=dict(start=iso_level, end=iso_level, size=1.0),
-                        showscale=False, name=f"Cuádrica {p}", legendgroup=f"pair-{p}",
-                        legendgrouptitle_text=legend_title,
+                        showscale=False, name=f"Cuádrica {p}", legendgroup=f"pair-{p}", showlegend=False,
                         line=dict(width=3, color="rgba(20,20,20,0.95)")
                     )
                 all_traces.append(tr); vis_here.append(True)
@@ -1833,7 +1859,6 @@ def plot_frontiers_implicit_interactive_v3(
                 lo, hi = _box_from_points(Fp, pad_ratio=0.06)
                 lo, hi = _apply_extend(lo, hi, dims_len=len(dims_opt), loX=loX, hiX=hiX)
                 template = pair_templates[p]
-                legend_title = _legend_pair_title(p)
                 if is_3d:
                     Xg, Yg, Zg = _grid_points_3d(lo, hi, max(16, grid_res_3d//2))
                     Pfull = _make_full_points_from_3d_grid(Xg, Yg, Zg, template, dims_opt)
@@ -1844,8 +1869,7 @@ def plot_frontiers_implicit_interactive_v3(
                         isomin=iso_level - isosurface_epsilon, isomax=iso_level + isosurface_epsilon, surface_count=1,
                         caps=dict(x_show=False, y_show=False, z_show=False),
                         showscale=False, opacity=quadric_alpha,
-                        name=f"Cúbica {p}", legendgroup=f"pair-{p}",
-                        legendgrouptitle_text=legend_title,
+                        name=f"Cúbica {p}", legendgroup=f"pair-{p}", showlegend=False,
                         colorscale=[[0,"#777"],[1,"#777"]]
                     )
                 else:
@@ -1855,8 +1879,7 @@ def plot_frontiers_implicit_interactive_v3(
                     tr = go.Contour(
                         x=Xg[0,:], y=Yg[:,0], z=G,
                         contours=dict(start=iso_level, end=iso_level, size=1.0),
-                        showscale=False, name=f"Cúbica {p}", legendgroup=f"pair-{p}",
-                        legendgrouptitle_text=legend_title,
+                        showscale=False, name=f"Cúbica {p}", legendgroup=f"pair-{p}", showlegend=False,
                         line=dict(width=2, color="rgba(80,80,80,0.95)")
                     )
                 all_traces.append(tr); vis_here.append(True)
@@ -1955,7 +1978,17 @@ def plot_frontiers_implicit_interactive_v3(
         fig.update_yaxes(title_text=ax_titles[1])
 
     # Importante: groupclick="togglegroup" para poder ocultar/mostrar TODOS los puntos/líneas de direcciones
-    fig.update_layout(title=title, legend=dict(itemsizing="constant", groupclick="togglegroup"))
+    fig.update_layout(
+        title=title,
+        legend=dict(itemsizing="constant", groupclick="togglegroup"),
+        legend2=dict(
+            itemsizing="constant",
+            groupclick="togglegroup",
+            title_text="Planos individuales",
+            x=1.02,
+            y=1.0
+        )
+    )
     if fig_width is not None or fig_height is not None:
         fig.update_layout(width=fig_width, height=fig_height)
 
