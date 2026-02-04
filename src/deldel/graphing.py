@@ -1568,6 +1568,13 @@ def plot_frontiers_implicit_interactive_v3(
                 visible = False
         return visible
 
+    def _plane_initial_visibility(visible: bool) -> Union[bool, str]:
+        if not visible:
+            return "legendonly"
+        if selected_plane_ids_set is None and plane_filter is None:
+            return "legendonly"
+        return True
+
     # Validadores de modelos
     def _parse_quadric(mdl):
         try:
@@ -1720,7 +1727,7 @@ def plot_frontiers_implicit_interactive_v3(
                         n = np.asarray(meta["n"], float); b0 = float(meta["b"]); mu = np.asarray(meta["mu"], float)
                         n_sub, b_eff = _restrict_plane_to_dims(n, b0, mu, dims_opt)
                         plane_visible = _plane_visible(meta)
-                        visible_value = True if plane_visible else "legendonly"
+                        visible_value = _plane_initial_visibility(plane_visible)
                         plane_group = f"plane-{p}"
                         legend_name = f"Plano ({p[0]}, {p[1]}) #{idx_pl}"
                         if is_3d:
@@ -1762,8 +1769,8 @@ def plot_frontiers_implicit_interactive_v3(
                         mu = np.asarray(plane_meta["mu"], float)
                         n_sub, b_eff = _restrict_plane_to_dims(n, b0, mu, dims_opt)
 
-                    plane_visible = (_plane_visible(plane_meta) if plane_meta is not None else (selected_plane_ids_set is None and plane_filter is None))
-                    visible_value = True if plane_visible else "legendonly"
+                    plane_visible = (_plane_visible(plane_meta) if plane_meta is not None else True)
+                    visible_value = _plane_initial_visibility(plane_visible)
                     plane_group = f"plane-{p}"
                     if p not in legend_planes_done:
                         legend_planes_done.add(p)
@@ -1912,6 +1919,16 @@ def plot_frontiers_implicit_interactive_v3(
                             showlegend=not legend_item_lines_done,
                             line=dict(width=2, color=f"rgba(30,30,30,{float(direction_opacity)})")
                         )
+                        tr_end = go.Scatter3d(
+                            x=np.concatenate([Bp[:,0], Bp[:,0]+U[:,0]]),
+                            y=np.concatenate([Bp[:,1], Bp[:,1]+U[:,1]]),
+                            z=np.concatenate([Bp[:,2], Bp[:,2]+U[:,2]]),
+                            mode="markers",
+                            legendgroup="dirs-lines",
+                            showlegend=False,
+                            marker=dict(size=3, opacity=float(direction_opacity),
+                                        color=f"rgba(30,30,30,{float(direction_opacity)})")
+                        )
                     else:
                         xs, ys = [], []
                         for i in range(k):
@@ -1924,7 +1941,17 @@ def plot_frontiers_implicit_interactive_v3(
                             showlegend=not legend_item_lines_done,
                             line=dict(width=2, color=f"rgba(30,30,30,{float(direction_opacity)})")
                         )
+                        tr_end = go.Scatter(
+                            x=np.concatenate([Bp[:,0], Bp[:,0]+U[:,0]]),
+                            y=np.concatenate([Bp[:,1], Bp[:,1]+U[:,1]]),
+                            mode="markers",
+                            legendgroup="dirs-lines",
+                            showlegend=False,
+                            marker=dict(size=4, opacity=float(direction_opacity),
+                                        color=f"rgba(30,30,30,{float(direction_opacity)})")
+                        )
                     all_traces.append(tr); vis_here.append(True)
+                    all_traces.append(tr_end); vis_here.append(True)
                     legend_item_lines_done = True
 
                 # Puntos base
