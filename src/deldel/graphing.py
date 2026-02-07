@@ -1157,6 +1157,12 @@ def plot_frontiers_implicit_interactive_v3(
     def _g_quadric_eval(P: np.ndarray, Q: np.ndarray, r: np.ndarray, c: float) -> np.ndarray:
         return np.einsum("ni,ij,nj->n", P, Q, P) + P @ r + c
 
+    def _plane_opacity_for_idx(idx_pl: Optional[int] = None) -> float:
+        base = float(plane_opacity)
+        if idx_pl is None:
+            return base
+        return base * (0.22 + 0.06 * ((idx_pl - 1) % 3)) / 0.25
+
     def _g_cubic_eval(P: np.ndarray, model: dict) -> np.ndarray:
         Z = (P - model["mu"]) / model["sd"]
         n, d = Z.shape
