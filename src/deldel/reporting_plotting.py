@@ -124,13 +124,15 @@ def _clean_rule_text_and_pieces(region: Dict[str, Any]) -> Tuple[str, List[str],
         if cleaned_piece != piece:
             changed = True
 
-    raw_text = region.get("rule_text") or "  AND  ".join(raw_pieces)
+    raw_text = region.get("rule_text")
+    if not raw_text:
+        connector = "  OR  " if str(region.get("seed_type", "")).startswith("beam_or") else "  AND  "
+        raw_text = connector.join(raw_pieces)
     cleaned_text = _clean_ineq_piece(raw_text)
     if cleaned_text != raw_text:
         changed = True
 
-    joined = "  AND  ".join(cleaned_pieces) if cleaned_pieces else cleaned_text
-    final_text = joined if cleaned_pieces else cleaned_text
+    final_text = cleaned_text
 
     return final_text, cleaned_pieces, changed
 
@@ -480,7 +482,9 @@ def describe_regions_report(
                 rule_text = region.get("rule_text") or ""
             if not rule_text:
                 pieces = region.get("rule_pieces") or []
-                rule_text = " AND ".join(pieces[:3]) + (" ..." if len(pieces) > 3 else "")
+                seed_type = str(region.get("seed_type") or "")
+                connector = " OR " if seed_type.startswith("beam_or") else " AND "
+                rule_text = connector.join(pieces[:3]) + (" ..." if len(pieces) > 3 else "")
             if max_rule_text_chars and len(rule_text) > max_rule_text_chars:
                 rule_text = rule_text[: max_rule_text_chars - 3] + "..."
             lines.append(f"      Regla: {rule_text}")
