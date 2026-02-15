@@ -1,0 +1,12 @@
+mode,expected_union,expected_intersection,report_has_or,report_has_and,report_has_both_in_one_rule,rule_lines,attempts,status
+base,false,true,false,true,false,90,1,PASS
+default,false,true,false,true,false,90,1,PASS
+hessian_rank,false,true,false,true,false,99,1,PASS
+hessian_filter,false,true,false,true,false,77,1,PASS
+and,false,true,false,true,false,90,1,PASS
+or,true,false,true,false,false,100,1,PASS
+dnf,true,true,true,true,true,60,1,PASS
+and_or_beam,true,true,true,true,true,60,1,PASS
+and_or_random,true,true,true,true,true,60,1,PASS
+and_or_diverse,true,true,true,true,true,9,1,PASS
+and_or_greedy,true,true,true,true,true,56,1,PASS

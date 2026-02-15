@@ -77,3 +77,34 @@ def test_describe_regions_report_details_respects_top_per_class():
     assert result["per_class"][0]["count"] == 2
     assert result["per_class"][1]["count"] == 2
     assert len(result["details"]) == 4
+
+
+
+def test_describe_regions_report_preserves_or_operator_in_rule_text():
+    valuable = {
+        2: [
+            {
+                "region_id": "ror",
+                "target_class": 0,
+                "is_pareto": True,
+                "seed_type": "beam_or",
+                "rule_text": "x0 <= 0 OR x1 <= 0",
+                "rule_pieces": ["x0 <= 0", "x1 <= 0"],
+                "metrics": {
+                    "f1": 0.7,
+                    "precision": 0.8,
+                    "recall": 0.6,
+                    "lift_precision": 1.2,
+                    "size": 10,
+                },
+                "region_summary": {"size": 10, "frac": 0.1},
+                "complexity": {"num_dims": 2, "num_planes": 2},
+                "dims": (0, 1),
+            }
+        ]
+    }
+
+    report = describe_regions_report(valuable, top_per_class=1)
+
+    assert "Regla: x0 <= 0 OR x1 <= 0" in report
+    assert " AND " not in report.split("Regla: ", 1)[1].split("\n", 1)[0]
