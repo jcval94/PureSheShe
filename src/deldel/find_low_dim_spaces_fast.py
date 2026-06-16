@@ -350,7 +350,7 @@ def _build_plane_bank_for_dims(
     Xsub = X[:, dims]
     mu_d = mu[list(dims)]
 
-    ns_sub, bs_eff, sides, plane_ids, plane_refs, ns_full, bs_full = [], [], [], [], [], [], []
+    ns_sub, bs_eff, sides, plane_ids, plane_refs, ns_full, bs_full, n_eff_full = [], [], [], [], [], [], [], []
     for p in planes_cls:
         n_full = np.asarray(p["n"], float).reshape(-1)
         b0     = float(p["b"])
@@ -359,6 +359,8 @@ def _build_plane_bank_for_dims(
         if np.linalg.norm(n_sub) < float(min_norm_in_dims):
             continue
         b_eff = b0 + float(n_full @ mu) - float(n_sub @ mu_d)
+        n_eff = np.zeros_like(n_full)
+        n_eff[list(dims)] = n_sub
         ns_sub.append(n_sub)
         bs_eff.append(b_eff)
         sides.append(sd)
@@ -367,6 +369,7 @@ def _build_plane_bank_for_dims(
                                origin_pair=tuple(p.get("origin_pair",(None,None))),
                                source=p.get("source","pair")))
         ns_full.append(n_full); bs_full.append(b0)
+        n_eff_full.append(n_eff)
 
     if not ns_sub:
         return None, None, None
@@ -382,13 +385,20 @@ def _build_plane_bank_for_dims(
         M[:, ~pos] = H[:, ~pos] >= 0.0
 
     packed_M = _pack_bits_cols(M)                 # (NB, K)
+    rule_planes = tuple(
+        (n_eff_full[j], float(bs_eff[j]), int(sides[j]))
+        for j in range(len(sides))
+    )
+    rule_plane_vacuous = tuple(bool(M[:, j].all()) for j in range(len(sides)))
 
     plane_meta = dict(
         plane_ids = tuple(plane_ids),
         plane_refs= tuple(plane_refs),
         sides     = tuple(int(s) for s in sides),
         ns_full   = tuple(np.asarray(n) for n in ns_full),
-        bs_full   = tuple(float(b) for b in bs_full)
+        bs_full   = tuple(float(b) for b in bs_full),
+        rule_planes= rule_planes,
+        rule_plane_vacuous= rule_plane_vacuous,
     )
     return plane_meta, M, packed_M
 
@@ -406,36 +416,45 @@ def _eval_combos_fast_on_dims_bitset(
     max_planes_in_rule: int,
     sample_limit_per_r: int,
     per_class_floor_topk: int,
-    pieces_fn,                        # callback: (ns, bs, sides_sel, dims, mu)->(rule_text, pieces_txt)
+    pieces_fn,                        # callback: (ns, bs, sides_sel, dims, mu, rule_planes)->(rule_text, pieces_txt)
     make_record_fn,                   # callback -> dict registro
     packed_Y_by_class: Dict[int, np.ndarray],
     include_masks_internal: bool
 ):
     """
     Usa bitsets empaquetados para evaluar combos AND de columnas de M.
-    Devuelve (aceptadas, pool_para_floor, all_records_for_floor)
+    Devuelve (aceptadas, pool_para_floor)
     """
     meta, M_bool, M_packed = _build_plane_bank_for_dims(X, dims, planes_cls, mu, min_norm_in_dims=1e-12)
     if M_packed is None:
-        return [], [], []
+        return [], []
 
     N = X.shape[0]
     K = M_packed.shape[1]
     accepted: List[Dict[str,Any]] = []
     pool: List[Tuple[float,float,int,Dict[str,Any]]] = []
-    all_for_floor: List[Dict[str,Any]] = []
 
     base = float(baseline[int(cls)])
-    cls_idx = labels.index(int(cls))
     total_pos_c = int(_popcount_bits(packed_Y_by_class[int(cls)]))
 
     all_idxs = list(range(K))
+    pool_cap = int(per_class_floor_topk * 3 + 32)
 
     def _maybe_push_pool(rec, f1, lift, size):
+        if pool_cap <= 0:
+            return
         pool.append((float(f1), float(lift), int(size), rec))
-        if len(pool) > int(per_class_floor_topk * 3 + 32):
+        if len(pool) > pool_cap:
             pool.sort(key=lambda t: (t[0], t[1], t[2]), reverse=True)
-            del pool[int(per_class_floor_topk * 3 + 32):]
+            del pool[pool_cap:]
+
+    def _would_enter_pool(f1: float, lift: float, size: int) -> bool:
+        if pool_cap <= 0:
+            return False
+        if len(pool) < pool_cap:
+            return True
+        worst = min((t[0], t[1], t[2]) for t in pool)
+        return (float(f1), float(lift), int(size)) > worst
 
     for r in range(1, int(max_planes_in_rule)+1):
         combos = itertools.combinations(all_idxs, r)
@@ -470,13 +489,21 @@ def _eval_combos_fast_on_dims_bitset(
             else:
                 pass_ok = (ok_f1 or ok_prec)
 
+            keep_for_floor = False if pass_ok else _would_enter_pool(f1, lift, sel)
+            if not pass_ok and not keep_for_floor:
+                continue
+
             plane_ids_sel  = tuple(meta["plane_ids"][j]  for j in idxs)
             plane_refs_sel = tuple(meta["plane_refs"][j] for j in idxs)
             ns_sel   = [meta["ns_full"][j]  for j in idxs]
             bs_sel   = [meta["bs_full"][j]  for j in idxs]
             sides_sel= [meta["sides"][j]    for j in idxs]
+            rule_planes_sel = [
+                (meta["rule_planes"][j], meta["rule_plane_vacuous"][j])
+                for j in idxs
+            ]
 
-            rule_text, pieces_txt = pieces_fn(ns_sel, bs_sel, sides_sel, dims, mu)
+            rule_text, pieces_txt = pieces_fn(ns_sel, bs_sel, sides_sel, dims, mu, rule_planes_sel)
 
             # métricas multiclass completas para ranking/compat.
             per_class, summary = _metrics_region_multiclass_maskbits(mask_bits, packed_Y_by_class, labels, baseline, N)
@@ -488,7 +515,6 @@ def _eval_combos_fast_on_dims_bitset(
                 M_target=M_target, per_class=per_class, summary=summary,
                 mask_bits=mask_bits  # <-- sólo una vez
             )
-            all_for_floor.append(recd)
             if pass_ok:
                 accepted.append(recd)
             else:
@@ -499,7 +525,7 @@ def _eval_combos_fast_on_dims_bitset(
         top_pool = [rec for (_f1,_lift,_sz,rec) in pool[:int(per_class_floor_topk)]]
     else:
         top_pool = []
-    return accepted, top_pool, all_for_floor
+    return accepted, top_pool
 
 # ========================= Función principal =========================
 
@@ -566,8 +592,9 @@ def find_low_dim_spaces(
             if enable_logs and len(logs) < int(max_log_records):
                 logs.append({"t": round(time.time()-t0, 6), "event": event, **kw})
 
-        # Necesitamos máscaras internas si haremos relaciones o uniones
-        _include_masks_internal = bool(include_masks or compute_relations or enable_unions)
+        # Relaciones/uniones usan bitsets compactos; la mascara booleana completa
+        # solo se materializa si el usuario la pide en la salida.
+        _include_masks_internal = bool(include_masks)
 
         rng = np.random.RandomState(int(rng_seed))
         random.seed(int(rng_seed))
@@ -626,7 +653,7 @@ def find_low_dim_spaces(
                 if np.linalg.norm(n_eff[list(dims)]) < float(min_norm_in_dims):
                     continue
                 if check_vacuous and drop_vacuous_in_legend:
-                    h = X @ n_eff + float(b_eff)
+                    h = X[:, dims] @ n_eff[list(dims)] + float(b_eff)
                     mask_plane = (h <= 0.0) if sd_eff >= 0 else (h >= 0.0)
                     if mask_plane.all():
                         continue
@@ -735,16 +762,25 @@ def find_low_dim_spaces(
 
             # recorte global por clase para controlar memoria/tiempo
             if len(cand_limited) > int(max_planes_per_class_cap):
-                cand_limited = random.sample(cand_limited, int(max_planes_per_class_cap))
+                if enable_priority_sorting:
+                    cand_limited = _sort_by_priority(cand_limited)[:int(max_planes_per_class_cap)]
+                else:
+                    cand_limited = random.sample(cand_limited, int(max_planes_per_class_cap))
             _log("candidates_limited", cls=int(cls), after_limit=len(cand_limited))
 
             def _work_on_dims(dims:Tuple[int,...]):
                 mu = _mu_lookup(int(cls))
-                def _pieces_fn(ns, bs, sides, dims_, mu_):
+                def _pieces_fn(ns, bs, sides, dims_, mu_, rule_planes=None):
+                    if rule_planes is not None:
+                        kept = [
+                            plane for plane, is_vacuous in rule_planes
+                            if not (drop_vacuous_in_legend and is_vacuous)
+                        ]
+                        return _canonize_rule_text_from_kept(kept, dims_, feature_names)
                     return _pieces_for_rule(ns, bs, sides, dims_, mu_, check_vacuous=True)[:2]
                 def _mkrec(**kw):
                     return _make_record(**kw, projection_ref=projection_ref)
-                accepted, pool, all_for_floor = _eval_combos_fast_on_dims_bitset(
+                accepted, pool = _eval_combos_fast_on_dims_bitset(
                     X, y, labels, baseline,
                     cand_limited, cls, dims, mu,
                     min_support=min_support,
@@ -765,7 +801,7 @@ def find_low_dim_spaces(
                     packed_Y_by_class=packed_Y_by_class,
                     include_masks_internal=_include_masks_internal
                 )
-                return accepted, pool, all_for_floor
+                return accepted, pool
 
             dims_jobs = []
             for dim_k in range(1, consider_dims_up_to+1):
@@ -781,7 +817,7 @@ def find_low_dim_spaces(
                 results = [ _work_on_dims(dims) for (_k, dims) in dims_jobs ]
 
             # integrar resultados
-            for (accepted, pool, all_for_floor), (_k, dims) in zip(results, dims_jobs):
+            for (accepted, pool), (_k, dims) in zip(results, dims_jobs):
                 dim_k = len(dims)
                 for rec in accepted:
                     all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
@@ -789,8 +825,6 @@ def find_low_dim_spaces(
                     all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
                 for rec in accepted:
                     _accept_record(rec, dim_k, int(cls))
-                for rec in all_for_floor:
-                    all_candidates_by_dim_cls.setdefault((dim_k, int(cls)), []).append(rec)
 
         # ------- cobertura por clase (floor) ------
         for dim_k in range(1, consider_dims_up_to+1):

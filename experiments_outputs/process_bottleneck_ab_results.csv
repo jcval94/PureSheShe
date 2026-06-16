@@ -1,0 +1,8 @@
+variant,proposal,bottleneck_addressed,implemented,decision,repetitions,mean_runtime_s,median_runtime_s,speedup_vs_original,total_regions,top3_rows,mean_top3_f1,mean_top3_lift,delta_mean_top3_f1,delta_mean_top3_lift,output_similarity_top3
+original_head,Original algorithm,baseline,baseline,reference,5,0.164653,0.170928,1.000000,14,8,0.473738,1.933871,0.000000,0.000000,1.000000
+implemented_internal_fast_path,"Precompute rule pieces, keep compact masks, top-only floor, priority cap",repeated rule construction; excess floor records; mask materialization; random cap,yes,keep,5,0.114285,0.113322,1.440721,14,8,0.473738,1.933871,0.000000,0.000000,1.000000
+config_no_relations,Skip relation/family graph after ranking,pairwise subset checks for final regions,no,do not default; metadata loss,5,0.138386,0.122588,1.189806,14,8,0.473738,1.933871,0.000000,0.000000,1.000000
+config_no_unions,Skip OR-union expansion,union pair evaluation,no,do not default; output less complete,5,0.110289,0.110847,1.492929,14,8,0.473738,1.933871,0.000000,0.000000,1.000000
+config_no_unions_no_relations,Minimal post-processing,union pair evaluation and relation graph,no,fast option only; too much metadata loss,5,0.077225,0.075724,2.132133,14,8,0.473738,1.933871,0.000000,0.000000,1.000000
+support_first_existing,Favor high-support two-plane rules,combination explosion,already available,keep as opt-in preset,5,0.096538,0.094058,1.705580,14,8,0.473738,1.933871,0.000000,0.000000,1.000000
+deterministic_existing,Disable unions and relation graph for deterministic compact output,post-processing cost and output size,already available,keep as opt-in preset,5,0.070663,0.069186,2.330114,14,8,0.473738,1.933871,0.000000,0.000000,1.000000
