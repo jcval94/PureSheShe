@@ -1,5 +1,7 @@
 # DelDel
 
+[![Abrir tour visual en Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jcval94/PureSheShe/blob/main/notebooks/deldel_visual_tour.ipynb)
+
 DelDel es una biblioteca ligera para instrumentar clasificadores y descubrir reglas en subespacios de baja dimensión. La
 configuración por defecto se centra en el `MultiClassSubspaceExplorer`, que ahora puede ejecutarse con un bundle curado de los
 cinco mejores métodos derivados del análisis multi-dataset.
@@ -16,7 +18,7 @@ El proyecto utiliza la convención de *src layout* y, gracias a la configuració
 `subspaces` quedan disponibles tras la instalación. Todo el proceso se resume en un único bloque de comandos:
 
 ```bash
-git clone https://github.com/<usuario>/PureSheShe.git
+git clone https://github.com/jcval94/PureSheShe.git
 cd PureSheShe
 pip install .        # instalación estándar (incluye subspaces.*)
 # o, para desarrollo editable con extras:
@@ -335,6 +337,10 @@ variables) guardando el Top-5 por clase en CSV mediante
   empujan los hiperparámetros al límite del pipeline.【F:experiments_outputs/high_dim_metrics_by_region.csv†L1-L10】
 
 ## Visualización interactiva de fronteras y superficies
+
+El notebook [`notebooks/deldel_visual_tour.ipynb`](notebooks/deldel_visual_tour.ipynb) reúne un recorrido ejecutable, con
+énfasis en las visualizaciones nativas: PCA y matriz de dispersión, fronteras ponderadas, superficies cuadráticas, familias de
+planos, métricas de reglas y regiones interactivas. Puede abrirse directamente con el badge de Colab al inicio del README.
 
 ```python
 from deldel import compute_frontier_planes_weighted, plot_frontiers_implicit_interactive_v2
@@ -892,6 +898,7 @@ completo con reclustering habilitado.
 
 - `subspaces/scripts/run_multi_dataset_method_analysis.py`: produce los rankings históricos por dataset y el top 5 global.
 - `tests/test_core_method_bundle.py`: comprueba la paridad entre el bundle y las ejecuciones individuales.
+- `notebooks/deldel_visual_tour.ipynb`: tour visual ejecutable localmente o en Google Colab.
 - `docs/COLAB.md`: guía paso a paso para clonar, instalar y usar DelDel dentro de Google Colab.
 
 ### Uso rápido en Google Colab
@@ -899,7 +906,7 @@ completo con reclustering habilitado.
 1. Abra un notebook nuevo y ejecute:
 
    ```python
-   !git clone https://github.com/<usuario>/PureSheShe.git
+   !git clone https://github.com/jcval94/PureSheShe.git
    %cd PureSheShe
    !pip install .
    ```

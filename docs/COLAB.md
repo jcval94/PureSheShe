@@ -1,6 +1,11 @@
 # Uso de DelDel en Google Colab
 
+[![Abrir el tour visual en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/jcval94/PureSheShe/blob/main/notebooks/deldel_visual_tour.ipynb)
+
 Esta guía explica los pasos para clonar el repositorio, instalar la biblioteca mediante `pip install .` y verificar que Colab reconozca el paquete `deldel`.
+
+Para empezar con un ejemplo completo, abre `notebooks/deldel_visual_tour.ipynb` con el badge anterior. El notebook clona e
+instala el proyecto automáticamente y prioriza sus capacidades gráficas interactivas.
 
 ## Requisitos previos
 
@@ -12,7 +17,7 @@ Esta guía explica los pasos para clonar el repositorio, instalar la biblioteca 
 1. **Clonar el repositorio**
 
    ```python
-   !git clone https://github.com/<usuario>/PureSheShe.git
+   !git clone https://github.com/jcval94/PureSheShe.git
    %cd PureSheShe
    ```
 

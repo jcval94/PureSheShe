@@ -35,4 +35,5 @@ subspaces = "subspaces"
 "subspaces.experiments" = "subspaces/experiments"
 
 [project.urls]
-Homepage = "https://example.com/deldel"
+Homepage = "https://github.com/jcval94/PureSheShe"
+Notebook = "https://colab.research.google.com/github/jcval94/PureSheShe/blob/main/notebooks/deldel_visual_tour.ipynb"
